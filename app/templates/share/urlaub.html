@@ -1,0 +1,59 @@
+{% extends "share/_base.html" %}
+{% block title %}Urlaub{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Urlaub eintragen</h1>
+    <p class="page-subtitle">In Schulwochen ist kein Urlaub möglich – solche Wochen werden übersprungen.</p>
+  </div>
+</div>
+
+<div class="card card-body" style="margin-bottom:20px">
+  <form method="post" action="/mein-plan/{{ token }}/urlaub" class="share-urlaub-form">
+    <div class="share-field">
+      <label>KW von</label>
+      <input type="number" name="kw" min="1" max="53" required>
+    </div>
+    <div class="share-field">
+      <label>Jahr</label>
+      <input type="number" name="jahr" required>
+    </div>
+    <div class="share-field">
+      <label>KW bis (optional)</label>
+      <input type="number" name="kw_end" min="1" max="53" placeholder="–">
+    </div>
+    <div class="share-field">
+      <label>Jahr bis</label>
+      <input type="number" name="jahr_end" placeholder="–">
+    </div>
+    <button type="submit" class="btn btn-primary">Urlaub eintragen</button>
+  </form>
+</div>
+
+<div class="table-wrapper">
+  {% if own_urlaub %}
+  <table class="share-urlaub-list">
+    <thead><tr><th>KW</th><th>Jahr</th><th></th></tr></thead>
+    <tbody>
+      {% for u in own_urlaub %}
+      <tr>
+        <td class="mono">{{ u.kw }}</td>
+        <td class="mono">{{ u.jahr }}</td>
+        <td class="td-actions">
+          <form method="post" action="/mein-plan/{{ token }}/urlaub/loeschen"
+                onsubmit="return confirm('Urlaub in KW {{ u.kw }}/{{ u.jahr }} entfernen?')">
+            <input type="hidden" name="assignment_id" value="{{ u.id }}">
+            <button type="submit" class="btn btn-ghost-danger btn-sm">Entfernen</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty-state">Noch kein selbst eingetragener Urlaub.</div>
+  {% endif %}
+</div>
+
+{% endblock %}

@@ -25,7 +25,7 @@
     </thead>
     <tbody>
       {% for y in years %}
-      <tr id="row-sy-{{ y.id }}">
+      <tr id="row-sy-{{ y.id }}" data-href="/lehrjahre/{{ y.id }}/bearbeiten">
         <td><span class="mono">{{ y.id }}</span></td>
         <td>KW&nbsp;{{ y.start_kw }}/{{ y.start_year }}</td>
         <td>KW&nbsp;{{ y.end_kw }}/{{ y.end_year }}</td>

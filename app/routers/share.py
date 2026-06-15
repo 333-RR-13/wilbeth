@@ -67,18 +67,30 @@ def _school_weeks_for_trainee(db: Session, trainee: Trainee) -> set[str]:
     return result
 
 
-# ── Mein-Plan-Seite ───────────────────────────────────────────────────────────
+# ── Meine Einsätze (single-row matrix) ──────────────────────────────────────
 
 @router.get("/{token}", response_class=HTMLResponse)
 def my_plan(request: Request, token: str, db: DB):
     trainee = _trainee_by_token(db, token)
 
-    assignments = db.exec(
+    # Determine which schoolyear to show
+    years_all = db.exec(select(Schoolyear).order_by(Schoolyear.start_year.desc())).all()
+    selected_param = request.query_params.get("schoolyear_id", "")
+    sy = db.get(Schoolyear, selected_param) if selected_param else None
+    if sy is None:
+        _t = date.today().isocalendar()
+        sy = _schoolyear_for_week(db, _t.week, _t.year)
+    if sy is None and years_all:
+        sy = years_all[0]
+
+    # Find schoolyears that have assignments for this trainee (for year-switch links)
+    all_assignments = db.exec(
         select(Assignment)
         .where(Assignment.trainee_id == trainee.id)
         .order_by(Assignment.jahr, Assignment.kw)
     ).all()
-    cell_map = {f"{a.kw},{a.jahr}": a for a in assignments}
+    trainee_year_ids = sorted({a.schoolyear_id for a in all_assignments})
+    years_with_assignments = [y for y in years_all if y.id in trainee_year_ids]
 
     depts = {d.id: d for d in db.exec(select(Department)).all()}
     school_weeks = _school_weeks_for_trainee(db, trainee)
@@ -86,38 +98,19 @@ def my_plan(request: Request, token: str, db: DB):
     _today = date.today().isocalendar()
     today_key = (_today.week, _today.year)
 
-    # Pro Lehrjahr (in dem es Einsaetze gibt) ein Wochen-Band aufbauen
-    year_ids = sorted({a.schoolyear_id for a in assignments})
-    bands = []
-    for sy_id in year_ids:
-        sy = db.get(Schoolyear, sy_id)
-        if not sy:
-            continue
-        weeks = []
+    weeks = []
+    cell_map: dict[int, dict[str, Assignment]] = {}
+
+    if sy:
+        sy_assignments = {f"{a.kw},{a.jahr}": a for a in all_assignments if a.schoolyear_id == sy.id}
+        cell_map[trainee.id] = sy_assignments
         for kw, jahr in iter_schoolyear_weeks(sy.start_kw, sy.start_year, sy.end_kw, sy.end_year):
-            key = f"{kw},{jahr}"
             weeks.append({
                 "kw": kw,
                 "jahr": jahr,
                 "monday": kw_to_monday(kw, jahr),
                 "is_today": (kw, jahr) == today_key,
-                "is_school": key in school_weeks,
-                "a": cell_map.get(key),
             })
-        bands.append({"schoolyear_id": sy_id, "weeks": weeks})
-
-    # Eigene (selbst eingetragene) Urlaube fuer die Loeschen-Liste
-    own_urlaub = [
-        a for a in assignments
-        if a.typ == AssignmentTyp.URLAUB and a.source == AssignmentSource.SELBST
-    ]
-
-    # Wuensche
-    wishes = {
-        w.department_id: w.prioritaet
-        for w in db.exec(select(TraineeWish).where(TraineeWish.trainee_id == trainee.id)).all()
-    }
-    all_depts = db.exec(select(Department).order_by(Department.code)).all()
 
     # Schultage-Hinweis (nur Wochentag-Schule)
     schul_tage = ""
@@ -128,15 +121,20 @@ def my_plan(request: Request, token: str, db: DB):
     return templates.TemplateResponse(request, "share/plan.html", {
         "trainee": trainee,
         "token": token,
-        "bands": bands,
+        "active": "einsaetze",
+        "trainees": [trainee],
+        "weeks": weeks,
+        "cell_map": cell_map,
+        "school_weeks": school_weeks,
         "depts": depts,
-        "own_urlaub": own_urlaub,
-        "wishes": wishes,
-        "wunsch_notiz": trainee.wunsch_notiz,
-        "all_depts": all_depts,
+        "highlight_id": trainee.id,
+        "selected_year": sy.id if sy else "",
+        "years": years_with_assignments,
         "schul_tage": schul_tage,
     })
 
+
+# ── Meine Klasse ─────────────────────────────────────────────────────────────
 
 @router.get("/{token}/klasse", response_class=HTMLResponse)
 def my_class(request: Request, token: str, db: DB):
@@ -147,9 +145,11 @@ def my_class(request: Request, token: str, db: DB):
 
     if klasse is None or not years:
         return templates.TemplateResponse(request, "share/klasse.html", {
-            "trainee": trainee, "token": token, "klasse": klasse,
+            "trainee": trainee, "token": token, "active": "klasse",
+            "klasse": klasse,
             "classmates": [], "weeks": [], "cell_map": {}, "school_weeks": set(),
             "depts": {}, "selected_year": "", "years": years, "schul_tage": "",
+            "trainees": [], "highlight_id": trainee.id,
         })
 
     # Lehrjahr: Query-Param, sonst das mit dem heutigen Datum, sonst neuestes
@@ -197,14 +197,40 @@ def my_class(request: Request, token: str, db: DB):
     depts = {d.id: d for d in db.exec(select(Department)).all()}
 
     return templates.TemplateResponse(request, "share/klasse.html", {
-        "trainee": trainee, "token": token, "klasse": klasse,
-        "classmates": classmates, "weeks": weeks, "cell_map": cell_map,
+        "trainee": trainee, "token": token, "active": "klasse",
+        "klasse": klasse,
+        "classmates": classmates,
+        "trainees": classmates,          # alias for week_matrix partial
+        "highlight_id": trainee.id,
+        "weeks": weeks, "cell_map": cell_map,
         "school_weeks": school_weeks, "depts": depts,
         "selected_year": sy.id, "years": years, "schul_tage": schul_tage,
     })
 
 
-# ── Urlaub eintragen / loeschen ─────────────────────────────────────────────────
+# ── Urlaub-Seite ─────────────────────────────────────────────────────────────
+
+@router.get("/{token}/urlaub", response_class=HTMLResponse)
+def urlaub_page(request: Request, token: str, db: DB):
+    trainee = _trainee_by_token(db, token)
+
+    own_urlaub = db.exec(
+        select(Assignment).where(
+            Assignment.trainee_id == trainee.id,
+            Assignment.typ == AssignmentTyp.URLAUB,
+            Assignment.source == AssignmentSource.SELBST,
+        ).order_by(Assignment.jahr, Assignment.kw)
+    ).all()
+
+    return templates.TemplateResponse(request, "share/urlaub.html", {
+        "trainee": trainee,
+        "token": token,
+        "active": "urlaub",
+        "own_urlaub": own_urlaub,
+    })
+
+
+# ── Urlaub eintragen / loeschen ─────────────────────────────────────────────
 
 @router.post("/{token}/urlaub", response_class=RedirectResponse)
 def add_urlaub(
@@ -240,7 +266,7 @@ def add_urlaub(
     db.commit()
 
     return RedirectResponse(
-        f"/mein-plan/{token}?msg=urlaub&n={created}&s={skipped}", status_code=303
+        f"/mein-plan/{token}/urlaub?msg=urlaub&n={created}&s={skipped}", status_code=303
     )
 
 
@@ -261,10 +287,32 @@ def delete_urlaub(
     ):
         db.delete(a)
         db.commit()
-    return RedirectResponse(f"/mein-plan/{token}?msg=urlaub_geloescht", status_code=303)
+    return RedirectResponse(f"/mein-plan/{token}/urlaub?msg=urlaub_geloescht", status_code=303)
 
 
-# ── Wuensche pflegen ────────────────────────────────────────────────────────────
+# ── Wuensche-Seite ──────────────────────────────────────────────────────────
+
+@router.get("/{token}/wuensche", response_class=HTMLResponse)
+def wuensche_page(request: Request, token: str, db: DB):
+    trainee = _trainee_by_token(db, token)
+
+    wishes = {
+        w.department_id: w.prioritaet
+        for w in db.exec(select(TraineeWish).where(TraineeWish.trainee_id == trainee.id)).all()
+    }
+    all_depts = db.exec(select(Department).order_by(Department.code)).all()
+
+    return templates.TemplateResponse(request, "share/wuensche.html", {
+        "trainee": trainee,
+        "token": token,
+        "active": "wuensche",
+        "wishes": wishes,
+        "wunsch_notiz": trainee.wunsch_notiz or "",
+        "all_depts": all_depts,
+    })
+
+
+# ── Wuensche pflegen ────────────────────────────────────────────────────────
 
 @router.post("/{token}/wuensche", response_class=RedirectResponse)
 async def save_wishes(token: str, request: Request, db: DB):
@@ -282,10 +330,10 @@ async def save_wishes(token: str, request: Request, db: DB):
 
     trainee.wunsch_notiz = (form.get("wunsch_notiz") or "").strip()
     db.commit()
-    return RedirectResponse(f"/mein-plan/{token}?msg=wuensche", status_code=303)
+    return RedirectResponse(f"/mein-plan/{token}/wuensche?msg=wuensche", status_code=303)
 
 
-# ── ICS-Export ──────────────────────────────────────────────────────────────────
+# ── ICS-Export ──────────────────────────────────────────────────────────────
 
 def _ics_escape(text: str) -> str:
     return (

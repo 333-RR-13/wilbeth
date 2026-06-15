@@ -109,8 +109,10 @@ def seed_classes(session: Session) -> dict[str, TraineeClass]:
     result: dict[str, TraineeClass] = {}
     # (name, schule, typ, schul_wochentage, halbtag_wochentag)
     rows: list[tuple[str, str, UnterrichtsTyp, str, int | None]] = [
+        ("FISI 1. LJ",                "Josef-Durler Rastatt",     UnterrichtsTyp.BLOCK_FEST, "",    None),
         ("FISI 2. LJ",                "Josef-Durler Rastatt",     UnterrichtsTyp.BLOCK_FEST, "",    None),
         ("FISI 3. LJ",                "Josef-Durler Rastatt",     UnterrichtsTyp.BLOCK_FEST, "",    None),
+        ("FIAE 1. LJ",                "Heinrich-Hertz Karlsruhe", UnterrichtsTyp.BLOCK_FEST, "",    None),
         ("FIAE 2. LJ",                "Heinrich-Hertz Karlsruhe", UnterrichtsTyp.BLOCK_FEST, "",    None),
         ("FIAE 3. LJ",                "Heinrich-Hertz Karlsruhe", UnterrichtsTyp.BLOCK_FEST, "",    None),
         ("DHBW Wirtschaftsinformatik","DHBW Karlsruhe",           UnterrichtsTyp.DH_PHASEN,  "",    None),

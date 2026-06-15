@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Mein Plan{% endblock %} – {{ trainee.vorname }} {{ trainee.nachname }}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="layout">
+
+  <!-- ── Azubi-Sidebar ─────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <a href="/mein-plan/{{ token }}" class="sidebar-logo">
+        <div class="sidebar-logo-icon">W</div>
+        Wilbeth
+      </a>
+      <div style="margin-top:8px; font-size:13px; color:rgba(255,255,255,0.55); padding:0 2px;">
+        {{ trainee.vorname }} {{ trainee.nachname }}
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a href="/mein-plan/{{ token }}"
+         class="nav-link {% if active == 'einsaetze' %}active{% endif %}">
+        <svg viewBox="0 0 16 16" fill="currentColor">
+          <path d="M2 2h12v1H2zm0 3h12v1H2zm0 3h8v1H2zm0 3h5v1H2zm9-1 3 3-3 3v-2H8v-2h3V7z"/>
+        </svg>
+        Meine Einsätze
+      </a>
+      <a href="/mein-plan/{{ token }}/klasse"
+         class="nav-link {% if active == 'klasse' %}active{% endif %}">
+        <svg viewBox="0 0 16 16" fill="currentColor">
+          <path d="M5 3.5a3 3 0 1 1 6 0 3 3 0 0 1-6 0zm3-1.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM0 13c0-3.3 3.1-6 8-6s8 2.7 8 6H0z"/>
+        </svg>
+        Meine Klasse
+      </a>
+      <a href="/mein-plan/{{ token }}/urlaub"
+         class="nav-link {% if active == 'urlaub' %}active{% endif %}">
+        <svg viewBox="0 0 16 16" fill="currentColor">
+          <path d="M11 1h1v2H4V1h1V0h1v1h4V0h1v1zM2 4h12v11H2V4zm1 1v9h10V5H3zm2 1h1v1H5V6zm2 0h1v1H7V6zm2 0h1v1H9V6zm2 0h1v1h-1V6zM5 8h1v1H5V8zm2 0h1v1H7V8zm2 0h1v1H9V8zm2 0h1v1h-1V8zM5 10h1v1H5v-1zm2 0h1v1H7v-1zm2 0h1v1H9v-1zm2 0h1v1h-1v-1z"/>
+        </svg>
+        Urlaub
+      </a>
+      <a href="/mein-plan/{{ token }}/wuensche"
+         class="nav-link {% if active == 'wuensche' %}active{% endif %}">
+        <svg viewBox="0 0 16 16" fill="currentColor">
+          <path d="M8 1l1.9 3.8 4.1.6-3 2.9.7 4.1L8 10.4l-3.7 1.9.7-4.1-3-2.9 4.1-.6z"/>
+        </svg>
+        Wünsche
+      </a>
+      <a href="/mein-plan/{{ token }}/calendar.ics"
+         class="nav-link {% if active == 'ics' %}active{% endif %}">
+        <svg viewBox="0 0 16 16" fill="currentColor">
+          <path d="M4 7h2v2H4zm3 0h2v2H7zm3 0h2v2h-2zM4 10h2v2H4zm3 0h2v2H7zm3 0h2v2h-2zM11 1h1v2H4V1h1V0h1v1h4V0h1v1zM2 4h12v11H2V4zm1 1v9h10V5H3z"/>
+        </svg>
+        Kalender (.ics)
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <a href="/ueber-wilbeth" class="nav-link">
+        <svg viewBox="0 0 16 16" fill="currentColor">
+          <path d="M13.6 10.4a6.4 6.4 0 0 1-8-8 6.5 6.5 0 1 0 8 8z"/>
+          <circle cx="11.5" cy="3.5" r="1"/>
+          <circle cx="13.8" cy="6.2" r="0.7"/>
+        </svg>
+        Über Wilbeth
+      </a>
+    </div>
+  </aside>
+
+  <!-- ── Main Content ─────────────────────────────── -->
+  <main class="main-content">
+    <div class="content-inner">
+
+      {# Flash-Nachrichten aus Query-Parameter #}
+      {% set msg = request.query_params.get('msg') %}
+      {% if msg == 'urlaub' %}
+        <div class="flash flash-success">
+          {{ request.query_params.get('n', '0') }} Urlaubswoche(n) eingetragen.
+          {% if request.query_params.get('s', '0') != '0' %}
+            {{ request.query_params.get('s') }} übersprungen (Schulwoche oder bereits verplant).
+          {% endif %}
+        </div>
+      {% elif msg == 'urlaub_geloescht' %}
+        <div class="flash flash-info">Urlaub entfernt.</div>
+      {% elif msg == 'wuensche' %}
+        <div class="flash flash-success">Wünsche gespeichert.</div>
+      {% endif %}
+
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+
+</div>
+</body>
+</html>

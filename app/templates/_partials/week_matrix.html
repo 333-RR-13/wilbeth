@@ -1,0 +1,56 @@
+{#
+  Read-only matrix partial.
+  Context:
+    weeks        – list of {kw, jahr, monday, is_today}
+    trainees     – list of Trainee objects
+    cell_map     – dict  trainee_id -> {"kw,jahr": Assignment}
+    school_weeks – set of "kw,jahr"
+    depts        – dict  dept_id -> Department
+    highlight_id – int|None  (row gets is-self + "du"-tag)
+#}
+<div class="matrix-scroll">
+  <table class="matrix-table">
+    <thead>
+      <tr>
+        <th class="matrix-th-name">Trainee</th>
+        {% for w in weeks %}
+        <th class="matrix-th-kw{% if w.is_today %} is-today{% endif %}"
+            title="KW {{ w.kw }} / {{ w.jahr }} – ab Mo {{ w.monday.strftime('%d.%m.%Y') }}">
+          <span class="th-kw-num">{{ w.kw }}</span>
+          <span class="th-kw-date">{{ w.monday.strftime('%d.%m.') }}</span>
+        </th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in trainees %}
+      {% set t_cells = cell_map.get(t.id, {}) %}
+      <tr class="{{ 'is-self' if t.id == highlight_id else '' }}">
+        <td class="matrix-td-name">
+          {{ t.nachname }}, {{ t.vorname }}
+          {% if t.id == highlight_id %}<span class="self-tag">du</span>{% endif %}
+        </td>
+        {% for w in weeks %}
+        {% set cell_key = w.kw ~ "," ~ w.jahr %}
+        {% set a = t_cells.get(cell_key) %}
+        {% set is_school = cell_key in school_weeks %}
+        <td class="matrix-cell{% if is_school %} mc-school{% endif %}{% if w.is_today %} mc-today{% endif %}">
+          {% if a %}
+            {% if a.typ.value == 'ABTEILUNG' %}
+              <span class="cell-chip cell-ABTEILUNG"
+                    title="{{ depts[a.abteilung_id].code if a.abteilung_id and a.abteilung_id in depts else 'Abteilung' }}">
+                {{ depts[a.abteilung_id].code if a.abteilung_id and a.abteilung_id in depts else 'ABT' }}
+              </span>
+            {% elif a.typ.value == 'BERUFSSCHULE' %}<span class="cell-chip cell-BERUFSSCHULE">BS</span>
+            {% elif a.typ.value == 'UNI' %}<span class="cell-chip cell-UNI">UNI</span>
+            {% elif a.typ.value == 'URLAUB' %}<span class="cell-chip cell-URLAUB">URL</span>
+            {% else %}<span class="cell-chip cell-FREI">FRE</span>
+            {% endif %}
+          {% endif %}
+        </td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

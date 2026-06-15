@@ -54,13 +54,43 @@ def test_my_plan_valid_token(client, session):
     r = client.get(f"/mein-plan/{TOKEN}")
     assert r.status_code == 200
     assert "Anton" in r.text
-    assert "Mein Einsatzplan" in r.text
+    assert "Meine Einsätze" in r.text
 
 
 def test_my_plan_invalid_token(client, session):
     _setup(session)
     r = client.get("/mein-plan/gibt-es-nicht")
     assert r.status_code == 404
+
+
+def test_my_plan_sidebar_links(client, session):
+    _setup(session)
+    r = client.get(f"/mein-plan/{TOKEN}")
+    assert r.status_code == 200
+    # Linke Bar verlinkt alle Bereiche + Über Wilbeth
+    for href in [
+        f"/mein-plan/{TOKEN}/klasse",
+        f"/mein-plan/{TOKEN}/urlaub",
+        f"/mein-plan/{TOKEN}/wuensche",
+        "/ueber-wilbeth",
+    ]:
+        assert href in r.text
+    # Einzeilen-Matrix mit KW-Headern
+    assert "th-kw-num" in r.text
+
+
+def test_urlaub_page_renders(client, session):
+    _setup(session)
+    r = client.get(f"/mein-plan/{TOKEN}/urlaub")
+    assert r.status_code == 200
+    assert "Urlaub" in r.text
+
+
+def test_wuensche_page_renders(client, session):
+    _setup(session)
+    r = client.get(f"/mein-plan/{TOKEN}/wuensche")
+    assert r.status_code == 200
+    assert "Wünsche" in r.text or "Priorität" in r.text
 
 
 # ── Urlaub eintragen ─────────────────────────────────────────────

@@ -31,7 +31,7 @@
     </thead>
     <tbody>
       {% for t in trainees %}
-      <tr id="row-t-{{ t.id }}">
+      <tr id="row-t-{{ t.id }}" data-href="/trainees/{{ t.id }}">
         <td><a href="/trainees/{{ t.id }}" class="trainee-name-link"><strong>{{ t.nachname }}, {{ t.vorname }}</strong></a></td>
         <td class="td-muted">
           {% if t.klasse_id and t.klasse_id in classes %}

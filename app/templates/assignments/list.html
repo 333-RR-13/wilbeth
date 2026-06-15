@@ -47,7 +47,7 @@
     <tbody>
       {% for a in assignments %}
       {% set t = trainee_map.get(a.trainee_id) %}
-      <tr id="row-a-{{ a.id }}">
+      <tr id="row-a-{{ a.id }}" data-href="/einsaetze/{{ a.id }}/bearbeiten">
         <td>{{ t.nachname ~ ', ' ~ t.vorname if t else '–' }}</td>
         <td><strong>KW {{ a.kw }}</strong></td>
         <td class="td-muted">{{ a.jahr }}</td>

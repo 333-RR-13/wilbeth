@@ -105,5 +105,23 @@
 
 </div>
 <script src="/static/htmx.min.js"></script>
+<script>
+(function () {
+  document.addEventListener('click', function (e) {
+    var tr = e.target.closest('tr[data-href]');
+    if (!tr) return;
+    // Ignore clicks on or inside interactive elements / action cells
+    var skip = ['a', 'button', 'input', 'select', 'label', 'form'];
+    var el = e.target;
+    while (el && el !== tr) {
+      var tag = el.tagName ? el.tagName.toLowerCase() : '';
+      if (skip.indexOf(tag) !== -1) return;
+      if (el.classList && el.classList.contains('td-actions')) return;
+      el = el.parentElement;
+    }
+    window.location.href = tr.dataset.href;
+  });
+})();
+</script>
 </body>
 </html>

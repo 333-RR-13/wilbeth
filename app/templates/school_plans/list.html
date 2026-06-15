@@ -27,7 +27,7 @@
     <tbody>
       {% for p in plans %}
       {% set cls = classes.get(p.klasse_id) %}
-      <tr id="row-sp-{{ p.id }}">
+      <tr id="row-sp-{{ p.id }}" data-href="/schulplaene/{{ p.id }}">
         <td><strong>{{ cls.name if cls else '–' }}</strong></td>
         <td class="td-muted">{{ p.schoolyear_id }}</td>
         <td>

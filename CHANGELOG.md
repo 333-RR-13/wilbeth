@@ -6,6 +6,22 @@ Format orientiert an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
 ## [Unreleased]
 
+### Bedienbarkeit & Azubi-Navigation
+
+#### Admin
+- **Klickbare Tabellenzeilen** in allen Stammdaten-Listen: Ein Klick auf die Zeile öffnet das Ziel (Trainees → Detailseite, Klassen → neue Klassen-Detailseite, übrige Listen → Bearbeiten). Globales `data-href`-Skript in `base.html`, das Klicks auf Buttons/Links/Formulare ignoriert (Löschen bleibt sicher).
+- **Klassen-Detailseite** `GET /klassen/{id}`: Klassenname, Typ-Badge (inkl. Schultage bei TAGE_FEST) und eine **Mitglieder-Checkliste** aller Azubis (Haken = in dieser Klasse). `POST /klassen/{id}/mitglieder` setzt/entfernt `klasse_id` entsprechend; Trainees aus anderen Klassen werden mit Hinweis angezeigt. Alle dynamischen Klassen-Routen mit `:int`-Pfadkonverter abgesichert.
+- **Seed**: `FISI 1. LJ` + `FIAE 1. LJ` als neue 1. Lehrjahre (BLOCK_FEST, leere Schulpläne, keine BS-Wochen/Trainees).
+
+#### Azubi-Sicht
+- **Linke Sidebar statt Tabs**: gemeinsames Layout `share/_base.html` mit „Meine Einsätze", „Meine Klasse", „Urlaub", „Wünsche", „Kalender (.ics)" und unten „Über Wilbeth" (Link auf die bestehende Seite).
+- **„Meine Einsätze"** ist jetzt eine **Einzeilen-Matrix** (KW + Datum-Header, Heute-/Schulwochen-Markierung, Schultag-Hinweis) statt Band + Liste.
+- **Urlaub** und **Wünsche** sind eigene Seiten (`/mein-plan/{token}/urlaub`, `/mein-plan/{token}/wuensche`).
+- **Geteiltes read-only Matrix-Partial** `_partials/week_matrix.html` für „Meine Einsätze" und „Meine Klasse".
+
+#### Tests
+- `tests/test_klassen_detail.py` (Detailseite, Mitglieder-Zuweisung, 1.-LJ im Seed) + erweiterte `tests/test_share.py` (Sidebar-Links, Urlaub-/Wünsche-Seiten rendern). Gesamt-Suite **77 grün**.
+
 ### Sprint 6 – Multi-Beruf & Wochentag-Schule
 
 #### Hinzugefügt

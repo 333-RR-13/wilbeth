@@ -229,6 +229,8 @@ tbody tr {
   transition: background 0.1s;
 }
 
+tr[data-href] { cursor: pointer; }
+
 tbody tr:last-child { border-bottom: none; }
 
 tbody tr:hover { background: #fafbfc; }
@@ -540,6 +542,33 @@ tr.htmx-swapping td { opacity: 0; transition: opacity 0.15s; }
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: 16px;
+}
+
+/* ── Member checklist (Klassen-Detailseite) ─────────────────────── */
+.member-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.member-check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.member-check-row input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.member-other-class {
+  font-size: 12px;
 }
 
 /* ── Matrix ─────────────────────────────────────────────────────── */

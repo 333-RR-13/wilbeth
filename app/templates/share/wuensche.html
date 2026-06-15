@@ -1,0 +1,45 @@
+{% extends "share/_base.html" %}
+{% block title %}Wünsche{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Meine Wünsche</h1>
+    <p class="page-subtitle">Priorität 1 = am wichtigsten. Leer = kein Wunsch. Die Planerin sieht deine Auswahl.</p>
+  </div>
+</div>
+
+<div class="card card-body">
+  <form method="post" action="/mein-plan/{{ token }}/wuensche">
+    <table class="share-wish-table">
+      <thead><tr><th>Abteilung</th><th>Priorität</th></tr></thead>
+      <tbody>
+        {% for d in all_depts %}
+        <tr>
+          <td>{{ d.code }} – {{ d.name }}</td>
+          <td>
+            <select name="prio_{{ d.id }}">
+              <option value="" {{ 'selected' if d.id not in wishes else '' }}>–</option>
+              {% for p in [1, 2, 3] %}
+              <option value="{{ p }}" {{ 'selected' if wishes.get(d.id) == p else '' }}>{{ p }}</option>
+              {% endfor %}
+            </select>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="share-field share-field-block">
+      <label for="wunsch_notiz">Zeitwünsche &amp; Sonstiges (Freitext)</label>
+      <textarea id="wunsch_notiz" name="wunsch_notiz" rows="3"
+                placeholder="z. B. „CP möglichst vor der Zwischenprüfung"">{{ wunsch_notiz }}</textarea>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Wünsche speichern</button>
+    </div>
+  </form>
+</div>
+
+{% endblock %}

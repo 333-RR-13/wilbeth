@@ -27,7 +27,7 @@
     </thead>
     <tbody>
       {% for d in departments %}
-      <tr id="row-d-{{ d.id }}">
+      <tr id="row-d-{{ d.id }}" data-href="/abteilungen/{{ d.id }}/bearbeiten">
         <td><span class="mono">{{ d.code }}</span></td>
         <td>{{ d.name }}</td>
         <td>

@@ -26,7 +26,7 @@
     </thead>
     <tbody>
       {% for h in holidays %}
-      <tr id="row-h-{{ h.id }}">
+      <tr id="row-h-{{ h.id }}" data-href="/schulferien/{{ h.id }}/bearbeiten">
         <td><strong>{{ h.name }}</strong></td>
         <td><span class="mono">{{ h.schoolyear_id }}</span></td>
         <td>KW&nbsp;{{ h.start_kw }}/{{ h.start_year }}</td>
