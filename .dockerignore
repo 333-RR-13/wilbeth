@@ -1,0 +1,31 @@
+# Virtual environment
+.venv/
+
+# Python caches
+**/__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Database files – data goes on the Docker volume, not baked into the image
+*.db
+*.sqlite
+*.sqlite3
+
+# Version control
+.git/
+.gitignore
+
+# Design / assets not needed in the image
+design bib/
+*.zip
+
+# Tests – not needed at runtime
+tests/
+
+# Local environment overrides
+.env
+
+# Editor / OS artefacts
+.DS_Store
+Thumbs.db

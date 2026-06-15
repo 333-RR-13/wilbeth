@@ -56,14 +56,14 @@ def _schoolyear_for_week(db: Session, kw: int, jahr: int) -> Schoolyear | None:
     return None
 
 
-def _school_weeks_for_trainee(db: Session, trainee: Trainee) -> set[str]:
-    """Set aus "kw,jahr" der Schulwochen laut Klassenplan (alle Lehrjahre)."""
+def _school_weeks_for_trainee(db: Session, trainee: Trainee) -> dict[str, str]:
+    """Dict "kw,jahr" -> typ_value der Schulwochen laut Klassenplan (alle Lehrjahre)."""
     if not trainee.klasse_id:
-        return set()
-    result: set[str] = set()
+        return {}
+    result: dict[str, str] = {}
     for plan in db.exec(select(SchoolPlan).where(SchoolPlan.klasse_id == trainee.klasse_id)).all():
         for w in db.exec(select(SchoolPlanWeek).where(SchoolPlanWeek.plan_id == plan.id)).all():
-            result.add(f"{w.kw},{w.jahr}")
+            result[f"{w.kw},{w.jahr}"] = w.typ.value
     return result
 
 
@@ -147,7 +147,7 @@ def my_class(request: Request, token: str, db: DB):
         return templates.TemplateResponse(request, "share/klasse.html", {
             "trainee": trainee, "token": token, "active": "klasse",
             "klasse": klasse,
-            "classmates": [], "weeks": [], "cell_map": {}, "school_weeks": set(),
+            "classmates": [], "weeks": [], "cell_map": {}, "school_weeks": {},
             "depts": {}, "selected_year": "", "years": years, "schul_tage": "",
             "trainees": [], "highlight_id": trainee.id,
         })
@@ -182,13 +182,13 @@ def my_class(request: Request, token: str, db: DB):
         for kw, jahr in iter_schoolyear_weeks(sy.start_kw, sy.start_year, sy.end_kw, sy.end_year)
     ]
 
-    school_weeks: set[str] = set()
+    school_weeks: dict[str, str] = {}
     plan = db.exec(
         select(SchoolPlan).where(SchoolPlan.klasse_id == klasse.id, SchoolPlan.schoolyear_id == sy.id)
     ).first()
     if plan:
         for w in db.exec(select(SchoolPlanWeek).where(SchoolPlanWeek.plan_id == plan.id)).all():
-            school_weeks.add(f"{w.kw},{w.jahr}")
+            school_weeks[f"{w.kw},{w.jahr}"] = w.typ.value
 
     schul_tage = ""
     if klasse.unterrichts_typ == UnterrichtsTyp.TAGE_FEST:

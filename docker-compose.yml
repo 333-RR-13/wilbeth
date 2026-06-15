@@ -1,0 +1,11 @@
+services:
+  wilbeth:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - wilbeth_data:/data
+    restart: unless-stopped
+
+volumes:
+  wilbeth_data:

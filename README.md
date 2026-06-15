@@ -155,6 +155,40 @@ Eingabe-Hierarchie beim Anlegen (`BERUFSSCHULE = UNI` > `URLAUB` > `ABTEILUNG` >
 | `no such table: …` beim Seed | Schema fehlt. `alembic upgrade head` vor dem Seed laufen lassen. |
 | Server startet, aber keine Daten | Seed vergessen: `python -m seed.seed`. |
 
+## Deployment (Docker)
+
+> **Sicherheitshinweis:** Wilbeth hat **keine Authentifizierung**. Admin- und Trainee-Daten sind fuer jeden offen, der den Port erreicht. Die App **nur im abgeschirmten internen Netz** oder **hinter einem authentifizierenden Reverse-Proxy** betreiben — niemals direkt ins Internet stellen. Zusaetzlich: Datenschutzkonzept (DSB grenke digital) muss vor dem Einsatz mit echten personenbezogenen Daten abgesegnet sein.
+
+### Starten
+
+```bash
+docker compose up -d --build
+```
+
+Die App laeuft danach auf <http://localhost:8000>.
+
+### Datenpersistenz
+
+Die SQLite-Datenbank liegt im benannten Docker-Volume `wilbeth_data` unter `/data/wilbeth.db` im Container. Beim Start des Containers laufen automatisch `alembic upgrade head` — das Schema wird also immer aktuell gehalten, bevor uvicorn startet.
+
+### Seed / Wartung
+
+```bash
+# Beispieldaten laden
+docker compose exec wilbeth python -m seed.seed
+
+# FI-SI-Plan nachtraeglich einfuegen
+docker compose exec wilbeth python -m seed.add_fisi_plan
+
+# Datenbank leeren (Vorsicht: loescht alle Daten!)
+docker compose exec wilbeth python -m seed.clean
+```
+
+### Produktionshinweise
+
+- SQLite erlaubt nur einen gleichzeitigen Schreiber. Daher **einen einzigen uvicorn-Worker** nutzen (`--workers 1`, bereits im Dockerfile gesetzt). Bei hoeherem Last-Bedarf auf PostgreSQL umstellen (`DATABASE_URL` in `docker-compose.yml` setzen und `asyncpg` / `psycopg2` zu `requirements.txt` hinzufuegen).
+- Das Volume `wilbeth_data` regelmaessig sichern (`docker run --rm -v wilbeth_data:/data …`).
+
 ## Offene Punkte
 
 - DHBW Uni-Phasen: vollstaendiger Jahresrhythmus muss noch dokumentiert werden

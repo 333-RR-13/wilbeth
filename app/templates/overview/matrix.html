@@ -114,6 +114,13 @@
             {% else %}
               <span class="cell-chip cell-FREI">FRE</span>
             {% endif %}
+          {% else %}
+            {% set school_typ = t_school_weeks.get(cell_key) %}
+            {% if school_typ == 'BERUFSSCHULE' %}
+              <span class="cell-chip cell-BERUFSSCHULE cell-auto" title="laut Klassen-Schulplan">BS</span>
+            {% elif school_typ == 'UNI' %}
+              <span class="cell-chip cell-UNI cell-auto" title="laut Klassen-Schulplan">UNI</span>
+            {% endif %}
           {% endif %}
         </td>
         {% endfor %}

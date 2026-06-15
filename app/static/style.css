@@ -544,31 +544,48 @@ tr.htmx-swapping td { opacity: 0; transition: opacity 0.15s; }
   margin-bottom: 16px;
 }
 
-/* ── Member checklist (Klassen-Detailseite) ─────────────────────── */
-.member-checklist {
+/* ── Member list (Klassen-Bearbeitenformular) ───────────────────── */
+/* Eine Person pro Zeile, strikt untereinander gestapelt. */
+.member-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  max-height: 360px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
 }
 
-.member-check-row {
+.member-row {
   display: flex;
+  width: 100%;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  padding: 8px 12px;
   cursor: pointer;
   font-size: 14px;
   color: var(--text-primary);
+  border-bottom: 1px solid var(--border);
 }
 
-.member-check-row input[type="checkbox"] {
+.member-row:last-child { border-bottom: none; }
+.member-row:hover { background: var(--page-bg); }
+
+.member-row input[type="checkbox"] {
   width: 15px;
   height: 15px;
   flex-shrink: 0;
   cursor: pointer;
 }
 
-.member-other-class {
+.member-name {
+  flex: 1 1 auto;
+}
+
+.member-other {
+  flex-shrink: 0;
+  margin-left: auto;
   font-size: 12px;
+  color: var(--text-muted);
 }
 
 /* ── Matrix ─────────────────────────────────────────────────────── */
@@ -759,6 +776,13 @@ tr.htmx-swapping td { opacity: 0; transition: opacity 0.15s; }
 .cell-UNI         { background: var(--warning-light); color: var(--warning); }
 .cell-URLAUB      { background: #fef9c3; color: #854d0e; }
 .cell-FREI        { background: #f1f3f5; color: var(--text-muted); }
+
+/* Derived-from-plan chip: outlined, not solid */
+.cell-auto {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px currentColor;
+  opacity: 0.75;
+}
 
 /* ── Conflict hint in page subtitle ─────────────────────────────── */
 .conflict-hint { color: var(--danger) !important; font-weight: 500; }

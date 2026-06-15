@@ -1,4 +1,4 @@
-"""Tests fuer Sprint 7: Klassen-Detailseite und Mitglieder-Zuweisung."""
+"""Tests fuer Klassen-Bearbeiten-Formular mit integrierter Mitglieder-Zuweisung."""
 from sqlmodel import Session, select
 
 from app.models import Trainee, TraineeClass, TraineeRolle, UnterrichtsTyp
@@ -26,33 +26,39 @@ def _setup_class_with_trainees(session: Session) -> dict:
     return {"cls_id": cls.id, "t1_id": t1.id, "t2_id": t2.id, "t3_id": t3.id}
 
 
-# ── GET /klassen/{id} ─────────────────────────────────────────────
+# ── GET /klassen/{id}/bearbeiten ──────────────────────────────────
 
-def test_detail_returns_200_and_contains_members(client, session):
-    """GET /klassen/{id} returns 200 and shows current member names and checkboxes."""
+def test_edit_form_returns_200_and_shows_member_checklist(client, session):
+    """GET /klassen/{id}/bearbeiten returns 200 and shows member checkboxes."""
     ids = _setup_class_with_trainees(session)
-    r = client.get(f"/klassen/{ids['cls_id']}")
+    r = client.get(f"/klassen/{ids['cls_id']}/bearbeiten")
     assert r.status_code == 200
+    assert 'name="mitglied"' in r.text
     assert "Altmann" in r.text
     assert "Bergmann" in r.text
-    assert 'name="mitglied"' in r.text
+    assert "Clasen" in r.text
 
 
-# ── POST /klassen/{id}/mitglieder ─────────────────────────────────
+# ── POST /klassen/{id} with member assignment ─────────────────────
 
-def test_post_mitglieder_assigns_and_removes(client, session):
-    """POST /klassen/{id}/mitglieder assigns checked trainees and removes unchecked ones."""
+def test_post_edit_assigns_and_removes_members(client, session):
+    """POST /klassen/{id} assigns checked trainees and clears unchecked ones."""
     ids = _setup_class_with_trainees(session)
     cls_id = ids["cls_id"]
 
     # t1 stays checked, t2 is unchecked (leaves class), t3 is newly added
     r = client.post(
-        f"/klassen/{cls_id}/mitglieder",
-        data={"mitglied": [str(ids["t1_id"]), str(ids["t3_id"])]},
+        f"/klassen/{cls_id}",
+        data={
+            "name": "FISI 2. LJ",
+            "berufsschule": "Josef-Durler Rastatt",
+            "unterrichts_typ": "BLOCK_FEST",
+            "mitglied": [str(ids["t1_id"]), str(ids["t3_id"])],
+        },
         follow_redirects=False,
     )
     assert r.status_code == 303
-    assert f"/klassen/{cls_id}" in r.headers["location"]
+    assert "/klassen/" in r.headers["location"]
 
     session.expire_all()
     t1 = session.get(Trainee, ids["t1_id"])

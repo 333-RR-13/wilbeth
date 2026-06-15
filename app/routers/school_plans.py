@@ -14,6 +14,7 @@ from app.models import (
     Schoolyear,
     TraineeClass,
 )
+from app.services.school_sync import sync_class
 
 router = APIRouter(prefix="/schulplaene", tags=["schulplaene"])
 templates = Jinja2Templates(directory=Path(__file__).resolve().parents[1] / "templates")
@@ -111,6 +112,8 @@ def add_week(
     else:
         db.add(SchoolPlanWeek(plan_id=plan_id, kw=kw, jahr=jahr, typ=typ))
     db.commit()
+    plan = db.get(SchoolPlan, plan_id)
+    sync_class(db, plan.klasse_id)
     return RedirectResponse(f"/schulplaene/{plan_id}?msg=created", status_code=303)
 
 
@@ -119,13 +122,18 @@ def delete_week(plan_id: int, week_id: int, db: DB):
     w = db.get(SchoolPlanWeek, week_id)
     db.delete(w)
     db.commit()
+    plan = db.get(SchoolPlan, plan_id)
+    sync_class(db, plan.klasse_id)
     return HTMLResponse("")
 
 
 @router.delete("/{plan_id}")
 def delete_plan(plan_id: int, db: DB):
+    plan = db.get(SchoolPlan, plan_id)
+    klasse_id = plan.klasse_id  # capture before deletion
     for w in db.exec(select(SchoolPlanWeek).where(SchoolPlanWeek.plan_id == plan_id)).all():
         db.delete(w)
-    db.delete(db.get(SchoolPlan, plan_id))
+    db.delete(plan)
     db.commit()
+    sync_class(db, klasse_id)
     return HTMLResponse("")

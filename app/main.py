@@ -40,3 +40,8 @@ app.include_router(about.router)
 @app.on_event("startup")
 def on_startup() -> None:
     init_db()
+
+
+@app.get("/health")
+def health() -> dict:
+    return {"status": "ok"}

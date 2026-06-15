@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 
 from app.database import get_session
 from app.models import Trainee, TraineeClass, UnterrichtsTyp
+from app.services.school_sync import sync_trainee
 from app.utils.kw import WEEKDAY_LABELS, format_weekdays, parse_weekdays
 
 router = APIRouter(prefix="/klassen", tags=["klassen"])
@@ -46,6 +47,7 @@ def new_class(request: Request):
     return templates.TemplateResponse(request, "trainee_classes/form.html", {
         "cls": None, "typen": list(UnterrichtsTyp), "active_nav": "klassen",
         "weekday_labels": WEEKDAY_LABELS, "selected_weekdays": [],
+        "trainees": [], "class_names": {},
     })
 
 
@@ -70,50 +72,18 @@ def create_class(
     return RedirectResponse("/klassen/?msg=created", status_code=303)
 
 
-@router.get("/{class_id:int}", response_class=HTMLResponse)
-def detail_class(request: Request, class_id: int, db: DB):
+@router.get("/{class_id:int}/bearbeiten", response_class=HTMLResponse)
+def edit_class(request: Request, class_id: int, db: DB):
     cls = db.get(TraineeClass, class_id)
     trainees = db.exec(select(Trainee).order_by(Trainee.nachname, Trainee.vorname)).all()
     all_classes = db.exec(select(TraineeClass)).all()
     class_names = {c.id: c.name for c in all_classes}
-    schul_label = (
-        format_weekdays(cls.schul_wochentage, halbtag=cls.halbtag_wochentag)
-        if cls and cls.unterrichts_typ == UnterrichtsTyp.TAGE_FEST
-        else None
-    )
-    return templates.TemplateResponse(request, "trainee_classes/detail.html", {
-        "cls": cls,
-        "trainees": trainees,
-        "class_names": class_names,
-        "schul_label": schul_label,
-        "active_nav": "klassen",
-    })
-
-
-@router.post("/{class_id:int}/mitglieder", response_class=RedirectResponse)
-def update_members(
-    class_id: int,
-    db: DB,
-    mitglied: Annotated[list[str], Form()] = [],
-):
-    checked_ids = {int(i) for i in mitglied if i.isdigit()}
-    trainees = db.exec(select(Trainee)).all()
-    for t in trainees:
-        if t.id in checked_ids:
-            t.klasse_id = class_id
-        elif t.klasse_id == class_id:
-            t.klasse_id = None
-    db.commit()
-    return RedirectResponse(f"/klassen/{class_id}?msg=updated", status_code=303)
-
-
-@router.get("/{class_id:int}/bearbeiten", response_class=HTMLResponse)
-def edit_class(request: Request, class_id: int, db: DB):
-    cls = db.get(TraineeClass, class_id)
     return templates.TemplateResponse(request, "trainee_classes/form.html", {
         "cls": cls, "typen": list(UnterrichtsTyp), "active_nav": "klassen",
         "weekday_labels": WEEKDAY_LABELS,
         "selected_weekdays": parse_weekdays(cls.schul_wochentage) if cls else [],
+        "trainees": trainees,
+        "class_names": class_names,
     })
 
 
@@ -125,6 +95,7 @@ def update_class(
     unterrichts_typ: Annotated[UnterrichtsTyp, Form()],
     wochentag: Annotated[list[str], Form()] = [],
     halbtag_wochentag: Annotated[str, Form()] = "",
+    mitglied: Annotated[list[str], Form()] = [],
 ):
     schul_wochentage, halbtag = _weekday_fields(unterrichts_typ, wochentag, halbtag_wochentag)
     cls = db.get(TraineeClass, class_id)
@@ -133,7 +104,29 @@ def update_class(
     cls.unterrichts_typ = unterrichts_typ
     cls.schul_wochentage = schul_wochentage
     cls.halbtag_wochentag = halbtag
+
+    checked_ids = {int(i) for i in mitglied if i.isdigit()}
+    trainees = db.exec(select(Trainee)).all()
+    # Collect all trainee ids whose membership may have changed so we can resync them
+    affected_ids: set[int] = set()
+    for t in trainees:
+        if t.id in checked_ids:
+            if t.klasse_id != class_id:
+                affected_ids.add(t.id)
+            t.klasse_id = class_id
+        elif t.klasse_id == class_id:
+            affected_ids.add(t.id)
+            t.klasse_id = None
+        # Also include newly checked trainees (already in class — no change — still fine)
+    # Always sync all checked trainees so new members get their AUTO entries
+    affected_ids |= checked_ids
+
     db.commit()
+
+    for tid in affected_ids:
+        sync_trainee(db, tid, commit=False)
+    db.commit()
+
     return RedirectResponse("/klassen/?msg=updated", status_code=303)
 
 

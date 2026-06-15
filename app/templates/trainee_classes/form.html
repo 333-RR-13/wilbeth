@@ -64,6 +64,29 @@
       </div>
 
     </div>
+
+    {% if cls %}
+    <div class="form-group" style="margin-top: 24px;">
+      <h2 class="form-section-title">Mitglieder</h2>
+      {% if trainees %}
+      <div class="member-list">
+        {% for t in trainees %}
+        <label class="member-row">
+          <input type="checkbox" name="mitglied" value="{{ t.id }}"
+                 {{ 'checked' if t.klasse_id == cls.id else '' }}>
+          <span class="member-name">{{ t.nachname }}, {{ t.vorname }}</span>
+          {% if t.klasse_id and t.klasse_id != cls.id %}
+          <span class="member-other td-muted">(aktuell: {{ class_names[t.klasse_id] }})</span>
+          {% endif %}
+        </label>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="td-muted">Noch keine Auszubildenden angelegt.</p>
+      {% endif %}
+    </div>
+    {% endif %}
+
     <div class="form-actions">
       <button type="submit" class="btn btn-primary">Speichern</button>
       <a href="/klassen/" class="btn btn-secondary">Abbrechen</a>

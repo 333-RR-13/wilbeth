@@ -134,16 +134,16 @@ def overview(request: Request, db: DB):
 
     depts = {d.id: d for d in db.exec(select(Department)).all()}
 
-    # school_week_map[klasse_id] = set of "kw,jahr" strings for highlighting
-    school_week_map: dict[int, set[str]] = {}
+    # school_week_map[klasse_id] = dict "kw,jahr" -> typ_value for highlighting + chip rendering
+    school_week_map: dict[int, dict[str, str]] = {}
     for plan in db.exec(
         select(SchoolPlan).where(SchoolPlan.schoolyear_id == schoolyear_id)
     ).all():
-        sw: set[str] = set()
+        sw: dict[str, str] = {}
         for w in db.exec(
             select(SchoolPlanWeek).where(SchoolPlanWeek.plan_id == plan.id)
         ).all():
-            sw.add(f"{w.kw},{w.jahr}")
+            sw[f"{w.kw},{w.jahr}"] = w.typ.value
         school_week_map[plan.klasse_id] = sw
 
     trainee_klasse_map = {t.id: t.klasse_id for t in trainees}

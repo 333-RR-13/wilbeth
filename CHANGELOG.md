@@ -6,6 +6,34 @@ Format orientiert an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
 ## [Unreleased]
 
+### Docker-Deployment
+
+- `Dockerfile`: Python 3.13-slim, Layer-Caching fuer `requirements.txt`, SQLite-Daten auf separatem Volume `/data`, Alembic-Migration laeuft automatisch beim Container-Start vor uvicorn, HEALTHCHECK ueber `/health`.
+- `.dockerignore`: schliessst `.venv`, Caches, `.git`, Testverzeichnis, `design bib/`, `*.db` und `.env` aus.
+- `docker-compose.yml`: Service `wilbeth`, benanntes Volume `wilbeth_data`, `restart: unless-stopped`.
+- `/health`-Endpunkt in `app/main.py`: gibt `{"status": "ok"}` zurueck (200), genutzt vom Docker HEALTHCHECK.
+- `tests/test_health.py`: prueft GET /health → 200 + `{"status": "ok"}`.
+- README: Deployment-Abschnitt mit Build/Run-Anleitung, Seed-Befehlen und **Hinweis: App nur netzintern betreiben bis Auth (SAP/AD) existiert**; DSB-Freigabe vor echten Personendaten erforderlich.
+
+### AUTO-Einsätze aus Schulplan materialisieren (School-Sync)
+
+- Schulblöcke werden automatisch als AUTO-Einsätze (`source = AUTO`, `typ = BERUFSSCHULE` oder `UNI`) für alle Klassenmitglieder angelegt, sobald eine `SchoolPlanWeek` hinzugefügt wird.
+- **Nur leere Wochen**: Ein AUTO-Eintrag entsteht nur, wenn die Zelle (trainee_id, kw, jahr) noch keinen Einsatz enthält. Manuelle Einträge (ABTEILUNG, URLAUB usw.) bleiben unberührt und bleiben als sichtbarer Konflikt erhalten.
+- **Synchron halten**: Tritt ein Azubi einer Klasse bei oder verlässt sie, werden ihre AUTO-Schuleinträge sofort angepasst (erstellt bzw. entfernt). Gleiches gilt beim Hinzufügen, Ändern oder Löschen einer `SchoolPlanWeek` sowie beim Löschen eines ganzen Schulplans.
+- **Hooks**: `POST /trainees/` (create), `POST /trainees/{id}` (update), `POST /klassen/{id}` (Mitglieder), `POST /schulplaene/{id}/wochen` (Woche hinzufügen), `DELETE /schulplaene/{id}/wochen/{wid}` (Woche entfernen), `DELETE /schulplaene/{id}` (Plan löschen).
+- **Backfill**: `python -m seed.sync_school` materialisiert AUTO-Einträge für alle Trainees gegen die echte Datenbank.
+- Neue Datei `app/services/school_sync.py` mit `sync_trainee`, `sync_class`, `resync_all`.
+
+### Schulblöcke aus Klassenplan in allen Matrizen sichtbar
+
+- Schulblöcke aus dem Klassen-Schulplan werden in allen Matrizen (Admin-Übersicht, Meine Einsätze, Meine Klasse) als BS- bzw. UNI-Block angezeigt, auch wenn kein expliziter Einsatz für die Woche vorhanden ist. Der abgeleitete Chip erscheint umrandet (`.cell-auto`: transparenter Hintergrund, 1 px Rahmen in der Typfarbe, leicht gedimmt) und ist so von einem echten Einsatz-Chip unterscheidbar. Ein expliziter Einsatz hat Vorrang und verdrängt den Plan-Chip.
+
+### Klassen-Bearbeiten & UX-Bereinigung
+
+- **Klassen-Mitglieder jetzt im Bearbeiten-Formular**: Die separate Detailseite (`GET /klassen/{id}`) und die `/mitglieder`-Route entfallen. Stattdessen enthält das Bearbeiten-Formular eine saubere vertikale Mitgliederliste (Checkboxen, scrollbar ab vielen Einträgen, Hinweis bei Azubis aus anderen Klassen). Klassen-Felder und Mitgliedschaft werden in einem einzigen `POST /klassen/{id}` gespeichert.
+- **Zeilenklick → Bearbeiten**: Klick auf eine Klassenzeile öffnet direkt das Bearbeiten-Formular statt der nun entfernten Detailseite.
+- **„built by RR × Claude"** – dezentes Gold-Credit in der unteren rechten Ecke der Über-Wilbeth-Seite.
+
 ### Bedienbarkeit & Azubi-Navigation
 
 #### Admin

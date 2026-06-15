@@ -19,6 +19,7 @@ from app.models import (
     TraineeWish,
 )
 from app.services.conflict_checker import find_conflicts
+from app.services.school_sync import sync_trainee
 
 router = APIRouter(prefix="/trainees", tags=["trainees"])
 templates = Jinja2Templates(directory=Path(__file__).resolve().parents[1] / "templates")
@@ -54,15 +55,18 @@ def create_trainee(
     notizen: Annotated[str, Form()] = "",
     aktiv: Annotated[str, Form()] = "",
 ):
-    db.add(Trainee(
+    t = Trainee(
         vorname=vorname,
         nachname=nachname,
         rolle=rolle,
         klasse_id=int(klasse_id) if klasse_id else None,
         notizen=notizen,
         aktiv=bool(aktiv),
-    ))
+    )
+    db.add(t)
     db.commit()
+    db.refresh(t)
+    sync_trainee(db, t.id)
     return RedirectResponse("/trainees/?msg=created", status_code=303)
 
 
@@ -150,6 +154,7 @@ def update_trainee(
     t.notizen = notizen
     t.aktiv = bool(aktiv)
     db.commit()
+    sync_trainee(db, trainee_id)
     return RedirectResponse("/trainees/?msg=updated", status_code=303)
 
 

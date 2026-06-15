@@ -31,3 +31,10 @@ def test_sidebar_link_present(client, session):
     r = client.get("/ueber-wilbeth")
     assert 'href="/ueber-wilbeth"' in r.text
     assert "Über Wilbeth" in r.text
+
+
+def test_about_page_has_built_by_credit(client, session):
+    """GET /ueber-wilbeth enthält das 'built by'-Credit."""
+    r = client.get("/ueber-wilbeth")
+    assert r.status_code == 200
+    assert "built by" in r.text
