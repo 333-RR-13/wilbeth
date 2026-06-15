@@ -1,7 +1,8 @@
 """Seed-Skript: Realistische Beispieldaten fuer Lehrjahre 2025-2026 und 2026-2027.
 
-13 Azubis (alliterative Namen) + 7 DH-Studenten.
-Behaelt Abteilungen und Berufsschulplaene unveraendert.
+Legt an: 12 Klassen, 19 Abteilungen, 26 Trainees (17 Azubis inkl. 4 Buerokaufleute,
+9 DH-Studenten inkl. 2 BWL) mit alliterativen Namen und realistische Einsaetze
+fuer 2025-2026. Schulblock-Wochen (FISI/FIAE) werden als Schulplaene hinterlegt.
 
 Idempotent: bricht ab, wenn bereits Lehrjahre angelegt sind.
 Aufruf:  python -m seed.seed

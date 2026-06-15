@@ -4,7 +4,18 @@ Internes Tool zur Einsatzplanung der IT-Auszubildenden bei der grenke digital Gm
 
 Ersetzt die bisherige Excel-basierte Planung. Verarbeitet personenbezogene Daten — laeuft ausschliesslich im internen Firmennetz und nutzt **keine** externen KI-APIs.
 
-Stand: Sprint 5 (Polish & Azubi-View). Vollstaendiger Verlauf in [CHANGELOG.md](CHANGELOG.md).
+Vollstaendiger Verlauf in [CHANGELOG.md](CHANGELOG.md).
+
+## Funktionsumfang
+
+- **Stammdaten-CRUD**: Lehrjahre, Klassen, Abteilungen, Trainees, Schulferien, Schulplaene. Tabellenzeilen sind klickbar.
+- **Matrix-Uebersicht** (Trainee × KW) mit KW-/Datums-Header, Heute-Markierung, Inline-Zell-Edit und Filtern (Klasse, Abteilung).
+- **Konflikt-Erkennung** (Schul-/Ferien-/Doppelbelegung) inkl. „Warum?"-Erklaerung im Panel und im Zell-Dialog.
+- **Einsatz-Anlage** fuer einzelne KW oder KW-Bereich, mit Eingabe-Hierarchie (BS/UNI > Urlaub > Abteilung > Frei).
+- **Unterrichts-Typen**: Blockunterricht (FISI, FIAE, DHBW, BWL) **und** Wochentag-Schule (Buerokaufleute, feste Schultage je Woche).
+- **Automatische Schul-Einsaetze**: Schulplan-Wochen werden fuer alle Klassenmitglieder als `BERUFSSCHULE`/`UNI`-Einsaetze (`source=AUTO`) materialisiert und synchron gehalten.
+- **Azubi-Self-Service** (Token-Link `/mein-plan/{token}`): eigener Plan, Klassen-Matrix, Urlaub selbst eintragen, Wuensche, ICS-Kalender-Export.
+- **„Ueber Wilbeth"**-Erzaehlseite und **Docker-Deployment**.
 
 ## Tech-Stack
 
@@ -57,7 +68,17 @@ alembic upgrade head
 python -m seed.seed
 ```
 
-Der Seed legt an: 2 Lehrjahre (2025-2026, 2026-2027), 12 Schulferien, 6 Klassen, 12 Abteilungen, 20 Trainees (13 Azubis + 7 DH-Studenten) und realistische Einsaetze fuer 2025-2026.
+Der Seed legt an: 2 Lehrjahre (2025-2026, 2026-2027), 12 Schulferien, **12 Klassen** (FISI/FIAE 1.–3. LJ, DHBW WI/Cybersecurity, Buero 1.–3. LJ, BWL), **19 Abteilungen** und **26 Trainees** (17 Azubis inkl. 4 Buerokaufleute, 9 DH-Studenten inkl. 2 BWL) mit realistischen Einsaetzen fuer 2025-2026.
+
+## Wartungs-Skripte
+
+```powershell
+python -m seed.clean          # leert alle Daten AUSSER Klassen & Abteilungen
+python -m seed.add_fisi_plan  # legt Lehrjahr 2025-2026 (falls noetig) + FISI-Schulplaene an
+python -m seed.sync_school    # Backfill: erzeugt AUTO-Schul-Einsaetze fuer alle Klassenmitglieder
+```
+
+Hinweis: Nach `seed.clean` **nicht** den vollen `seed.seed` laufen lassen — er wuerde Klassen/Abteilungen erneut anlegen und an den Unique-Constraints scheitern.
 
 ## Tests
 
@@ -67,13 +88,23 @@ python -m pytest -q       # kompakt
 python -m pytest tests/test_conflict_checker.py -v   # einzelne Datei
 ```
 
+Aktuell **92 Tests**, alle gruen.
+
 | Testdatei | Deckt ab |
 |---|---|
 | `test_conflict_checker.py` | Konflikt-Erkennung (Schul-/Ferien-/Doppelbelegung) |
+| `test_conflicts_ui.py` | Konflikt-Panel & „Warum?"-Erklaerung |
 | `test_assignments_range.py` | KW-Range, Eingabe-Hierarchie, Jahreswechsel |
-| `test_overview_filters.py` | Matrix: Klassen- & Abteilungs-Filter, Datums-Header |
-| `test_trainee_detail.py` | Trainee-Detailseite, Konflikt-Highlight |
+| `test_overview_filters.py` | Matrix: Klassen-/Abteilungs-Filter, Datums-Header |
 | `test_cell_endpoints.py` | Inline-Cell-Edit (edit/save/delete + OOB-Zaehler) |
+| `test_school_plan_chips.py` | Schulblock-Anzeige in den Matrizen |
+| `test_school_sync.py` | Automatische AUTO-Schul-Einsaetze (anlegen/synchronisieren) |
+| `test_tage_fest.py` | Wochentag-Schule (Buerokaufleute), Klassen-Matrix |
+| `test_trainee_detail.py` | Trainee-Detailseite, Konflikt-Highlight |
+| `test_klassen_detail.py` | Klassen-Bearbeiten + Mitglieder-Zuweisung |
+| `test_share.py` | Azubi-Self-Service (Token, Urlaub, Wuensche, ICS) |
+| `test_about.py` | „Ueber Wilbeth"-Seite |
+| `test_health.py` | `/health`-Endpoint (Docker) |
 
 Tests laufen gegen eine In-Memory-SQLite (StaticPool) und beruehren `wilbeth.db` nicht.
 
@@ -108,7 +139,7 @@ Auto-generierte Skripte enthalten `import sqlmodel` (in `script.py.mako` vorbere
 |---|---|---|
 | **Routers** | `app/routers/` | HTTP-Endpunkte, ein Modul pro Bereich (overview, trainees, assignments, school_plans, …) |
 | **Models** | `app/models/` | SQLModel-Tabellen, eine Datei pro Entity |
-| **Services** | `app/services/` | Domaenenlogik (`conflict_checker.py`) |
+| **Services** | `app/services/` | Domaenenlogik (`conflict_checker.py`, `school_sync.py`) |
 | **Utils** | `app/utils/` | KW-/Datums-Arithmetik (`kw.py`) |
 | **Templates** | `app/templates/` | Jinja2-Views, Partials in `_partials/` |
 | **Static** | `app/static/` | `style.css`, lokales `htmx.min.js` |
@@ -122,13 +153,14 @@ Patterns: PRG (Post-Redirect-Get) mit Flash via `?msg=…`, HTMX fuer Inline-Edi
 | Tabelle | Zweck |
 |---|---|
 | `schoolyear` | Lehrjahr (z. B. "2025-2026"), KW-Bereich KW36–KW35 |
-| `trainee_class` | Klasse (z. B. "FISI 2. LJ"), Berufsschule, Unterrichts-Typ |
+| `trainee_class` | Klasse, Berufsschule, Unterrichts-Typ (BLOCK_FEST/DH_PHASEN/TAGE_FEST); bei TAGE_FEST: Schultage + Halbtag |
 | `school_holiday` | Schulferien pro Lehrjahr |
 | `school_plan` | Verbindung Klasse + Lehrjahr |
 | `school_plan_week` | Einzelne BS-/Uni-Wochen pro Plan |
-| `trainee` | Auszubildende, DH-Studis, Praktikanten, Umschueler |
+| `trainee` | Auszubildende, DH-Studis, Praktikanten, Umschueler; `share_token` (Self-Service-Link), `wunsch_notiz` |
+| `trainee_wish` | Abteilungs-Wunsch eines Trainees mit Prioritaet (1–3) |
 | `department` | Abteilung mit Code, Kategorie, Mehrfachbelegung-Flag |
-| `assignment` | Ein Trainee in einer KW: ABTEILUNG, URLAUB, BS, UNI, FREI |
+| `assignment` | Ein Trainee in einer KW: ABTEILUNG/URLAUB/BS/UNI/FREI; `source` = MANUAL/AUTO/SELBST/SAP |
 
 Wichtige Constraints:
 - `assignment.UNIQUE(trainee_id, kw, jahr)` — eine KW pro Person, ein Eintrag.
