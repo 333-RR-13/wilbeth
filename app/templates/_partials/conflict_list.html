@@ -1,0 +1,22 @@
+<div class="conflict-panel-head">
+  <strong>{{ conflicts | length }} Konflikt{{ 'e' if conflicts | length != 1 else '' }}</strong>
+  <button type="button" class="btn btn-ghost btn-sm"
+          onclick="document.getElementById('conflict-panel').hidden = true">Schließen</button>
+</div>
+
+{% if conflicts %}
+<ul class="conflict-list">
+  {% for c in conflicts %}
+  <li class="conflict-item">
+    <div class="conflict-item-head">
+      <span class="badge {{ c.badge }}">{{ c.title }}</span>
+      <span class="conflict-when mono">{{ c.when }}</span>
+      <span class="conflict-who">{{ c.who }}</span>
+    </div>
+    <p class="conflict-why">{{ c.why }}</p>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p class="conflict-empty">Keine Konflikte.</p>
+{% endif %}

@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}{{ "Einsatz bearbeiten" if assignment else "Einsatz anlegen" }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">{{ "Einsatz bearbeiten" if assignment else "Einsatz anlegen" }}</h1>
+  </div>
+</div>
+
+<div class="form-card">
+  <form method="post" action="{{ '/einsaetze/' + (assignment.id | string) if assignment else '/einsaetze/' }}">
+    <div class="form-grid">
+
+      <div class="form-group">
+        <label for="trainee_id">Trainee <span class="required">*</span></label>
+        <select id="trainee_id" name="trainee_id" required>
+          <option value="">– bitte wählen –</option>
+          {% for t in trainees %}
+          <option value="{{ t.id }}"
+            {{ 'selected' if (assignment and assignment.trainee_id == t.id) or (not assignment and (t.id | string) == prefill_trainee_id) else '' }}>
+            {{ t.nachname }}, {{ t.vorname }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="schoolyear_id">Lehrjahr <span class="required">*</span></label>
+        <select id="schoolyear_id" name="schoolyear_id" required>
+          <option value="">– bitte wählen –</option>
+          {% for y in years %}
+          <option value="{{ y.id }}" {{ 'selected' if assignment and assignment.schoolyear_id == y.id else '' }}>
+            {{ y.id }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-grid form-grid-2">
+        <div class="form-group">
+          <label for="kw">{{ "KW von" if not assignment else "KW" }} <span class="required">*</span></label>
+          <input type="number" id="kw" name="kw" min="1" max="53"
+                 value="{{ assignment.kw if assignment else '' }}" required>
+        </div>
+        <div class="form-group">
+          <label for="jahr">Jahr <span class="required">*</span></label>
+          <input type="number" id="jahr" name="jahr"
+                 value="{{ assignment.jahr if assignment else '' }}" required>
+        </div>
+      </div>
+
+      {% if not assignment %}
+      <div class="form-grid form-grid-2" id="range-group">
+        <div class="form-group">
+          <label for="kw_end">KW bis</label>
+          <input type="number" id="kw_end" name="kw_end" min="1" max="53" placeholder="optional">
+        </div>
+        <div class="form-group">
+          <label for="jahr_end">Jahr bis</label>
+          <input type="number" id="jahr_end" name="jahr_end" placeholder="optional">
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="form-group">
+        <label for="typ">Typ <span class="required">*</span></label>
+        <select id="typ" name="typ" required>
+          {% for ty in typen %}
+          <option value="{{ ty.value }}" {{ 'selected' if assignment and assignment.typ == ty else '' }}>
+            {% if ty.value == 'ABTEILUNG' %}Abteilung
+            {% elif ty.value == 'BERUFSSCHULE' %}Berufsschule
+            {% elif ty.value == 'UNI' %}Uni
+            {% elif ty.value == 'URLAUB' %}Urlaub
+            {% else %}Frei{% endif %}
+          </option>
+          {% endfor %}
+        </select>
+        <span class="form-hint">Urlaub ist in Schulwochen nicht erlaubt.</span>
+      </div>
+
+      <div class="form-group" id="abteilung-group">
+        <label for="abteilung_id">Abteilung</label>
+        <select id="abteilung_id" name="abteilung_id">
+          <option value="">– keine –</option>
+          {% for d in depts %}
+          <option value="{{ d.id }}" {{ 'selected' if assignment and assignment.abteilung_id == d.id else '' }}>
+            {{ d.code }} – {{ d.name }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="notiz">Notiz</label>
+        <input type="text" id="notiz" name="notiz"
+               value="{{ assignment.notiz if assignment else '' }}"
+               placeholder="z. B. Urlaub genehmigt am …">
+      </div>
+
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Speichern</button>
+      <a href="/einsaetze/" class="btn btn-secondary">Abbrechen</a>
+    </div>
+  </form>
+</div>
+
+<script>
+(function () {
+  const typSel = document.getElementById('typ');
+  const abtGroup = document.getElementById('abteilung-group');
+  function syncAbt() {
+    abtGroup.style.display = typSel.value === 'ABTEILUNG' ? '' : 'none';
+  }
+  typSel.addEventListener('change', syncAbt);
+  syncAbt();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}{{ "Abteilung bearbeiten" if department else "Abteilung anlegen" }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">{{ "Abteilung bearbeiten" if department else "Abteilung anlegen" }}</h1>
+  </div>
+</div>
+
+<div class="form-card">
+  <form method="post" action="{{ '/abteilungen/' + (department.id | string) if department else '/abteilungen/' }}">
+    <div class="form-grid">
+
+      <div class="form-grid form-grid-2">
+        <div class="form-group">
+          <label for="code">Code <span class="required">*</span></label>
+          <input type="text" id="code" name="code"
+                 value="{{ department.code if department else '' }}"
+                 placeholder="z. B. AI" maxlength="16" required>
+          <span class="form-hint">Kurzkürzel, wird automatisch großgeschrieben.</span>
+        </div>
+        <div class="form-group">
+          <label for="kategorie">Kategorie <span class="required">*</span></label>
+          <select id="kategorie" name="kategorie" required>
+            {% for k in kategorien %}
+            <option value="{{ k.value }}" {{ 'selected' if department and department.kategorie == k else '' }}>
+              {{ k.value.replace('_', '-') }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="name">Name <span class="required">*</span></label>
+        <input type="text" id="name" name="name"
+               value="{{ department.name if department else '' }}"
+               placeholder="z. B. AI Platform" required>
+      </div>
+
+      <div class="form-group">
+        <label for="ansprechpartner">Ansprechpartner</label>
+        <input type="text" id="ansprechpartner" name="ansprechpartner"
+               value="{{ department.ansprechpartner if department else '' }}"
+               placeholder="Name oder E-Mail">
+      </div>
+
+      <div class="form-group">
+        <label class="form-check">
+          <input type="checkbox" name="erlaubt_mehrfachbelegung" value="1"
+                 {{ 'checked' if department and department.erlaubt_mehrfachbelegung else '' }}>
+          Mehrfachbelegung erlaubt
+        </label>
+        <span class="form-hint">Aktivieren z. B. für BA – mehrere Trainees in derselben KW ohne Warnung.</span>
+      </div>
+
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Speichern</button>
+      <a href="/abteilungen/" class="btn btn-secondary">Abbrechen</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

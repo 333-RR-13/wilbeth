@@ -1,0 +1,21 @@
+<td id="cell-{{ trainee_id }}-{{ kw }}-{{ jahr }}"
+    class="matrix-cell cell-clickable{% if is_school %} mc-school{% endif %}{% if is_conflict %} mc-conflict{% endif %}"
+    hx-get="/einsaetze/cell-edit?trainee_id={{ trainee_id }}&kw={{ kw }}&jahr={{ jahr }}&schoolyear_id={{ schoolyear_id }}"
+    hx-target="#cell-dialog-body"
+    hx-swap="innerHTML">
+  {% if a %}
+    {% if a.typ.value == 'ABTEILUNG' %}
+      <span class="cell-chip cell-ABTEILUNG" title="{{ depts[a.abteilung_id].code if a.abteilung_id and a.abteilung_id in depts else 'Abteilung' }}">
+        {{ depts[a.abteilung_id].code if a.abteilung_id and a.abteilung_id in depts else 'ABT' }}
+      </span>
+    {% elif a.typ.value == 'BERUFSSCHULE' %}
+      <span class="cell-chip cell-BERUFSSCHULE">BS</span>
+    {% elif a.typ.value == 'UNI' %}
+      <span class="cell-chip cell-UNI">UNI</span>
+    {% elif a.typ.value == 'URLAUB' %}
+      <span class="cell-chip cell-URLAUB">URL</span>
+    {% else %}
+      <span class="cell-chip cell-FREI">FRE</span>
+    {% endif %}
+  {% endif %}
+</td>

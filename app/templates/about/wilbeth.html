@@ -1,0 +1,710 @@
+{% extends "base.html" %}
+{% block title %}Über Wilbeth{% endblock %}
+
+{% block content %}
+<div class="myth" id="myth">
+
+  {# Vertikaler Schicksalsfaden: Pfad wird in JS erzeugt und mit dem Scroll gezeichnet #}
+  <svg class="myth-thread-v" id="myth-thread-svg" aria-hidden="true" preserveAspectRatio="none">
+    <path id="myth-thread-path" fill="none"/>
+  </svg>
+
+  {# ── Hero ─────────────────────────────────────────────────────── #}
+  <section class="myth-hero">
+    <div class="myth-stars"></div>
+    <div class="myth-stars myth-stars-2"></div>
+    <p class="myth-kicker myth-reveal">Aus dem süddeutsch-alpenländischen Volksglauben</p>
+    <h1 class="myth-title myth-reveal" style="transition-delay:.2s">Die Sage der<br>Drei Bethen</h1>
+    <p class="myth-names myth-reveal" style="transition-delay:.45s">Ambeth &nbsp;&middot;&nbsp; Borbeth &nbsp;&middot;&nbsp; Wilbeth</p>
+    <div class="myth-scrollhint myth-reveal" style="transition-delay:.8s">&#8595;</div>
+  </section>
+
+  {# ── Die Sage ─────────────────────────────────────────────────── #}
+  <section class="myth-story">
+    <p class="myth-p myth-reveal">
+      Lange bevor Kalender die Wochen zählten und Glocken die Stunden schlugen,
+      so erzählt man sich, zogen drei Schwestern über die Berge und durch die
+      Täler des Südens.
+    </p>
+    <p class="myth-p myth-reveal">
+      Wo sie rasteten, entsprangen Quellen. An Steinen, Kapellen und uralten
+      Linden hielt das Volk ihre Namen fest &mdash; noch lange, nachdem die
+      alten Götter vergessen waren.
+    </p>
+    <p class="myth-p myth-reveal">
+      Drei jungfräuliche Schwestern, heißt es, ließen sich an einem stillen
+      Ort nieder, lebten fromm und zurückgezogen und halfen den Menschen:
+      heilend, ratend, segnend. Nach ihrem Tod verehrte man sie wie Heilige.
+      Mancherorts erzählt man, sie seien Gefährtinnen der heiligen Ursula
+      gewesen, dem Martyrium von Köln entkommen. Heiliggesprochen wurden sie
+      nie &mdash; sie lebten dort, wo Sagen am längsten leben: im Glauben des
+      Volkes.
+    </p>
+  </section>
+
+  {# ── Spuren in Stein und Namen ────────────────────────────────── #}
+  <section class="myth-history">
+    <h2 class="myth-h2 myth-reveal">Spuren in Stein und Namen</h2>
+    <p class="myth-p myth-reveal">
+      Die drei sind keine Erfindung von gestern: In Süddeutschland,
+      Österreich, Südtirol und im Elsass stehen seit dem Mittelalter Kirchen,
+      Kapellen und Bildstöcke, in denen drei Jungfrauen gemeinsam verehrt
+      werden &mdash; in Schildthurn in Niederbayern, in Leutstetten am
+      Starnberger See, im Dom zu Worms. Das Volk rief sie an: bei Geburt und
+      Kinderwunsch, bei Krankheit, für Vieh und Felder.
+    </p>
+    <p class="myth-p myth-reveal">
+      Ihre Namen wandern und wandeln sich von Ort zu Ort: Einbeth, Ambeth,
+      Borbeth, Worbeth, Wilbeth &mdash; in Südtirol gar Aubet, Cubet und
+      Quere. Was bleibt, ist die Dreizahl. Und die Orte: Quellen, uralte
+      Bäume, markante Steine &mdash; Plätze, die schon heilig waren, bevor
+      jemand Kirchen darauf baute.
+    </p>
+    <p class="myth-p myth-reveal">
+      Später sahen Forscher in ihnen die christlichen Erbinnen der
+      <em>Matronen</em> &mdash; jener drei sitzenden Muttergottheiten, die auf
+      hunderten römerzeitlichen Weihesteinen am Rhein abgebildet sind. Ob das
+      stimmt? Die Deutung ist jung und umstritten. Die Verehrung ist alt und
+      echt. Sagen fragen nicht nach Quellenlage &mdash; sie fragen, ob etwas
+      wahr klingt.
+    </p>
+  </section>
+
+  {# ── Die drei Schwestern ──────────────────────────────────────── #}
+  <section class="myth-sisters">
+
+    <article class="myth-card myth-reveal">
+      <div class="myth-symbol">
+        <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="24" cy="24" r="14"/>
+          <path d="M10 28h28M16 34h16" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <h2>Ambeth</h2>
+      <p class="myth-card-role">Die Beständige &middot; Geburt</p>
+      <p class="myth-card-text">
+        Erde und Grund — das <em>Werden</em>. Ihr gehört jeder Anfang: der
+        erste Atemzug, der erste Schultag, der erste Tag in einer neuen
+        Abteilung.
+      </p>
+    </article>
+
+    <article class="myth-card myth-reveal" style="transition-delay:.18s">
+      <div class="myth-symbol">
+        <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="24" cy="24" r="9"/>
+          <path d="M24 4v6M24 38v6M4 24h6M38 24h6M9.9 9.9l4.2 4.2M33.9 33.9l4.2 4.2M38.1 9.9l-4.2 4.2M14.1 33.9l-4.2 4.2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <h2>Borbeth</h2>
+      <p class="myth-card-role">Die Wärmende &middot; Leben</p>
+      <p class="myth-card-text">
+        Sonne und Fülle — das <em>Reifen</em>. Ihr gehört die Mitte: das
+        Lernen und Wachsen, die Arbeit, die von Woche zu Woche leichter von
+        der Hand geht.
+      </p>
+    </article>
+
+    <article class="myth-card myth-card-wilbeth myth-reveal" style="transition-delay:.36s">
+      <div class="myth-symbol">
+        <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M38 30.5A16 16 0 0 1 17.5 10 16.5 16.5 0 1 0 38 30.5z"/>
+          <circle cx="34" cy="10" r="1.6" fill="currentColor" stroke="none"/>
+          <circle cx="40" cy="16" r="1.1" fill="currentColor" stroke="none"/>
+        </svg>
+      </div>
+      <h2>Wilbeth</h2>
+      <p class="myth-card-role">Die Ordnende &middot; Tod &amp; Wandlung</p>
+      <p class="myth-card-text">
+        Mond, Rad und Zeit — das <em>Vollenden</em>. Ihr gehört der Übergang:
+        jeder Abschluss, jedes Ende, aus dem sie schon den nächsten Faden
+        spinnt.
+      </p>
+    </article>
+
+  </section>
+
+  {# ── Drei Zeiten & Metaphern ──────────────────────────────────── #}
+  <section class="myth-times">
+    <h2 class="myth-h2 myth-reveal">Geburt, Leben, Tod &mdash; und wieder Anfang</h2>
+    <p class="myth-p myth-reveal">
+      In den drei Schwestern erkannten die Alten den Kreislauf allen Daseins:
+      Ambeth das Werden, Borbeth das Blühen, Wilbeth das Vollenden. Geburt,
+      Leben und Tod &mdash; nicht als Gerade, sondern als Rad, das sich dreht.
+    </p>
+    <p class="myth-p myth-reveal">
+      Dieselbe Dreiheit spinnt sich durch viele Sagen: Im Norden weben die
+      <em>Nornen</em> an der Weltenesche das Gewesene, das Werdende und das
+      Kommende. In Griechenland spinnt <em>Klotho</em> den Lebensfaden,
+      <em>Lachesis</em> misst ihn zu, <em>Atropos</em> schneidet ihn ab.
+    </p>
+
+    <blockquote class="myth-quote myth-reveal">
+      &bdquo;Margareta mit dem Wurm,<br>
+      Barbara mit dem Turm,<br>
+      Katharina mit dem Radl &mdash;<br>
+      das sind die drei heiligen Madl.&ldquo;
+    </blockquote>
+    <p class="myth-p myth-reveal">
+      Auch das Christentum kennt seine drei Schwestern: die &bdquo;drei
+      heiligen Madln&ldquo; des Alpenraums. Und siehe &mdash;
+      <em>Katharina trägt das Rad</em>, wie Wilbeth es dreht.
+    </p>
+
+    <div class="myth-weave">
+      <div class="myth-weave-item myth-reveal">
+        <h3>&bdquo;Der rote Faden&ldquo;</h3>
+        <p>Was alles zusammenhält: eine Geschichte, ein Leben &mdash; und ein
+        guter Plan.</p>
+      </div>
+      <div class="myth-weave-item myth-reveal" style="transition-delay:.12s">
+        <h3>&bdquo;Den Faden verlieren&ldquo;</h3>
+        <p>&hellip; und wieder aufnehmen. Jede Pause, jeder Urlaub ist nur
+        eine Schlaufe im Gewebe &mdash; kein Riss.</p>
+      </div>
+      <div class="myth-weave-item myth-reveal" style="transition-delay:.24s">
+        <h3>&bdquo;Text &amp; Textur&ldquo;</h3>
+        <p>Beide Wörter kommen vom lateinischen <em>texere</em>: weben. Wer
+        schreibt, webt. Wer plant, auch.</p>
+      </div>
+      <div class="myth-weave-item myth-reveal" style="transition-delay:.36s">
+        <h3>&bdquo;Das Gewebe der Wochen&ldquo;</h3>
+        <p>Ein Einsatzplan ist ein Tuch: Die Wochen sind die Kettfäden, die
+        Menschen der Schuss. Erst zusammen entsteht ein Muster.</p>
+      </div>
+    </div>
+  </section>
+
+  {# ── Und heute? ───────────────────────────────────────────────── #}
+  <section class="myth-today">
+    <h2 class="myth-h2 myth-reveal">Und wer ist wer &mdash; heute?</h2>
+    <p class="myth-p myth-reveal">
+      <strong>Ambeth</strong> gehört euer erster Tag &mdash; die Unterschrift
+      unter dem Vertrag, der Ausweis am Empfang, die neue Abteilung am Montagmorgen.
+    </p>
+    <p class="myth-p myth-reveal">
+      <strong>Borbeth seid ihr</strong> &mdash; die Azubis und Studis. Ihr
+      lernt, wachst und reift: Woche für Woche, Abteilung für Abteilung,
+      Lehrjahr für Lehrjahr.
+    </p>
+    <p class="myth-p myth-reveal">
+      Und <strong>Wilbeth?</strong> <strong>Wilbeth ist diese App.</strong>
+      Sie lebt nicht euer Leben &mdash; sie ordnet es: Sie dreht das Rad der
+      Kalenderwochen, teilt die Tage zu und verwebt Menschen, Abteilungen und
+      Zeit zu einem Muster. Borbeth gehört euer Lernen. Wilbeth gehört der Plan.
+    </p>
+  </section>
+
+  {# ── Finale ───────────────────────────────────────────────────── #}
+  <section class="myth-finale">
+    <p class="myth-p myth-reveal">
+      Die alten Namen sind fast verklungen. Doch wo geordnet, geplant und
+      gewoben wird, wirkt die Dritte der Schwestern bis heute.
+    </p>
+    <p class="myth-final myth-reveal" style="transition-delay:.5s">
+      &hellip;und Wilbeth spannt jetzt <em>deinen</em> Schicksalsfaden.
+    </p>
+    <a href="/overview" class="myth-cta myth-reveal" id="myth-cta" style="transition-delay:.9s">
+      Dem Faden folgen &rarr;
+    </a>
+  </section>
+
+</div>
+
+<noscript>
+  <style>.myth-reveal { opacity: 1 !important; transform: none !important; }</style>
+</noscript>
+
+<style>
+/* ── Über Wilbeth: mythische Seite (scoped, .myth-*) ───────────── */
+
+/* Einheitliche Seitenfarbe: gesamter Inhaltsbereich dunkel,
+   nur die Sidebar links behält ihr eigenes Design. */
+body { background: #171231; }
+.main-content { padding: 0; }
+.content-inner { max-width: none; }
+
+.myth {
+  position: relative;
+  background: #171231;
+  color: #e9e4f5;
+  overflow: hidden;
+  min-height: 100vh;
+}
+
+.myth section {
+  position: relative;
+  z-index: 1;
+  /* Grosszuegiges vertikales Padding: an den Sektionsgrenzen entsteht so
+     eine breite leere Zone, in der der Faden die Mitte kreuzen kann. */
+  padding: 120px 48px;
+}
+
+/* Vertikaler Schicksalsfaden (hinter dem Inhalt) */
+.myth-thread-v {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.myth-thread-v path {
+  stroke: #d9b36a;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  opacity: 0.55;
+  filter: drop-shadow(0 0 7px rgba(217,179,106,0.5));
+}
+
+@media (max-width: 900px) {
+  /* Auf schmalen Screens kreuzt der Faden zwangslaeufig Text: dezenter */
+  .myth-thread-v path { opacity: 0.28; }
+}
+
+/* Hero */
+.myth-hero {
+  position: relative;
+  min-height: 82vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.myth-stars {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.myth-stars::before {
+  content: "";
+  position: absolute;
+  width: 2px; height: 2px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow:
+    40px 60px 0 0 #fff, 120px 140px 0 0 #cfc4ee, 220px 40px 0 0 #fff,
+    320px 180px 0 0 #d9b36a, 420px 80px 0 0 #fff, 520px 200px 0 0 #cfc4ee,
+    640px 50px 0 0 #fff, 740px 160px 0 0 #fff, 840px 90px 0 0 #d9b36a,
+    90px 260px 0 0 #fff, 280px 300px 0 0 #cfc4ee, 480px 320px 0 0 #fff,
+    680px 280px 0 0 #fff, 860px 330px 0 0 #cfc4ee, 960px 120px 0 0 #fff,
+    150px 420px 0 0 #fff, 380px 460px 0 0 #d9b36a, 590px 430px 0 0 #fff,
+    790px 470px 0 0 #cfc4ee, 940px 400px 0 0 #fff;
+  animation: myth-twinkle 4s ease-in-out infinite;
+}
+
+.myth-stars-2::before {
+  box-shadow:
+    70px 100px 0 0 #cfc4ee, 180px 220px 0 0 #fff, 350px 120px 0 0 #fff,
+    470px 240px 0 0 #d9b36a, 600px 140px 0 0 #cfc4ee, 720px 220px 0 0 #fff,
+    880px 180px 0 0 #fff, 230px 380px 0 0 #fff, 530px 380px 0 0 #cfc4ee,
+    830px 410px 0 0 #fff, 1000px 260px 0 0 #d9b36a;
+  animation-delay: 2s;
+}
+
+@keyframes myth-twinkle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+.myth-kicker {
+  font-size: 13px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: #a89fc6;
+  margin-bottom: 20px;
+}
+
+.myth-title {
+  font-family: Georgia, Cambria, 'Times New Roman', serif;
+  font-size: clamp(40px, 6vw, 64px);
+  font-weight: 400;
+  line-height: 1.12;
+  letter-spacing: 0.5px;
+  margin-bottom: 20px;
+}
+
+.myth-names {
+  font-family: Georgia, serif;
+  font-style: italic;
+  font-size: 17px;
+  color: #d9b36a;
+}
+
+.myth-scrollhint {
+  position: absolute;
+  bottom: 28px;
+  font-size: 20px;
+  color: #a89fc6;
+  animation: myth-bob 2.2s ease-in-out infinite;
+}
+
+@keyframes myth-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(8px); }
+}
+
+/* Erzaehl-Sektionen */
+.myth-story, .myth-history, .myth-times, .myth-today {
+  max-width: 680px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.myth-p {
+  font-family: Georgia, Cambria, serif;
+  font-size: 18px;
+  line-height: 1.85;
+  color: #cdc5e4;
+}
+
+.myth-p + .myth-p { margin-top: 28px; }
+
+.myth-p em, .myth-card-text em { color: #d9b36a; }
+
+.myth-h2 {
+  font-family: Georgia, Cambria, serif;
+  font-size: clamp(26px, 3.5vw, 36px);
+  font-weight: 400;
+  margin-bottom: 28px;
+}
+
+/* Madln-Spruch */
+.myth-quote {
+  font-family: Georgia, serif;
+  font-style: italic;
+  font-size: 19px;
+  line-height: 1.9;
+  color: #d9b36a;
+  margin: 40px auto 28px;
+  padding: 22px 28px;
+  border-left: 2px solid rgba(217,179,106,0.5);
+  border-right: 2px solid rgba(217,179,106,0.5);
+  max-width: 420px;
+}
+
+/* Schwestern-Karten */
+.myth-sisters {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+@media (max-width: 760px) {
+  .myth-sisters, .myth-weave { grid-template-columns: 1fr; }
+  .myth section { padding: 80px 24px; }
+}
+
+.myth-card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: var(--radius-lg);
+  padding: 32px 24px;
+  text-align: center;
+}
+
+.myth-card-wilbeth {
+  background: rgba(217,179,106,0.07);
+  border-color: rgba(217,179,106,0.35);
+  box-shadow: rgba(217,179,106,0.12) 0 0 40px;
+}
+
+.myth-symbol {
+  width: 56px; height: 56px;
+  margin: 0 auto 16px;
+  color: #d9b36a;
+}
+
+.myth-symbol svg { width: 100%; height: 100%; }
+
+.myth-card h2 {
+  font-family: Georgia, serif;
+  font-size: 24px;
+  font-weight: 400;
+  margin-bottom: 4px;
+}
+
+.myth-card-role {
+  font-size: 12px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #d9b36a;
+  margin-bottom: 14px;
+}
+
+.myth-card-text {
+  font-size: 14.5px;
+  line-height: 1.7;
+  color: #b6acd4;
+}
+
+/* Metaphern-Kacheln */
+.myth-weave {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 44px;
+  text-align: left;
+}
+
+.myth-weave-item {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: var(--radius-lg);
+  padding: 22px 24px;
+}
+
+.myth-weave-item h3 {
+  font-family: Georgia, serif;
+  font-size: 17px;
+  font-weight: 400;
+  color: #d9b36a;
+  margin-bottom: 8px;
+}
+
+.myth-weave-item p {
+  font-size: 14px;
+  line-height: 1.7;
+  color: #b6acd4;
+}
+
+.myth-weave-item em { color: #d9b36a; }
+
+/* Und heute? */
+.myth-today .myth-p strong {
+  color: #d9b36a;
+  font-weight: 600;
+}
+
+/* Finale */
+.myth-finale {
+  text-align: center;
+  max-width: 680px;
+  margin: 0 auto;
+  padding-bottom: 110px !important;
+}
+
+.myth-final {
+  font-family: Georgia, Cambria, serif;
+  font-size: clamp(24px, 3.4vw, 34px);
+  line-height: 1.45;
+  margin-top: 28px;
+  color: #f3edd9;
+  text-shadow: 0 0 28px rgba(217,179,106,0.4);
+}
+
+.myth-final em { color: #d9b36a; font-style: italic; }
+
+.myth-cta {
+  display: inline-block;
+  /* Extra Abstand zur Schlusszeile: freie Schneise fuer den einlaufenden Faden */
+  margin-top: 72px;
+  padding: 11px 26px;
+  border: 1px solid rgba(217,179,106,0.55);
+  border-radius: var(--radius-pill);
+  color: #d9b36a;
+  font-size: 15px;
+  text-decoration: none;
+  transition: background 0.2s, color 0.2s, box-shadow 0.4s, border-color 0.4s;
+}
+
+.myth-cta:hover {
+  background: #d9b36a;
+  color: #171231;
+  text-decoration: none;
+}
+
+/* Faden hat den Button beruehrt: Button wird massiv gold und pulsiert */
+.myth-cta.is-complete {
+  border-color: #d9b36a;
+  background: #d9b36a;
+  color: #171231;
+  font-weight: 600;
+  animation: myth-cta-glow 2.4s ease-in-out infinite;
+}
+
+.myth-cta.is-complete:hover {
+  background: #e6c684;
+  border-color: #e6c684;
+  color: #171231;
+}
+
+@keyframes myth-cta-glow {
+  0%, 100% { box-shadow: 0 0 22px rgba(217,179,106,0.35); }
+  50%      { box-shadow: 0 0 52px rgba(217,179,106,0.7); }
+}
+
+/* Scroll-Reveal */
+.myth-reveal {
+  opacity: 0;
+  transform: translateY(26px);
+  transition: opacity 0.9s ease, transform 0.9s ease;
+}
+
+.myth-reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .myth-reveal { opacity: 1; transform: none; transition: none; }
+  .myth-stars::before, .myth-scrollhint { animation: none; }
+  .myth-cta.is-complete { animation: none; box-shadow: 0 0 30px rgba(217,179,106,0.5); }
+}
+</style>
+
+<script>
+(function () {
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ── Scroll-Reveal ─────────────────────────────────────────── */
+  var targets = document.querySelectorAll('.myth-reveal');
+  if (!('IntersectionObserver' in window) || reduceMotion) {
+    targets.forEach(function (el) { el.classList.add('is-visible'); });
+  } else {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('is-visible');
+          io.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.25 });
+    targets.forEach(function (el) { io.observe(el); });
+  }
+
+  /* ── Vertikaler Schicksalsfaden, scroll-gesteuert ──────────── */
+  var myth = document.getElementById('myth');
+  var svg = document.getElementById('myth-thread-svg');
+  var path = document.getElementById('myth-thread-path');
+  var cta = document.getElementById('myth-cta');
+  var threadLen = 0;
+
+  function buildThread() {
+    var W = myth.clientWidth;
+    var mythRect = myth.getBoundingClientRect();
+    var ctaRect = cta.getBoundingClientRect();
+    var endX = ctaRect.left + ctaRect.width / 2 - mythRect.left;
+    /* Endet an der Oberkante des Buttons — der Faden "steckt" im Button */
+    var endY = ctaRect.top - mythRect.top + 4;
+    var H = Math.ceil(endY + 80);
+
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    svg.setAttribute('width', W);
+    svg.setAttribute('height', H);
+    svg.style.height = H + 'px';
+
+    /* Serpentine: ein Bogen pro Sektion. Die Mitte (= Textspalte) wird nur an
+       den Sektionsgrenzen gekreuzt. Damit dort KEIN Knick entsteht, teilen
+       sich der ankommende und der abgehende Bogen denselben vertikalen
+       "Lead" L_k -> die Tangenten sind an jeder Grenze identisch (G1-stetig),
+       egal wie unterschiedlich hoch die angrenzenden Sektionen sind. */
+    var cx = W / 2;
+    var excursion = Math.min(W / 2 - 40, Math.max(400, W * 0.32) * 1.2);
+    if (W < 900) { excursion = Math.max(W / 2 - 24, 60); }
+    var amp = excursion / 0.75;   /* kubischer Bogen erreicht ~75 % des Kontrollpunkt-Abstands */
+    var maxLead = 170;            /* maximaler vertikaler Tangenten-Vorlauf in px */
+
+    /* Mittel-Knoten: y = 0 (oben) + jede Sektionsgrenze mit genug Abstand */
+    var nodes = [0];
+    var sections = myth.querySelectorAll('section');
+    for (var i = 1; i < sections.length; i++) {
+      var boundary = sections[i].getBoundingClientRect().top - mythRect.top;
+      if (boundary > nodes[nodes.length - 1] + 240 && boundary < endY - 240) {
+        nodes.push(boundary);
+      }
+    }
+
+    /* Lead pro Knoten: klein genug, dass beide angrenzenden Boegen nicht
+       ueberschlagen (max. 40 % des kleineren Nachbar-Abschnitts). Derselbe
+       Wert gilt fuer den ein- und den auslaufenden Bogen -> kein Knick. */
+    function leadAt(k) {
+      var below = (k < nodes.length - 1) ? nodes[k + 1] - nodes[k] : (endY - nodes[k]);
+      var above = (k > 0) ? nodes[k] - nodes[k - 1] : below;
+      return Math.min(maxLead, 0.4 * Math.min(above, below));
+    }
+
+    var side = 1;
+    var d = 'M ' + cx + ' 0';
+    for (var j = 1; j < nodes.length; j++) {
+      var y1 = nodes[j - 1], y2 = nodes[j];
+      var l1 = leadAt(j - 1), l2 = leadAt(j);
+      d += ' C ' + (cx + side * amp) + ' ' + (y1 + l1) +
+           ', ' + (cx + side * amp) + ' ' + (y2 - l2) +
+           ', ' + cx + ' ' + y2;
+      side = -side;
+    }
+    /* Schlussbogen: teilt den Lead des letzten Mittel-Knotens (also G1-stetig),
+       schwingt seitlich an den Finale-Texten vorbei und laeuft senkrecht in
+       den Button. */
+    var yLast = nodes[nodes.length - 1];
+    var lLast = leadAt(nodes.length - 1);
+    d += ' C ' + (cx + side * amp) + ' ' + (yLast + lLast) +
+         ', ' + endX + ' ' + (endY - 90) +
+         ', ' + endX + ' ' + endY;
+
+    path.setAttribute('d', d);
+    threadLen = path.getTotalLength();
+    path.style.strokeDasharray = threadLen;
+    updateThread();
+  }
+
+  function updateThread() {
+    if (!threadLen) return;
+    if (reduceMotion) {
+      path.style.strokeDashoffset = 0;
+      cta.classList.add('is-complete');
+      return;
+    }
+    var mythRect = myth.getBoundingClientRect();
+    var ctaRect = cta.getBoundingClientRect();
+    /* "Schreibspitze" bei 75 % der Viewport-Hoehe; voll gezeichnet,
+       sobald sie die Oberkante des Buttons erreicht. */
+    var pen = window.innerHeight * 0.75;
+    var total = ctaRect.top - mythRect.top + 4;
+
+    /* Auf hohen Viewports erreicht die 75%-Linie den Button nie, weil die
+       Seite nicht weit genug scrollen kann. Deshalb auf den maximal
+       erreichbaren Weg normieren: p = 1 spaetestens am Seitenende. */
+    var doc = document.documentElement;
+    var maxScroll = Math.max(0, doc.scrollHeight - window.innerHeight);
+    var mythTopDoc = mythRect.top + window.scrollY;
+    var maxTraveled = maxScroll - mythTopDoc + pen;
+    var effTotal = Math.min(total, maxTraveled - 4);
+    if (effTotal <= 0) { effTotal = total; }
+
+    var traveled = pen - mythRect.top;
+    var p = Math.max(0, Math.min(1, traveled / effTotal));
+    path.style.strokeDashoffset = threadLen * (1 - p);
+    /* Gold-Gluehen exakt in dem Moment, in dem die Fadenspitze ankommt */
+    cta.classList.toggle('is-complete', p >= 0.99);
+  }
+
+  var ticking = false;
+  function onScroll() {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(function () {
+      updateThread();
+      ticking = false;
+    });
+  }
+
+  var resizeTimer = null;
+  function onResize() {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(buildThread, 150);
+  }
+
+  buildThread();
+  window.addEventListener('load', buildThread);
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onResize);
+})();
+</script>
+{% endblock %}

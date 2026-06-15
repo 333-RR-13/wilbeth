@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Lehrjahre{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Lehrjahre</h1>
+    <p class="page-subtitle">Planungszeiträume verwalten</p>
+  </div>
+  <a href="/lehrjahre/neu" class="btn btn-primary">
+    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2Z"/></svg>
+    Lehrjahr anlegen
+  </a>
+</div>
+
+<div class="table-wrapper">
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Start</th>
+        <th>Ende</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for y in years %}
+      <tr id="row-sy-{{ y.id }}">
+        <td><span class="mono">{{ y.id }}</span></td>
+        <td>KW&nbsp;{{ y.start_kw }}/{{ y.start_year }}</td>
+        <td>KW&nbsp;{{ y.end_kw }}/{{ y.end_year }}</td>
+        <td class="td-actions">
+          <a href="/lehrjahre/{{ y.id }}/bearbeiten" class="btn btn-ghost btn-sm">Bearbeiten</a>
+          <button class="btn btn-ghost-danger btn-sm"
+                  hx-delete="/lehrjahre/{{ y.id }}"
+                  hx-target="#row-sy-{{ y.id }}"
+                  hx-swap="outerHTML swap:0.15s"
+                  hx-confirm="Lehrjahr '{{ y.id }}' wirklich löschen?">
+            Löschen
+          </button>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="empty-state">Noch keine Lehrjahre angelegt.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

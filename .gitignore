@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Wilbeth
+*.db
+*.sqlite
+*.sqlite3
+.env
+data/
+
+# Design-Referenzmaterial (Fremd-Repos / große Zips, nicht Teil der App)
+design bib/
+*.zip
+
+# Temporäre Hilfsdateien
+_*.db
+_check_db.py

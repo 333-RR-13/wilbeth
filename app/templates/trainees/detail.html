@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block title %}{{ trainee.nachname }}, {{ trainee.vorname }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">{{ trainee.nachname }}, {{ trainee.vorname }}</h1>
+    <p class="page-subtitle">
+      {% if trainee.aktiv %}<span class="badge badge-green">Aktiv</span>{% else %}<span class="badge badge-gray">Inaktiv</span>{% endif %}
+      {% if trainee.rolle.value == 'AZUBI' %}<span class="badge badge-blue">Azubi</span>
+      {% elif trainee.rolle.value == 'DH_STUDENT' %}<span class="badge badge-orange">DH-Student</span>
+      {% elif trainee.rolle.value == 'PRAKTIKANT' %}<span class="badge badge-gray">Praktikant</span>
+      {% else %}<span class="badge badge-gray">Umschüler</span>{% endif %}
+      {% if klasse %}<span class="badge badge-gray">{{ klasse.name }}</span>{% endif %}
+    </p>
+  </div>
+  <div class="btn-group">
+    <a href="/einsaetze/neu?trainee_id={{ trainee.id }}" class="btn btn-primary">Einsatz anlegen</a>
+    <a href="/trainees/{{ trainee.id }}/bearbeiten" class="btn btn-secondary">Bearbeiten</a>
+  </div>
+</div>
+
+{% if trainee.notizen %}
+<div class="card card-body" style="margin-bottom: 24px; color: var(--text-secondary); font-size: 14px;">
+  {{ trainee.notizen }}
+</div>
+{% endif %}
+
+{# ── Azubi-Zugang (Self-Service-Link) ───────────────────────────── #}
+<div class="card card-body detail-access" style="margin-bottom: 24px;">
+  <h2 class="form-section-title">Azubi-Zugang</h2>
+  {% if trainee.share_token %}
+    <p class="form-hint" style="margin-bottom: 8px;">Persönlicher Link – der Azubi sieht seinen Plan, kann Urlaub eintragen und Wünsche äußern.</p>
+    <div class="access-link-row">
+      <input type="text" id="share-link" readonly
+             value="/mein-plan/{{ trainee.share_token }}"
+             data-path="/mein-plan/{{ trainee.share_token }}">
+      <button type="button" class="btn btn-secondary btn-sm" onclick="copyShareLink()">Kopieren</button>
+    </div>
+    <div class="btn-group" style="margin-top: 12px;">
+      <form method="post" action="/trainees/{{ trainee.id }}/share-token"
+            onsubmit="return confirm('Neuen Link erzeugen? Der alte Link wird sofort ungültig.')">
+        <button type="submit" class="btn btn-ghost btn-sm">Neuen Link erzeugen</button>
+      </form>
+      <form method="post" action="/trainees/{{ trainee.id }}/share-token/deaktivieren"
+            onsubmit="return confirm('Zugang deaktivieren? Der Link wird ungültig.')">
+        <button type="submit" class="btn btn-ghost-danger btn-sm">Zugang deaktivieren</button>
+      </form>
+    </div>
+  {% else %}
+    <p class="form-hint" style="margin-bottom: 12px;">Kein Zugang aktiv.</p>
+    <form method="post" action="/trainees/{{ trainee.id }}/share-token">
+      <button type="submit" class="btn btn-secondary btn-sm">Zugangs-Link erzeugen</button>
+    </form>
+  {% endif %}
+</div>
+
+{# ── Wünsche des Azubis ─────────────────────────────────────────── #}
+{% if wishes or trainee.wunsch_notiz %}
+<div class="card card-body" style="margin-bottom: 24px;">
+  <h2 class="form-section-title">Wünsche</h2>
+  {% if wishes %}
+  <div class="wish-chips">
+    {% for w in wishes %}
+    <span class="wish-chip">
+      <span class="wish-prio">P{{ w.prioritaet }}</span>
+      {{ depts[w.department_id].code if w.department_id in depts else '?' }}
+      <span class="wish-dept-name">{{ depts[w.department_id].name if w.department_id in depts else '' }}</span>
+    </span>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% if trainee.wunsch_notiz %}
+  <p class="wish-notiz">{{ trainee.wunsch_notiz }}</p>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if assignments %}
+{% set ns = namespace(current_year=None) %}
+{% for a in assignments %}
+  {% if a.schoolyear_id != ns.current_year %}
+    {% if ns.current_year is not none %}
+    </tbody></table></div>
+    {% endif %}
+    {% set ns.current_year = a.schoolyear_id %}
+    <h2 class="detail-year-heading">Lehrjahr {{ a.schoolyear_id }}</h2>
+    <div class="table-wrapper" style="margin-bottom: 24px;">
+    <table>
+      <thead>
+        <tr>
+          <th>KW</th>
+          <th>Jahr</th>
+          <th>Typ</th>
+          <th>Abteilung</th>
+          <th>Notiz</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+  {% endif %}
+  {% set conflict_key = a.kw ~ "~" ~ a.jahr %}
+        <tr class="{% if conflict_key in conflict_cells %}row-conflict {% endif %}{% if conflict_key == today_key %}row-today{% endif %}">
+          <td class="mono">{{ a.kw }}</td>
+          <td class="mono">{{ a.jahr }}</td>
+          <td>
+            {% if a.typ.value == 'ABTEILUNG' %}<span class="cell-chip cell-ABTEILUNG">ABT</span>
+            {% elif a.typ.value == 'BERUFSSCHULE' %}<span class="cell-chip cell-BERUFSSCHULE">BS</span>
+            {% elif a.typ.value == 'UNI' %}<span class="cell-chip cell-UNI">UNI</span>
+            {% elif a.typ.value == 'URLAUB' %}<span class="cell-chip cell-URLAUB">URL</span>
+            {% else %}<span class="cell-chip cell-FREI">FRE</span>{% endif %}
+            {% if conflict_key in conflict_cells %}<span class="conflict-icon" title="Konflikt">&#9888;</span>{% endif %}
+          </td>
+          <td>
+            {% if a.abteilung_id and a.abteilung_id in depts %}
+              {{ depts[a.abteilung_id].code }} – {{ depts[a.abteilung_id].name }}
+            {% else %}
+              <span class="text-muted">–</span>
+            {% endif %}
+          </td>
+          <td>{{ a.notiz if a.notiz else '–' }}</td>
+          <td class="td-actions">
+            <a href="/einsaetze/{{ a.id }}/bearbeiten" class="btn btn-ghost btn-sm">Bearbeiten</a>
+          </td>
+        </tr>
+{% endfor %}
+{% if assignments %}
+      </tbody>
+    </table>
+    </div>
+{% endif %}
+{% else %}
+<div class="card card-body" style="text-align: center; color: var(--text-muted);">
+  Noch keine Einsätze vorhanden.
+  <a href="/einsaetze/neu?trainee_id={{ trainee.id }}">Ersten Einsatz anlegen</a>
+</div>
+{% endif %}
+
+<script>
+function copyShareLink() {
+  const input = document.getElementById('share-link');
+  if (!input) return;
+  // Absoluten Link aus Origin + Pfad bauen
+  const absolute = window.location.origin + input.dataset.path;
+  navigator.clipboard.writeText(absolute).then(function () {
+    const btn = event.target;
+    const old = btn.textContent;
+    btn.textContent = 'Kopiert!';
+    setTimeout(function () { btn.textContent = old; }, 1500);
+  });
+}
+</script>
+
+{% endblock %}

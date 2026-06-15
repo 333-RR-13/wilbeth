@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}{{ "Klasse bearbeiten" if cls else "Klasse anlegen" }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">{{ "Klasse bearbeiten" if cls else "Klasse anlegen" }}</h1>
+  </div>
+</div>
+
+<div class="form-card">
+  <form method="post" action="{{ '/klassen/' + (cls.id | string) if cls else '/klassen/' }}">
+    <div class="form-grid">
+
+      <div class="form-group">
+        <label for="name">Name <span class="required">*</span></label>
+        <input type="text" id="name" name="name"
+               value="{{ cls.name if cls else '' }}"
+               placeholder="z. B. FISI 2. LJ" required>
+      </div>
+
+      <div class="form-group">
+        <label for="berufsschule">Berufsschule <span class="required">*</span></label>
+        <input type="text" id="berufsschule" name="berufsschule"
+               value="{{ cls.berufsschule if cls else '' }}"
+               placeholder="z. B. Josef-Durler Rastatt" required>
+      </div>
+
+      <div class="form-group">
+        <label for="unterrichts_typ">Unterrichtstyp <span class="required">*</span></label>
+        <select id="unterrichts_typ" name="unterrichts_typ" required onchange="syncTageFest()">
+          {% for t in typen %}
+          <option value="{{ t.value }}" {{ 'selected' if cls and cls.unterrichts_typ == t else '' }}>
+            {% if t.value == 'BLOCK_FEST' %}Block fest (z. B. FISI, FIAE)
+            {% elif t.value == 'TAGE_FEST' %}Wochentag-Schule (z. B. Bürokaufleute)
+            {% else %}DH-Phasen (DHBW, BWL){% endif %}
+          </option>
+          {% endfor %}
+        </select>
+        <span class="form-hint">Block/DH: BS-Wochen werden manuell im Schulplan eingetragen. Wochentag-Schule: feste Schultage hier festlegen.</span>
+      </div>
+
+      <div class="form-group" id="tage-fest-group">
+        <label>Schultage <span class="required">*</span></label>
+        <div class="weekday-picker">
+          {% for num in [1, 2, 3, 4, 5] %}
+          <label class="weekday-option">
+            <input type="checkbox" name="wochentag" value="{{ num }}"
+                   {{ 'checked' if num in selected_weekdays else '' }}>
+            {{ weekday_labels[num] }}
+          </label>
+          {% endfor %}
+        </div>
+        <label for="halbtag_wochentag" style="margin-top: 10px;">Halbtags an</label>
+        <select id="halbtag_wochentag" name="halbtag_wochentag">
+          <option value="">– kein Halbtag –</option>
+          {% for num in [1, 2, 3, 4, 5] %}
+          <option value="{{ num }}" {{ 'selected' if cls and cls.halbtag_wochentag == num else '' }}>
+            {{ weekday_labels[num] }}
+          </option>
+          {% endfor %}
+        </select>
+        <span class="form-hint">Beispiel Bürokaufleute: 1./2. LJ Di + Mi (Mi halbtags), 3. LJ Mo + Do.</span>
+      </div>
+
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Speichern</button>
+      <a href="/klassen/" class="btn btn-secondary">Abbrechen</a>
+    </div>
+  </form>
+</div>
+
+<script>
+function syncTageFest() {
+  var typ = document.getElementById('unterrichts_typ').value;
+  document.getElementById('tage-fest-group').style.display = typ === 'TAGE_FEST' ? '' : 'none';
+}
+syncTageFest();
+</script>
+{% endblock %}

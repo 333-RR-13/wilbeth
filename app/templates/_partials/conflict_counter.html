@@ -1,0 +1,13 @@
+<div id="conflict-counter" class="conflict-counter-row" hx-swap-oob="true">
+  {% if conflict_count > 0 %}
+    <span class="page-subtitle conflict-hint">&#9888; {{ conflict_count }} Konflikt{{ 'e' if conflict_count != 1 else '' }} erkannt</span>
+    <button type="button" class="btn btn-ghost btn-sm conflict-why-btn"
+            hx-get="/overview/konflikte?schoolyear_id={{ selected_year }}"
+            hx-target="#conflict-panel" hx-swap="innerHTML"
+            onclick="document.getElementById('conflict-panel').hidden = false">
+      Warum? &rarr;
+    </button>
+  {% else %}
+    <span class="page-subtitle">Keine Konflikte</span>
+  {% endif %}
+</div>

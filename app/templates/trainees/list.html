@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Trainees{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Trainees</h1>
+    <p class="page-subtitle">{{ trainees | length }} Person{{ 'en' if trainees | length != 1 else '' }}</p>
+  </div>
+  <a href="/trainees/neu" class="btn btn-primary">
+    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2Z"/></svg>
+    Trainee anlegen
+  </a>
+</div>
+
+<div class="search-bar">
+  <input type="search" id="trainee-search" placeholder="Trainee suchen (Name, Klasse, Rolle)…"
+         autocomplete="off" aria-label="Trainees durchsuchen">
+</div>
+
+<div class="table-wrapper">
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Klasse</th>
+        <th>Rolle</th>
+        <th>Status</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in trainees %}
+      <tr id="row-t-{{ t.id }}">
+        <td><a href="/trainees/{{ t.id }}" class="trainee-name-link"><strong>{{ t.nachname }}, {{ t.vorname }}</strong></a></td>
+        <td class="td-muted">
+          {% if t.klasse_id and t.klasse_id in classes %}
+            {{ classes[t.klasse_id].name }}
+          {% else %}
+            <span class="text-muted">–</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if t.rolle.value == 'AZUBI' %}
+            <span class="badge badge-blue">Azubi</span>
+          {% elif t.rolle.value == 'DH_STUDENT' %}
+            <span class="badge badge-orange">DH-Student</span>
+          {% elif t.rolle.value == 'PRAKTIKANT' %}
+            <span class="badge badge-gray">Praktikant</span>
+          {% else %}
+            <span class="badge badge-gray">Umschüler</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if t.aktiv %}
+            <span class="badge badge-green">Aktiv</span>
+          {% else %}
+            <span class="badge badge-gray">Inaktiv</span>
+          {% endif %}
+        </td>
+        <td class="td-actions">
+          <a href="/trainees/{{ t.id }}/bearbeiten" class="btn btn-ghost btn-sm">Bearbeiten</a>
+          <button class="btn btn-ghost-danger btn-sm"
+                  hx-delete="/trainees/{{ t.id }}"
+                  hx-target="#row-t-{{ t.id }}"
+                  hx-swap="outerHTML swap:0.15s"
+                  hx-confirm="{{ t.nachname }}, {{ t.vorname }} wirklich löschen?">
+            Löschen
+          </button>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="empty-state">Noch keine Trainees angelegt.</td></tr>
+      {% endfor %}
+      <tr id="trainee-search-empty" hidden>
+        <td colspan="5" class="search-no-results">Keine Trainees gefunden.</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<script>
+(function () {
+  const input = document.getElementById('trainee-search');
+  if (!input) return;
+  const rows = Array.from(document.querySelectorAll('tbody tr[id^="row-t-"]'));
+  const emptyRow = document.getElementById('trainee-search-empty');
+
+  input.addEventListener('input', function () {
+    const q = input.value.trim().toLowerCase();
+    let visible = 0;
+    rows.forEach(function (row) {
+      const match = row.textContent.toLowerCase().includes(q);
+      row.hidden = !match;
+      if (match) visible++;
+    });
+    if (emptyRow) emptyRow.hidden = visible !== 0;
+  });
+})();
+</script>
+{% endblock %}

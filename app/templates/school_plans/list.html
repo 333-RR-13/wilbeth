@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Schulpläne{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Schulpläne</h1>
+    <p class="page-subtitle">{{ plans | length }} Plan{{ 'e' if plans | length != 1 else '' }}</p>
+  </div>
+  <a href="/schulplaene/neu" class="btn btn-primary">
+    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2Z"/></svg>
+    Plan anlegen
+  </a>
+</div>
+
+<div class="table-wrapper">
+  <table>
+    <thead>
+      <tr>
+        <th>Klasse</th>
+        <th>Lehrjahr</th>
+        <th>Unterrichtstyp</th>
+        <th>Schulwochen</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in plans %}
+      {% set cls = classes.get(p.klasse_id) %}
+      <tr id="row-sp-{{ p.id }}">
+        <td><strong>{{ cls.name if cls else '–' }}</strong></td>
+        <td class="td-muted">{{ p.schoolyear_id }}</td>
+        <td>
+          {% if cls %}
+            {% if cls.unterrichts_typ.value == 'BLOCK_FEST' %}
+              <span class="badge badge-blue">Block fest</span>
+            {% else %}
+              <span class="badge badge-gray">DH-Phasen</span>
+            {% endif %}
+          {% else %}
+            <span class="badge badge-gray">–</span>
+          {% endif %}
+        </td>
+        <td class="td-muted">{{ week_counts.get(p.id, 0) }}</td>
+        <td class="td-actions">
+          <a href="/schulplaene/{{ p.id }}" class="btn btn-ghost btn-sm">Details</a>
+          <button class="btn btn-ghost-danger btn-sm"
+                  hx-delete="/schulplaene/{{ p.id }}"
+                  hx-target="#row-sp-{{ p.id }}"
+                  hx-swap="outerHTML swap:0.15s"
+                  hx-confirm="Plan für {{ cls.name if cls else 'diese Klasse' }} wirklich löschen?">
+            Löschen
+          </button>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="empty-state">Noch keine Schulpläne angelegt.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

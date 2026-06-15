@@ -1,0 +1,82 @@
+"""Tests fuer die Matrix-Uebersicht: Klassen- und Abteilungs-Filter (Variante A)."""
+from sqlmodel import Session
+
+from app.models import (
+    Assignment,
+    AssignmentSource,
+    AssignmentTyp,
+    Department,
+    DepartmentKategorie,
+    Schoolyear,
+    Trainee,
+    TraineeClass,
+    TraineeRolle,
+    UnterrichtsTyp,
+)
+
+SY = "2025-2026"
+
+
+def _base(session: Session) -> dict:
+    session.add(Schoolyear(id=SY, start_kw=36, start_year=2025, end_kw=35, end_year=2026))
+    fisi = TraineeClass(name="FISI 2. LJ", berufsschule="JD", unterrichts_typ=UnterrichtsTyp.BLOCK_FEST)
+    fiae = TraineeClass(name="FIAE 2. LJ", berufsschule="HHS", unterrichts_typ=UnterrichtsTyp.BLOCK_FEST)
+    cp = Department(code="CP", name="Cloud Platform", kategorie=DepartmentKategorie.ITO)
+    ba = Department(code="BA", name="Business Applications", kategorie=DepartmentKategorie.NON_ITO,
+                    erlaubt_mehrfachbelegung=True)
+    session.add_all([fisi, fiae, cp, ba])
+    session.flush()
+
+    anton = Trainee(vorname="Anton", nachname="Altmann", rolle=TraineeRolle.AZUBI, klasse_id=fisi.id)
+    beate = Trainee(vorname="Beate", nachname="Bergmann", rolle=TraineeRolle.AZUBI, klasse_id=fiae.id)
+    session.add_all([anton, beate])
+    session.flush()
+
+    # Anton in CP, Beate in BA
+    session.add(Assignment(trainee_id=anton.id, schoolyear_id=SY, kw=40, jahr=2025,
+                           typ=AssignmentTyp.ABTEILUNG, abteilung_id=cp.id, source=AssignmentSource.MANUAL))
+    session.add(Assignment(trainee_id=beate.id, schoolyear_id=SY, kw=40, jahr=2025,
+                           typ=AssignmentTyp.ABTEILUNG, abteilung_id=ba.id, source=AssignmentSource.MANUAL))
+    session.commit()
+    return {"fisi": fisi.id, "fiae": fiae.id, "cp": cp.id, "ba": ba.id}
+
+
+def test_overview_renders(client, session):
+    _base(session)
+    r = client.get("/overview", params={"schoolyear_id": SY})
+    assert r.status_code == 200
+    assert "Altmann" in r.text
+    assert "Bergmann" in r.text
+
+
+def test_klasse_filter(client, session):
+    ids = _base(session)
+    r = client.get("/overview", params={"schoolyear_id": SY, "klasse_id": ids["fisi"]})
+    assert r.status_code == 200
+    assert "Altmann" in r.text       # FISI
+    assert "Bergmann" not in r.text  # FIAE ausgeblendet
+
+
+def test_abteilung_filter_variante_a(client, session):
+    ids = _base(session)
+    # Nur Trainees mit Einsatz in CP
+    r = client.get("/overview", params={"schoolyear_id": SY, "abteilung_id": ids["cp"]})
+    assert r.status_code == 200
+    assert "Altmann" in r.text       # hat CP-Einsatz
+    assert "Bergmann" not in r.text  # nur BA
+
+
+def test_abteilung_filter_other_dept(client, session):
+    ids = _base(session)
+    r = client.get("/overview", params={"schoolyear_id": SY, "abteilung_id": ids["ba"]})
+    assert r.status_code == 200
+    assert "Bergmann" in r.text
+    assert "Altmann" not in r.text
+
+
+def test_date_header_present(client, session):
+    _base(session)
+    r = client.get("/overview", params={"schoolyear_id": SY})
+    # Zweizeiliger Header: KW-Nummer + Datum der Montagswoche
+    assert "th-kw-num" in r.text
+    assert "th-kw-date" in r.text

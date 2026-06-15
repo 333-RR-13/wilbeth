@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Schulplan anlegen{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Schulplan anlegen</h1>
+    <p class="page-subtitle">Plan für eine Klasse und ein Lehrjahr erstellen</p>
+  </div>
+</div>
+
+<div class="form-card">
+  <form method="post" action="/schulplaene/">
+    <div class="form-grid">
+
+      <div class="form-group">
+        <label for="klasse_id">Klasse <span class="required">*</span></label>
+        <select id="klasse_id" name="klasse_id" required>
+          <option value="">– bitte wählen –</option>
+          {% for c in classes %}
+          <option value="{{ c.id }}">
+            {{ c.name }}
+            {% if c.unterrichts_typ.value == 'BLOCK_FEST' %} (Block fest)
+            {% else %} (DH-Phasen){% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="schoolyear_id">Lehrjahr <span class="required">*</span></label>
+        <select id="schoolyear_id" name="schoolyear_id" required>
+          <option value="">– bitte wählen –</option>
+          {% for y in years %}
+          <option value="{{ y.id }}">{{ y.id }}</option>
+          {% endfor %}
+        </select>
+        <span class="form-hint">Falls bereits ein Plan existiert, wird direkt dorthin weitergeleitet.</span>
+      </div>
+
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Plan anlegen</button>
+      <a href="/schulplaene/" class="btn btn-secondary">Abbrechen</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

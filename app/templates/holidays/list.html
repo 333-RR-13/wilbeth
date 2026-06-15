@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Schulferien{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Schulferien</h1>
+    <p class="page-subtitle">Ferienzeiträume pro Lehrjahr (Baden-Württemberg)</p>
+  </div>
+  <a href="/schulferien/neu" class="btn btn-primary">
+    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2Z"/></svg>
+    Ferien anlegen
+  </a>
+</div>
+
+<div class="table-wrapper">
+  <table>
+    <thead>
+      <tr>
+        <th>Bezeichnung</th>
+        <th>Lehrjahr</th>
+        <th>Von</th>
+        <th>Bis</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for h in holidays %}
+      <tr id="row-h-{{ h.id }}">
+        <td><strong>{{ h.name }}</strong></td>
+        <td><span class="mono">{{ h.schoolyear_id }}</span></td>
+        <td>KW&nbsp;{{ h.start_kw }}/{{ h.start_year }}</td>
+        <td>
+          {% if h.start_kw == h.end_kw and h.start_year == h.end_year %}
+            —
+          {% else %}
+            KW&nbsp;{{ h.end_kw }}/{{ h.end_year }}
+          {% endif %}
+        </td>
+        <td class="td-actions">
+          <a href="/schulferien/{{ h.id }}/bearbeiten" class="btn btn-ghost btn-sm">Bearbeiten</a>
+          <button class="btn btn-ghost-danger btn-sm"
+                  hx-delete="/schulferien/{{ h.id }}"
+                  hx-target="#row-h-{{ h.id }}"
+                  hx-swap="outerHTML swap:0.15s"
+                  hx-confirm="'{{ h.name }}' wirklich löschen?">
+            Löschen
+          </button>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="empty-state">Noch keine Schulferien angelegt.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

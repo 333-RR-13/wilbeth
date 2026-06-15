@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mein Plan – {{ trainee.vorname }} {{ trainee.nachname }}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="share-body">
+<div class="share-wrap">
+
+  <header class="share-header">
+    <div>
+      <div class="share-logo"><span class="share-logo-icon">W</span> Wilbeth</div>
+      <h1 class="share-title">Mein Einsatzplan</h1>
+      <p class="share-subtitle">{{ trainee.vorname }} {{ trainee.nachname }}</p>
+    </div>
+    <a class="btn btn-secondary" href="/mein-plan/{{ token }}/calendar.ics">
+      Kalender abonnieren (.ics)
+    </a>
+  </header>
+
+  <nav class="share-tabs">
+    <a href="/mein-plan/{{ token }}" class="share-tab active">Meine Einsätze</a>
+    <a href="/mein-plan/{{ token }}/klasse" class="share-tab">Meine Klasse</a>
+  </nav>
+
+  {% if schul_tage %}
+  <p class="share-schooldays">&#128218; Deine festen Schultage: <strong>{{ schul_tage }}</strong></p>
+  {% endif %}
+
+  {# Flash #}
+  {% set msg = request.query_params.get('msg') %}
+  {% if msg == 'urlaub' %}
+    <div class="flash flash-success">
+      {{ request.query_params.get('n', '0') }} Urlaubswoche(n) eingetragen.
+      {% if request.query_params.get('s', '0') != '0' %}
+        {{ request.query_params.get('s') }} übersprungen (Schulwoche oder bereits verplant).
+      {% endif %}
+    </div>
+  {% elif msg == 'urlaub_geloescht' %}
+    <div class="flash flash-info">Urlaub entfernt.</div>
+  {% elif msg == 'wuensche' %}
+    <div class="flash flash-success">Wünsche gespeichert.</div>
+  {% endif %}
+
+  {# ── Wochen-Band pro Lehrjahr ─────────────────────────────────── #}
+  <section class="share-card">
+    <h2 class="share-section-title">Plan</h2>
+    {% for band in bands %}
+    <div class="share-band-year">Lehrjahr {{ band.schoolyear_id }}</div>
+    <div class="share-band">
+      {% for w in band.weeks %}
+      <div class="share-week{% if w.is_today %} is-today{% endif %}{% if w.is_school %} is-school{% endif %}"
+           title="KW {{ w.kw }} – ab Mo {{ w.monday.strftime('%d.%m.%Y') }}">
+        <div class="share-week-kw">{{ w.kw }}</div>
+        <div class="share-week-chip">
+          {% set a = w.a %}
+          {% if a %}
+            {% if a.typ.value == 'ABTEILUNG' %}
+              <span class="cell-chip cell-ABTEILUNG">{{ depts[a.abteilung_id].code if a.abteilung_id and a.abteilung_id in depts else 'ABT' }}</span>
+            {% elif a.typ.value == 'BERUFSSCHULE' %}<span class="cell-chip cell-BERUFSSCHULE">BS</span>
+            {% elif a.typ.value == 'UNI' %}<span class="cell-chip cell-UNI">UNI</span>
+            {% elif a.typ.value == 'URLAUB' %}<span class="cell-chip cell-URLAUB">URL</span>
+            {% else %}<span class="cell-chip cell-FREI">FRE</span>{% endif %}
+          {% else %}
+            <span class="share-week-empty">–</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="share-empty">Noch kein Plan hinterlegt.</p>
+    {% endfor %}
+  </section>
+
+  {# ── Urlaub eintragen ─────────────────────────────────────────── #}
+  <section class="share-card">
+    <h2 class="share-section-title">Urlaub eintragen</h2>
+    <p class="form-hint">In Schulwochen ist kein Urlaub möglich – solche Wochen werden übersprungen.</p>
+    <form method="post" action="/mein-plan/{{ token }}/urlaub" class="share-urlaub-form">
+      <div class="share-field">
+        <label>KW von</label>
+        <input type="number" name="kw" min="1" max="53" required>
+      </div>
+      <div class="share-field">
+        <label>Jahr</label>
+        <input type="number" name="jahr" required>
+      </div>
+      <div class="share-field">
+        <label>KW bis (optional)</label>
+        <input type="number" name="kw_end" min="1" max="53" placeholder="–">
+      </div>
+      <div class="share-field">
+        <label>Jahr bis</label>
+        <input type="number" name="jahr_end" placeholder="–">
+      </div>
+      <button type="submit" class="btn btn-primary">Urlaub eintragen</button>
+    </form>
+
+    {% if own_urlaub %}
+    <table class="share-urlaub-list">
+      <thead><tr><th>KW</th><th>Jahr</th><th></th></tr></thead>
+      <tbody>
+        {% for u in own_urlaub %}
+        <tr>
+          <td class="mono">{{ u.kw }}</td>
+          <td class="mono">{{ u.jahr }}</td>
+          <td class="td-actions">
+            <form method="post" action="/mein-plan/{{ token }}/urlaub/loeschen"
+                  onsubmit="return confirm('Urlaub in KW {{ u.kw }}/{{ u.jahr }} entfernen?')">
+              <input type="hidden" name="assignment_id" value="{{ u.id }}">
+              <button type="submit" class="btn btn-ghost-danger btn-sm">Entfernen</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="share-empty">Noch kein selbst eingetragener Urlaub.</p>
+    {% endif %}
+  </section>
+
+  {# ── Wünsche ──────────────────────────────────────────────────── #}
+  <section class="share-card">
+    <h2 class="share-section-title">Meine Wünsche</h2>
+    <p class="form-hint">Priorität 1 = am wichtigsten. Leer = kein Wunsch. Die Planerin sieht deine Auswahl.</p>
+    <form method="post" action="/mein-plan/{{ token }}/wuensche">
+      <table class="share-wish-table">
+        <thead><tr><th>Abteilung</th><th>Priorität</th></tr></thead>
+        <tbody>
+          {% for d in all_depts %}
+          <tr>
+            <td>{{ d.code }} – {{ d.name }}</td>
+            <td>
+              <select name="prio_{{ d.id }}">
+                <option value="" {{ 'selected' if d.id not in wishes else '' }}>–</option>
+                {% for p in [1, 2, 3] %}
+                <option value="{{ p }}" {{ 'selected' if wishes.get(d.id) == p else '' }}>{{ p }}</option>
+                {% endfor %}
+              </select>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <div class="share-field share-field-block">
+        <label for="wunsch_notiz">Zeitwünsche &amp; Sonstiges (Freitext)</label>
+        <textarea id="wunsch_notiz" name="wunsch_notiz" rows="3"
+                  placeholder="z. B. „CP möglichst vor der Zwischenprüfung“">{{ wunsch_notiz }}</textarea>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Wünsche speichern</button>
+      </div>
+    </form>
+  </section>
+
+  <footer class="share-footer">
+    Wilbeth – interne Einsatzplanung. Dieser Link ist persönlich, bitte nicht weitergeben.
+  </footer>
+
+</div>
+</body>
+</html>

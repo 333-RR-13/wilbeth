@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Einsatzplanung bestätigen{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Einsatzplanung bestätigen</h1>
+    <p class="page-subtitle">Einige KWs haben bereits Einträge gleichen Typs.</p>
+  </div>
+</div>
+
+<div class="form-card" style="max-width: 680px;">
+
+  {% if to_create_count or to_override or skipped %}
+  <div class="confirm-summary">
+    {% if to_create_count %}
+    <div class="confirm-summary-item confirm-ok">
+      <strong>{{ to_create_count }}</strong> Einsatz{{ 'ätze' if to_create_count != 1 else '' }} neu anlegen
+    </div>
+    {% endif %}
+    {% if to_override %}
+    <div class="confirm-summary-item confirm-warn">
+      <strong>{{ to_override | length }}</strong> Einsatz{{ 'ätze' if to_override | length != 1 else '' }} automatisch überschreiben
+      <ul class="confirm-list">
+        {% for kw, jahr, old in to_override %}
+        <li>KW {{ kw }}/{{ jahr }}: {{ old.typ.value }}
+          {% if old.typ.value == 'ABTEILUNG' and old.abteilung_id and old.abteilung_id in depts %}
+            ({{ depts[old.abteilung_id].code }})
+          {% endif %}
+          → <strong>{{ typ }}</strong>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+    {% if skipped %}
+    <div class="confirm-summary-item confirm-skip">
+      <strong>{{ skipped | length }}</strong> Einsatz{{ 'ätze' if skipped | length != 1 else '' }} übersprungen (höherrangig oder Schulwoche)
+      <ul class="confirm-list">
+        {% for kw, jahr, reason in skipped %}
+        <li>KW {{ kw }}/{{ jahr }}: {{ reason }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if pending %}
+  <h2 class="confirm-section-title">Gleichrangige Konflikte – Ihre Wahl:</h2>
+  <p class="form-hint" style="margin-bottom: 12px;">Haken setzen = bestehenden Einsatz mit dem neuen Typ überschreiben.</p>
+
+  <table class="confirm-table">
+    <thead>
+      <tr>
+        <th>Überschreiben?</th>
+        <th>KW / Jahr</th>
+        <th>Aktuell</th>
+        <th>Neu</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for kw_p, jahr_p, old in pending %}
+      <tr>
+        <td class="td-check">
+          <label class="form-check">
+            <input type="checkbox" name="override" value="{{ kw_p }}:{{ jahr_p }}"
+                   form="confirm-form">
+          </label>
+        </td>
+        <td>KW {{ kw_p }}/{{ jahr_p }}</td>
+        <td>
+          <span class="cell-chip cell-{{ old.typ.value }}">
+            {% if old.typ.value == 'ABTEILUNG' %}
+              {{ depts[old.abteilung_id].code if old.abteilung_id and old.abteilung_id in depts else 'ABT' }}
+            {% elif old.typ.value == 'BERUFSSCHULE' %}BS
+            {% elif old.typ.value == 'UNI' %}UNI
+            {% elif old.typ.value == 'URLAUB' %}URL
+            {% else %}FRE{% endif %}
+          </span>
+        </td>
+        <td>
+          <span class="cell-chip cell-{{ typ }}">
+            {% if typ == 'ABTEILUNG' %}ABT
+            {% elif typ == 'BERUFSSCHULE' %}BS
+            {% elif typ == 'UNI' %}UNI
+            {% elif typ == 'URLAUB' %}URL
+            {% else %}FRE{% endif %}
+          </span>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <form id="confirm-form" method="post" action="/einsaetze/confirm">
+    <input type="hidden" name="trainee_id" value="{{ trainee_id }}">
+    <input type="hidden" name="schoolyear_id" value="{{ schoolyear_id }}">
+    <input type="hidden" name="kw" value="{{ kw }}">
+    <input type="hidden" name="jahr" value="{{ jahr }}">
+    <input type="hidden" name="kw_end" value="{{ kw_end }}">
+    <input type="hidden" name="jahr_end" value="{{ jahr_end }}">
+    <input type="hidden" name="typ" value="{{ typ }}">
+    <input type="hidden" name="abteilung_id" value="{{ abteilung_id }}">
+    <input type="hidden" name="notiz" value="{{ notiz }}">
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Bestätigen &amp; Speichern</button>
+      <a href="/einsaetze/neu" class="btn btn-secondary">Abbrechen</a>
+    </div>
+  </form>
+
+</div>
+{% endblock %}

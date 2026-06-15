@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}{{ "Lehrjahr bearbeiten" if year else "Lehrjahr anlegen" }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">{{ "Lehrjahr bearbeiten" if year else "Lehrjahr anlegen" }}</h1>
+  </div>
+</div>
+
+<div class="form-card">
+  <form method="post" action="{{ '/lehrjahre/' + year.id if year else '/lehrjahre/' }}">
+    <div class="form-grid">
+
+      <div class="form-group">
+        <label for="id">ID <span class="required">*</span></label>
+        <input type="text" id="id" name="id"
+               value="{{ year.id if year else '' }}"
+               placeholder="z. B. 2025-2026"
+               {{ 'readonly style="background:#f8fafc;color:#808080"' if year else '' }}
+               required>
+        <span class="form-hint">Format: JJJJ-JJJJ — kann nach dem Anlegen nicht mehr geändert werden.</span>
+      </div>
+
+      <div class="form-grid form-grid-2">
+        <div class="form-group">
+          <label for="start_kw">Start KW <span class="required">*</span></label>
+          <input type="number" id="start_kw" name="start_kw" min="1" max="53"
+                 value="{{ year.start_kw if year else 36 }}" required>
+        </div>
+        <div class="form-group">
+          <label for="start_year">Start Jahr <span class="required">*</span></label>
+          <input type="number" id="start_year" name="start_year" min="2020" max="2040"
+                 value="{{ year.start_year if year else '' }}" required>
+        </div>
+        <div class="form-group">
+          <label for="end_kw">Ende KW <span class="required">*</span></label>
+          <input type="number" id="end_kw" name="end_kw" min="1" max="53"
+                 value="{{ year.end_kw if year else 35 }}" required>
+        </div>
+        <div class="form-group">
+          <label for="end_year">Ende Jahr <span class="required">*</span></label>
+          <input type="number" id="end_year" name="end_year" min="2020" max="2040"
+                 value="{{ year.end_year if year else '' }}" required>
+        </div>
+      </div>
+
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Speichern</button>
+      <a href="/lehrjahre/" class="btn btn-secondary">Abbrechen</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

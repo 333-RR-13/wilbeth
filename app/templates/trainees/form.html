@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}{{ "Trainee bearbeiten" if trainee else "Trainee anlegen" }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">{{ "Trainee bearbeiten" if trainee else "Trainee anlegen" }}</h1>
+  </div>
+</div>
+
+<div class="form-card">
+  <form method="post" action="{{ '/trainees/' + (trainee.id | string) if trainee else '/trainees/' }}">
+    <div class="form-grid">
+
+      <div class="form-grid form-grid-2">
+        <div class="form-group">
+          <label for="vorname">Vorname <span class="required">*</span></label>
+          <input type="text" id="vorname" name="vorname"
+                 value="{{ trainee.vorname if trainee else '' }}" required>
+        </div>
+        <div class="form-group">
+          <label for="nachname">Nachname <span class="required">*</span></label>
+          <input type="text" id="nachname" name="nachname"
+                 value="{{ trainee.nachname if trainee else '' }}" required>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="rolle">Rolle <span class="required">*</span></label>
+        <select id="rolle" name="rolle" required>
+          {% for r in rollen %}
+          <option value="{{ r.value }}" {{ 'selected' if trainee and trainee.rolle == r else '' }}>
+            {% if r.value == 'AZUBI' %}Azubi
+            {% elif r.value == 'DH_STUDENT' %}DH-Student
+            {% elif r.value == 'PRAKTIKANT' %}Praktikant
+            {% else %}Umschüler{% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="klasse_id">Klasse</label>
+        <select id="klasse_id" name="klasse_id">
+          <option value="">– keine Klasse –</option>
+          {% for c in classes %}
+          <option value="{{ c.id }}" {{ 'selected' if trainee and trainee.klasse_id == c.id else '' }}>
+            {{ c.name }}
+          </option>
+          {% endfor %}
+        </select>
+        <span class="form-hint">Praktikanten und Umschüler können ohne Klasse bleiben.</span>
+      </div>
+
+      <div class="form-group">
+        <label for="notizen">Notizen</label>
+        <textarea id="notizen" name="notizen" rows="3"
+                  placeholder="Besonderheiten, z. B. Prüfungszeiträume">{{ trainee.notizen if trainee else '' }}</textarea>
+      </div>
+
+      <div class="form-group">
+        <label class="form-check">
+          <input type="checkbox" name="aktiv" value="1"
+                 {{ 'checked' if not trainee or trainee.aktiv else '' }}>
+          Aktiv (erscheint in der Einsatzplanung)
+        </label>
+      </div>
+
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Speichern</button>
+      <a href="/trainees/" class="btn btn-secondary">Abbrechen</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

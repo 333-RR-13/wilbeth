@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}{{ "Schulferien bearbeiten" if holiday else "Schulferien anlegen" }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">{{ "Schulferien bearbeiten" if holiday else "Schulferien anlegen" }}</h1>
+  </div>
+</div>
+
+<div class="form-card">
+  <form method="post" action="{{ '/schulferien/' + (holiday.id | string) if holiday else '/schulferien/' }}">
+    <div class="form-grid">
+
+      <div class="form-group">
+        <label for="schoolyear_id">Lehrjahr <span class="required">*</span></label>
+        <select id="schoolyear_id" name="schoolyear_id" required>
+          <option value="">– bitte wählen –</option>
+          {% for y in years %}
+          <option value="{{ y.id }}" {{ 'selected' if holiday and holiday.schoolyear_id == y.id else '' }}>
+            {{ y.id }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="name">Bezeichnung <span class="required">*</span></label>
+        <input type="text" id="name" name="name"
+               value="{{ holiday.name if holiday else '' }}"
+               placeholder="z. B. Herbstferien" required>
+      </div>
+
+      <div class="form-grid form-grid-2">
+        <div class="form-group">
+          <label for="start_kw">Start KW <span class="required">*</span></label>
+          <input type="number" id="start_kw" name="start_kw" min="1" max="53"
+                 value="{{ holiday.start_kw if holiday else '' }}" required>
+        </div>
+        <div class="form-group">
+          <label for="start_year">Start Jahr <span class="required">*</span></label>
+          <input type="number" id="start_year" name="start_year" min="2020" max="2040"
+                 value="{{ holiday.start_year if holiday else '' }}" required>
+        </div>
+        <div class="form-group">
+          <label for="end_kw">Ende KW <span class="required">*</span></label>
+          <input type="number" id="end_kw" name="end_kw" min="1" max="53"
+                 value="{{ holiday.end_kw if holiday else '' }}" required>
+          <span class="form-hint">Gleich wie Start KW bei einwöchigen Ferien.</span>
+        </div>
+        <div class="form-group">
+          <label for="end_year">Ende Jahr <span class="required">*</span></label>
+          <input type="number" id="end_year" name="end_year" min="2020" max="2040"
+                 value="{{ holiday.end_year if holiday else '' }}" required>
+        </div>
+      </div>
+
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Speichern</button>
+      <a href="/schulferien/" class="btn btn-secondary">Abbrechen</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
