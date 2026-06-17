@@ -18,3 +18,4 @@ class Department(SQLModel, table=True):
     kategorie: DepartmentKategorie
     ansprechpartner: str = Field(default="")
     erlaubt_mehrfachbelegung: bool = Field(default=False)
+    farbe: str = Field(default="#9CA3AF")

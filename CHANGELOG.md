@@ -6,6 +6,17 @@ Format orientiert an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
 ## [Unreleased]
 
+### Matrix-Darstellung: Chip-Overhaul (Sprint 8)
+
+- **Abteilungsfarben**: `Department`-Modell erhält Feld `farbe` (hex, Default `#9CA3AF`). Alembic-Migration `c4a8e1f2d3b9` (down_revision `b3f2a9c5d1e7`) fügt Spalte hinzu und setzt bekannte Abteilungsfarben per Data-Migration. Abteilungsformular (`departments/form.html`) zeigt `<input type="color">` Feld „Farbe". Router `departments.py` akzeptiert und persistiert `farbe`.
+- **BS/HS zusammengefasst (blau)**: BERUFSSCHULE-Assignments zeigen Chip `BS`, UNI-Assignments zeigen `HS` — beide mit CSS-Klasse `.cell-school` (blau, analog bisheriges Berufsschule-Chip). Auto-Chips aus dem Klassenplan ebenfalls BS/HS mit `.cell-auto`.
+- **Blocker dunkel „BLK"**: URLAUB und FREI werden als einheitlicher `BLK`-Chip mit CSS-Klasse `.cell-blocker` (dunkel `#374151`, weiße Schrift) dargestellt — beide Typen nicht mehr unterscheidbar.
+- **„Bereits eingeplant"-Spalte rechts**: Visited-Departments werden nicht mehr unter dem Namen angezeigt, sondern in einer sticky-right Spalte „Bereits eingeplant" am Ende der Overview-Matrix (`matrix-th-visited`, `matrix-td-visited`).
+- **Geteiltes Chip-Macro** `app/templates/_partials/chip.html`: Jinja-Makros `cell_content` und `dept_chip` zentralisieren die Chip-Logik. Eingebunden in `overview/matrix.html`, `_partials/week_matrix.html`, `_partials/cell.html`, `trainees/detail.html`.
+- **Color-Utility** `app/utils/colors.py`: `text_color_for(hex)` (Luminanz-basiert) und `department_color_map(depts)` — alle relevanten Router übergeben `dept_colors` ans Template.
+- **Seed** `seed/seed.py`: `seed_departments` enthält nun pro Abteilung eine `farbe`.
+- **Legends** in `overview/matrix.html`, `share/plan.html`, `share/klasse.html` aktualisiert auf neue Chip-Kategorien.
+
 ### Deployment: Kubernetes / Azure DevOps / Harbor (+ PostgreSQL)
 
 - `Dockerfile`: Python 3.13-slim, Layer-Caching fuer `requirements.txt`, SQLite-Daten auf separatem Volume `/data`, Alembic-Migration laeuft automatisch beim Container-Start vor uvicorn, HEALTHCHECK ueber `/health`.

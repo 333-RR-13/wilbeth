@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_partials/chip.html" import cell_content, dept_chip %}
 {% block title %}Übersicht{% endblock %}
 
 {% block content %}
@@ -48,12 +49,11 @@
 {% if weeks %}
 
 <div class="matrix-legend">
-  <span class="legend-item"><span class="cell-chip cell-ABTEILUNG">ABT</span> Abteilung</span>
-  <span class="legend-item"><span class="cell-chip cell-BERUFSSCHULE">BS</span> Berufsschule</span>
-  <span class="legend-item"><span class="cell-chip cell-UNI">UNI</span> Uni</span>
-  <span class="legend-item"><span class="cell-chip cell-URLAUB">URL</span> Urlaub</span>
-  <span class="legend-item"><span class="cell-chip cell-FREI">FRE</span> Frei</span>
-  <span class="legend-item"><span class="matrix-school-sample"></span> Schulwoche</span>
+  <span class="legend-item"><span class="cell-chip" style="background:#A855F7;color:#fff">ABT</span> Abteilung (eigene Farbe)</span>
+  <span class="legend-item"><span class="cell-chip cell-school">BS</span> Berufsschule</span>
+  <span class="legend-item"><span class="cell-chip cell-school">HS</span> Hochschule/Uni</span>
+  <span class="legend-item"><span class="cell-chip cell-blocker">BLK</span> Blocker (Urlaub/Frei)</span>
+  <span class="legend-item"><span class="cell-chip cell-school cell-auto">BS</span> Schulwoche (Klasse)</span>
   <span class="legend-item"><span class="matrix-conflict-sample"></span> Konflikt</span>
   <span class="legend-item"><span class="matrix-today-sample"></span> Aktuelle KW</span>
 </div>
@@ -70,6 +70,7 @@
           <span class="th-kw-date">{{ w.monday.strftime('%d.%m.') }}</span>
         </th>
         {% endfor %}
+        <th class="matrix-th-visited">Bereits eingeplant</th>
       </tr>
     </thead>
     <tbody>
@@ -88,12 +89,6 @@
             &#128218; {{ tage_fest_map[klasse_id] }}
           </span>
           {% endif %}
-          {% set v_depts = visited_map.get(t.id, []) %}
-          {% if v_depts %}
-          <span class="visited-depts" title="War bereits in: {% for d in v_depts %}{{ d.name }}{% if not loop.last %}, {% endif %}{% endfor %}">
-            {% for d in v_depts %}<span class="visited-chip">{{ d.code }}</span>{% endfor %}
-          </span>
-          {% endif %}
         </td>
         {% for w in weeks %}
         {% set cell_key = w.kw ~ "," ~ w.jahr %}
@@ -106,34 +101,24 @@
             hx-get="/einsaetze/cell-edit?trainee_id={{ t.id }}&kw={{ w.kw }}&jahr={{ w.jahr }}&schoolyear_id={{ selected_year }}"
             hx-target="#cell-dialog-body"
             hx-swap="innerHTML">
-          {% if a %}
-            {% if a.typ.value == 'ABTEILUNG' %}
-              <span class="cell-chip cell-ABTEILUNG" title="{{ depts[a.abteilung_id].code if a.abteilung_id and a.abteilung_id in depts else 'Abteilung' }}">
-                {{ depts[a.abteilung_id].code if a.abteilung_id and a.abteilung_id in depts else 'ABT' }}
-              </span>
-            {% elif a.typ.value == 'BERUFSSCHULE' %}
-              <span class="cell-chip cell-BERUFSSCHULE">BS</span>
-            {% elif a.typ.value == 'UNI' %}
-              <span class="cell-chip cell-UNI">UNI</span>
-            {% elif a.typ.value == 'URLAUB' %}
-              <span class="cell-chip cell-URLAUB">URL</span>
-            {% else %}
-              <span class="cell-chip cell-FREI">FRE</span>
-            {% endif %}
-          {% else %}
-            {% set school_typ = t_school_weeks.get(cell_key) %}
-            {% if school_typ == 'BERUFSSCHULE' %}
-              <span class="cell-chip cell-BERUFSSCHULE cell-auto" title="laut Klassen-Schulplan">BS</span>
-            {% elif school_typ == 'UNI' %}
-              <span class="cell-chip cell-UNI cell-auto" title="laut Klassen-Schulplan">UNI</span>
-            {% endif %}
-          {% endif %}
+          {{ cell_content(a, dept_colors, t_school_weeks.get(cell_key)) }}
         </td>
         {% endfor %}
+        <td class="matrix-td-visited">
+          {% set v_depts = visited_map.get(t.id, []) %}
+          {% if v_depts %}
+          <div class="visited-col-chips" title="War bereits in: {% for d in v_depts %}{{ d.name }}{% if not loop.last %}, {% endif %}{% endfor %}">
+            {% for d in v_depts %}
+              {%- set c = dept_colors.get(d.id) -%}
+              {% if c %}{{ dept_chip(c) }}{% else %}<span class="visited-col-chip" style="background:#f0f0f0;color:#808080">{{ d.code }}</span>{% endif %}
+            {% endfor %}
+          </div>
+          {% endif %}
+        </td>
       </tr>
       {% else %}
       <tr>
-        <td colspan="{{ (weeks | length) + 1 }}" class="empty-state">
+        <td colspan="{{ (weeks | length) + 2 }}" class="empty-state">
           Keine Trainees gefunden. <a href="/trainees/">Trainees anlegen</a>
         </td>
       </tr>

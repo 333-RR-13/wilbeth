@@ -59,6 +59,10 @@ Danach laeuft die App auf <http://127.0.0.1:8000> — Startseite leitet auf `/ov
 > **Tipp:** Ist die venv aktiviert (Prompt zeigt `(.venv)`), genuegen `python` und `uvicorn`.
 > Ohne Aktivierung den venv-Python explizit aufrufen: `.venv\Scripts\python.exe -m uvicorn app.main:app --reload`.
 
+> **„Wie starte ich die Datenbank?"** — Lokal gibt es **keinen** separaten DB-Server. Die Datenbank ist die Datei `wilbeth.db` (SQLite). `alembic upgrade head` legt das Schema darin an, `python -m seed.seed` fuellt Beispieldaten, und die App (uvicorn) liest die Datei direkt. Ein echter Server (PostgreSQL) kommt erst beim Kubernetes-Deployment ins Spiel.
+
+> **„Wo sehe ich, wo ein Azubi schon war?"** — In der Uebersicht (`/overview`) unter dem Azubi-Namen als „War-schon-in"-Chips, und beim Klick auf eine Zelle als Warnhinweis im Dialog. Das erscheint nur, wenn der Azubi bereits ABTEILUNG-Einsaetze hat — also erst nach dem Seed bzw. nach dem Anlegen von Einsaetzen.
+
 ## Seed zuruecksetzen / neu befuellen
 
 Der Seed ist **idempotent**: Er bricht ab, wenn schon ein Lehrjahr existiert. Fuer einen frischen Stand die DB loeschen und neu aufbauen:

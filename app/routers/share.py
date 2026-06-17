@@ -30,6 +30,7 @@ from app.models import (
     UnterrichtsTyp,
 )
 from app.routers.assignments import _apply_assignments, _resolve_range
+from app.utils.colors import department_color_map
 from app.utils.kw import format_weekdays, iter_schoolyear_weeks, iter_kw_range, kw_to_monday
 
 router = APIRouter(prefix="/mein-plan", tags=["self-service"])
@@ -92,7 +93,9 @@ def my_plan(request: Request, token: str, db: DB):
     trainee_year_ids = sorted({a.schoolyear_id for a in all_assignments})
     years_with_assignments = [y for y in years_all if y.id in trainee_year_ids]
 
-    depts = {d.id: d for d in db.exec(select(Department)).all()}
+    all_depts = db.exec(select(Department)).all()
+    depts = {d.id: d for d in all_depts}
+    dept_colors = department_color_map(all_depts)
     school_weeks = _school_weeks_for_trainee(db, trainee)
 
     _today = date.today().isocalendar()
@@ -127,6 +130,7 @@ def my_plan(request: Request, token: str, db: DB):
         "cell_map": cell_map,
         "school_weeks": school_weeks,
         "depts": depts,
+        "dept_colors": dept_colors,
         "highlight_id": trainee.id,
         "selected_year": sy.id if sy else "",
         "years": years_with_assignments,
@@ -148,7 +152,7 @@ def my_class(request: Request, token: str, db: DB):
             "trainee": trainee, "token": token, "active": "klasse",
             "klasse": klasse,
             "classmates": [], "weeks": [], "cell_map": {}, "school_weeks": {},
-            "depts": {}, "selected_year": "", "years": years, "schul_tage": "",
+            "depts": {}, "dept_colors": {}, "selected_year": "", "years": years, "schul_tage": "",
             "trainees": [], "highlight_id": trainee.id,
         })
 
@@ -194,7 +198,9 @@ def my_class(request: Request, token: str, db: DB):
     if klasse.unterrichts_typ == UnterrichtsTyp.TAGE_FEST:
         schul_tage = format_weekdays(klasse.schul_wochentage, full=True, halbtag=klasse.halbtag_wochentag)
 
-    depts = {d.id: d for d in db.exec(select(Department)).all()}
+    all_depts_class = db.exec(select(Department)).all()
+    depts = {d.id: d for d in all_depts_class}
+    dept_colors_class = department_color_map(all_depts_class)
 
     return templates.TemplateResponse(request, "share/klasse.html", {
         "trainee": trainee, "token": token, "active": "klasse",
@@ -204,6 +210,7 @@ def my_class(request: Request, token: str, db: DB):
         "highlight_id": trainee.id,
         "weeks": weeks, "cell_map": cell_map,
         "school_weeks": school_weeks, "depts": depts,
+        "dept_colors": dept_colors_class,
         "selected_year": sy.id, "years": years, "schul_tage": schul_tage,
     })
 

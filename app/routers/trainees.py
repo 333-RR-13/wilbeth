@@ -20,6 +20,7 @@ from app.models import (
 )
 from app.services.conflict_checker import find_conflicts
 from app.services.school_sync import sync_trainee
+from app.utils.colors import department_color_map
 
 router = APIRouter(prefix="/trainees", tags=["trainees"])
 templates = Jinja2Templates(directory=Path(__file__).resolve().parents[1] / "templates")
@@ -75,7 +76,9 @@ def trainee_detail(request: Request, trainee_id: int, db: DB):
     trainee = db.get(Trainee, trainee_id)
     klasse = db.get(TraineeClass, trainee.klasse_id) if trainee.klasse_id else None
     years = {y.id: y for y in db.exec(select(Schoolyear).order_by(Schoolyear.start_year.desc())).all()}
-    depts = {d.id: d for d in db.exec(select(Department)).all()}
+    all_depts = db.exec(select(Department)).all()
+    depts = {d.id: d for d in all_depts}
+    dept_colors = department_color_map(all_depts)
     assignments = db.exec(
         select(Assignment)
         .where(Assignment.trainee_id == trainee_id)
@@ -103,6 +106,7 @@ def trainee_detail(request: Request, trainee_id: int, db: DB):
         "klasse": klasse,
         "years": years,
         "depts": depts,
+        "dept_colors": dept_colors,
         "assignments": assignments,
         "conflict_cells": conflict_cells,
         "today_key": today_key,

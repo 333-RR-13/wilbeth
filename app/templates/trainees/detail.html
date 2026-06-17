@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_partials/chip.html" import cell_content %}
 {% block title %}{{ trainee.nachname }}, {{ trainee.vorname }}{% endblock %}
 
 {% block content %}
@@ -104,11 +105,7 @@
           <td class="mono">{{ a.kw }}</td>
           <td class="mono">{{ a.jahr }}</td>
           <td>
-            {% if a.typ.value == 'ABTEILUNG' %}<span class="cell-chip cell-ABTEILUNG">ABT</span>
-            {% elif a.typ.value == 'BERUFSSCHULE' %}<span class="cell-chip cell-BERUFSSCHULE">BS</span>
-            {% elif a.typ.value == 'UNI' %}<span class="cell-chip cell-UNI">UNI</span>
-            {% elif a.typ.value == 'URLAUB' %}<span class="cell-chip cell-URLAUB">URL</span>
-            {% else %}<span class="cell-chip cell-FREI">FRE</span>{% endif %}
+            {{ cell_content(a, dept_colors) }}
             {% if conflict_key in conflict_cells %}<span class="conflict-icon" title="Konflikt">&#9888;</span>{% endif %}
           </td>
           <td>

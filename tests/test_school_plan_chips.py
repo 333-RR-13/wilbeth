@@ -68,16 +68,16 @@ def test_overview_shows_bs_chip_without_assignment(client, session):
 
 
 def test_overview_shows_uni_chip_without_assignment(client, session):
-    """Schulplanwoche (UNI) ohne Einsatz → cell-auto UNI-Chip in der Matrix."""
+    """Schulplanwoche (UNI) ohne Einsatz → cell-auto HS-Chip in der Matrix."""
     _setup(session, SchoolWeekTyp.UNI)
     r = client.get("/overview", params={"schoolyear_id": SY})
     assert r.status_code == 200
     assert "cell-auto" in r.text
-    assert ">UNI<" in r.text
+    assert ">HS<" in r.text
 
 
 def test_overview_explicit_assignment_wins(client, session):
-    """Expliziter BERUFSSCHULE-Einsatz verdraengt den abgeleiteten chip (kein cell-auto)."""
+    """Expliziter BERUFSSCHULE-Einsatz verdraengt den abgeleiteten chip (kein cell-auto in Matrix-Zelle)."""
     ids = _setup(session, SchoolWeekTyp.BERUFSSCHULE)
     # Einsatz fuer genau dieselbe Schulwoche setzen
     session.add(Assignment(
@@ -88,9 +88,11 @@ def test_overview_explicit_assignment_wins(client, session):
     session.commit()
     r = client.get("/overview", params={"schoolyear_id": SY})
     assert r.status_code == 200
-    # Echter Chip vorhanden, kein cell-auto-Chip
-    assert "cell-BERUFSSCHULE" in r.text
-    assert "cell-auto" not in r.text
+    # Echter Chip (cell-school) vorhanden
+    assert "cell-school" in r.text
+    # cell-auto darf nur in der Legende vorkommen, nicht als echter Zell-Chip
+    # (kein title="laut Klassen-Schulplan" da das nur auto-chips haben)
+    assert 'title="laut Klassen-Schulplan"' not in r.text
 
 
 # ── Azubi-Sicht (/mein-plan/{token}) ────────────────────────────
@@ -124,5 +126,6 @@ def test_my_plan_explicit_assignment_wins(client, session):
     session.commit()
     r = client.get(f"/mein-plan/{TOKEN}", params={"schoolyear_id": SY})
     assert r.status_code == 200
-    assert "cell-BERUFSSCHULE" in r.text
+    # Echter Chip (cell-school) vorhanden, kein cell-auto-Chip
+    assert "cell-school" in r.text
     assert "cell-auto" not in r.text

@@ -197,8 +197,8 @@ def test_overview_shows_visited_chip(client, session: Session):
 
     r = client.get("/overview", params={"schoolyear_id": SY})
     assert r.status_code == 200
-    # CP-Code als visited-chip sichtbar
-    assert "visited-chip" in r.text
+    # CP-Code als visited-col-chip in der rechten Spalte sichtbar
+    assert "visited-col-chip" in r.text
     assert ">CP<" in r.text
 
 
@@ -209,7 +209,7 @@ def test_overview_no_chip_when_no_history(client, session: Session):
 
     r = client.get("/overview", params={"schoolyear_id": SY})
     assert r.status_code == 200
-    assert "visited-chip" not in r.text
+    assert "visited-col-chip" not in r.text
 
 
 def test_overview_shows_chip_same_year(client, session: Session):
@@ -224,7 +224,7 @@ def test_overview_shows_chip_same_year(client, session: Session):
 
     r = client.get("/overview", params={"schoolyear_id": SY})
     assert r.status_code == 200
-    assert "visited-chip" in r.text
+    assert "visited-col-chip" in r.text
     assert ">CP<" in r.text
 
 

@@ -37,6 +37,7 @@ def create_department(
     kategorie: Annotated[DepartmentKategorie, Form()],
     ansprechpartner: Annotated[str, Form()] = "",
     erlaubt_mehrfachbelegung: Annotated[str, Form()] = "",
+    farbe: Annotated[str, Form()] = "#9CA3AF",
 ):
     db.add(Department(
         code=code.strip().upper(),
@@ -44,6 +45,7 @@ def create_department(
         kategorie=kategorie,
         ansprechpartner=ansprechpartner,
         erlaubt_mehrfachbelegung=bool(erlaubt_mehrfachbelegung),
+        farbe=farbe,
     ))
     db.commit()
     return RedirectResponse("/abteilungen/?msg=created", status_code=303)
@@ -65,6 +67,7 @@ def update_department(
     kategorie: Annotated[DepartmentKategorie, Form()],
     ansprechpartner: Annotated[str, Form()] = "",
     erlaubt_mehrfachbelegung: Annotated[str, Form()] = "",
+    farbe: Annotated[str, Form()] = "#9CA3AF",
 ):
     dept = db.get(Department, dept_id)
     dept.code = code.strip().upper()
@@ -72,6 +75,7 @@ def update_department(
     dept.kategorie = kategorie
     dept.ansprechpartner = ansprechpartner
     dept.erlaubt_mehrfachbelegung = bool(erlaubt_mehrfachbelegung)
+    dept.farbe = farbe
     db.commit()
     return RedirectResponse("/abteilungen/?msg=updated", status_code=303)
 

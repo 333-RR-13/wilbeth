@@ -777,10 +777,24 @@ tr.htmx-swapping td { opacity: 0; transition: opacity 0.15s; }
 .cell-URLAUB      { background: #fef9c3; color: #854d0e; }
 .cell-FREI        { background: #f1f3f5; color: var(--text-muted); }
 
+/* Unified school chip: BS (Berufsschule) and HS (Uni/DHBW) share blue styling */
+.cell-school { background: var(--accent-light); color: var(--accent); }
+
+/* Unified blocker chip: Urlaub and Frei shown as dark BLK */
+.cell-blocker { background: #374151; color: #fff; }
+
 /* Derived-from-plan chip: outlined, not solid */
 .cell-auto {
   background: transparent;
   box-shadow: inset 0 0 0 1px currentColor;
+  opacity: 0.75;
+}
+
+/* cell-auto + cell-school: outlined blue */
+.cell-auto.cell-school {
+  background: transparent;
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
   opacity: 0.75;
 }
 
@@ -1433,6 +1447,57 @@ tr.htmx-swapping td { opacity: 0; transition: opacity 0.15s; }
   background: var(--surface-2, #f0f0f0);
   color: var(--text-muted);
   border: 1px solid var(--border);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+/* ── Bereits-eingeplant sticky-right column ─────────────────────────────── */
+.matrix-th-visited {
+  background: var(--page-bg);
+  padding: 8px 14px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border);
+  border-left: 2px solid var(--border);
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  min-width: 120px;
+  white-space: nowrap;
+}
+
+.matrix-td-visited {
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--border);
+  border-left: 2px solid var(--border);
+  position: sticky;
+  right: 0;
+  background: var(--surface);
+  z-index: 1;
+  min-width: 120px;
+}
+
+.matrix-table tbody tr:hover .matrix-td-visited {
+  background: #fafbfc;
+}
+
+.visited-col-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.visited-col-chip {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: var(--radius-sm, 3px);
   letter-spacing: 0.02em;
   white-space: nowrap;
 }

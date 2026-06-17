@@ -140,29 +140,29 @@ def seed_classes(session: Session) -> dict[str, TraineeClass]:
 
 def seed_departments(session: Session) -> dict[str, Department]:
     result: dict[str, Department] = {}
-    for code, name, kat, multi in [
-        ("AI",   "AI Platform",             DepartmentKategorie.ITO,     False),
-        ("DP",   "Delivery Platform",       DepartmentKategorie.ITO,     False),
-        ("DWP",  "Digital Workplace",       DepartmentKategorie.ITO,     False),
-        ("OP",   "Observability Platform",  DepartmentKategorie.ITO,     False),
-        ("CP",   "Cloud Platform",          DepartmentKategorie.ITO,     False),
-        ("Sec",  "Security",                DepartmentKategorie.ITO,     False),
-        ("IAM",  "IAM Platform",            DepartmentKategorie.ITO,     False),
-        ("CISO", "CISO",                    DepartmentKategorie.ITO,     False),
-        ("BA",   "Business Applications",   DepartmentKategorie.NON_ITO, True),
-        ("CS",   "Customer Service",        DepartmentKategorie.NON_ITO, False),
-        ("DDAS", "Data Driven Applications",DepartmentKategorie.NON_ITO, False),
-        ("KGaA", "KGaA",                    DepartmentKategorie.NON_ITO, False),
+    for code, name, kat, multi, farbe in [
+        ("AI",   "AI Platform",             DepartmentKategorie.ITO,     False, "#A855F7"),
+        ("DP",   "Delivery Platform",       DepartmentKategorie.ITO,     False, "#7DD3FC"),
+        ("DWP",  "Digital Workplace",       DepartmentKategorie.ITO,     False, "#1E3A8A"),
+        ("OP",   "Observability Platform",  DepartmentKategorie.ITO,     False, "#EF4444"),
+        ("CP",   "Cloud Platform",          DepartmentKategorie.ITO,     False, "#9CA3AF"),
+        ("Sec",  "Security",                DepartmentKategorie.ITO,     False, "#FACC15"),
+        ("IAM",  "IAM Platform",            DepartmentKategorie.ITO,     False, "#FB923C"),
+        ("CISO", "CISO",                    DepartmentKategorie.ITO,     False, "#F0E6C8"),
+        ("BA",   "Business Applications",   DepartmentKategorie.NON_ITO, True,  "#22C55E"),
+        ("CS",   "Customer Service",        DepartmentKategorie.NON_ITO, False, "#F472B6"),
+        ("DDAS", "Data Driven Applications",DepartmentKategorie.NON_ITO, False, "#14B8A6"),
+        ("KGaA", "KGaA",                    DepartmentKategorie.NON_ITO, False, "#92400E"),
         # Bürokaufleute / BWL (Sprint 6)
-        ("HR",   "Human Resources",         DepartmentKategorie.NON_ITO, False),
-        ("MK",   "Marketing",               DepartmentKategorie.NON_ITO, False),
-        ("FM",   "Facility Management",     DepartmentKategorie.NON_ITO, False),
-        ("VT",   "Vertrieb",                DepartmentKategorie.NON_ITO, False),
-        ("BANK", "Bank",                    DepartmentKategorie.NON_ITO, False),
-        ("POST", "Posteingang",             DepartmentKategorie.NON_ITO, False),
-        ("EMP",  "Empfang",                 DepartmentKategorie.NON_ITO, False),
+        ("HR",   "Human Resources",         DepartmentKategorie.NON_ITO, False, "#E879F9"),
+        ("MK",   "Marketing",               DepartmentKategorie.NON_ITO, False, "#FB7185"),
+        ("FM",   "Facility Management",     DepartmentKategorie.NON_ITO, False, "#65A30D"),
+        ("VT",   "Vertrieb",                DepartmentKategorie.NON_ITO, False, "#0EA5E9"),
+        ("BANK", "Bank",                    DepartmentKategorie.NON_ITO, False, "#6366F1"),
+        ("POST", "Posteingang",             DepartmentKategorie.NON_ITO, False, "#D97706"),
+        ("EMP",  "Empfang",                 DepartmentKategorie.NON_ITO, False, "#84CC16"),
     ]:
-        d = Department(code=code, name=name, kategorie=kat, erlaubt_mehrfachbelegung=multi)
+        d = Department(code=code, name=name, kategorie=kat, erlaubt_mehrfachbelegung=multi, farbe=farbe)
         session.add(d)
         result[code] = d
     session.flush()

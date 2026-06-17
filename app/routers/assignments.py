@@ -20,6 +20,7 @@ from app.models import (
 )
 from app.services.conflict_checker import ConflictKind, describe_conflict, find_conflicts
 from app.services.dept_history import visited_department_ids
+from app.utils.colors import department_color_map
 from app.utils.kw import iter_kw_range
 
 router = APIRouter(prefix="/einsaetze", tags=["einsaetze"])
@@ -498,7 +499,9 @@ def _render_cell_response(
         for c in raw_conflicts
     )
     conflict_count = len(raw_conflicts)
-    depts = {d.id: d for d in db.exec(select(Department)).all()}
+    all_depts = db.exec(select(Department)).all()
+    depts = {d.id: d for d in all_depts}
+    dept_colors = department_color_map(all_depts)
 
     cell_html = templates.get_template("_partials/cell.html").render({
         "trainee_id": trainee_id,
@@ -509,6 +512,7 @@ def _render_cell_response(
         "is_school": school_week,
         "is_conflict": is_conflict,
         "depts": depts,
+        "dept_colors": dept_colors,
     })
 
     counter_html = templates.get_template("_partials/conflict_counter.html").render({

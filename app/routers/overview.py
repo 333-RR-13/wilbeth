@@ -20,6 +20,7 @@ from app.models import (
 )
 from app.services.conflict_checker import describe_conflict, find_conflicts
 from app.services.dept_history import visited_departments
+from app.utils.colors import department_color_map
 from app.utils.kw import format_weekdays, iter_schoolyear_weeks, kw_to_monday
 
 router = APIRouter(tags=["overview"])
@@ -68,12 +69,14 @@ def overview(request: Request, db: DB):
     year = db.get(Schoolyear, schoolyear_id) if schoolyear_id else None
 
     if not year:
+        dept_colors = department_color_map(all_depts)
         return templates.TemplateResponse(request, "overview/matrix.html", {
             "trainees": [], "weeks": [], "cell_map": {}, "conflict_cells": set(),
             "conflict_count": 0, "years": years, "classes": classes,
             "depts": {}, "all_depts": all_depts, "school_week_map": {}, "trainee_klasse_map": {},
             "tage_fest_map": tage_fest_map,
             "visited_map": {},
+            "dept_colors": dept_colors,
             "selected_year": schoolyear_id, "selected_klasse": klasse_id_str,
             "selected_abteilung": abteilung_id_str,
             "active_nav": "overview",
@@ -135,6 +138,7 @@ def overview(request: Request, db: DB):
             conflict_cells.add(f"{tid}~{c.kw}~{c.jahr}")
 
     depts = {d.id: d for d in db.exec(select(Department)).all()}
+    dept_colors = department_color_map(depts.values())
 
     # school_week_map[klasse_id] = dict "kw,jahr" -> typ_value for highlighting + chip rendering
     school_week_map: dict[int, dict[str, str]] = {}
@@ -167,6 +171,7 @@ def overview(request: Request, db: DB):
         "trainee_klasse_map": trainee_klasse_map,
         "tage_fest_map": tage_fest_map,
         "visited_map": visited_map,
+        "dept_colors": dept_colors,
         "selected_year": schoolyear_id,
         "selected_klasse": klasse_id_str,
         "selected_abteilung": abteilung_id_str,
