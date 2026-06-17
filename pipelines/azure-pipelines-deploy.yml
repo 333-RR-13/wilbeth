@@ -1,0 +1,65 @@
+# Azure DevOps Deploy Pipeline — Wilbeth
+#
+# Setzt das frisch gebaute Image (Build.BuildId aus der Build-Pipeline) im
+# Kubernetes-Cluster ein. Muss nach einer erfolgreichen Build-Pipeline ausgeführt
+# werden — entweder manuell getriggert oder als Pipeline-Resource-Trigger.
+#
+# Voraussetzung: k8s/secret.yaml und k8s/postgres.yaml wurden bereits manuell
+# im Namespace deployt (einmalig, s. k8s/README.md).
+#
+# Platzhalter — VOR erster Ausführung füllen:
+#   <K8S_SERVICE_CONNECTION>  : Azure DevOps Service Connection zum Kubernetes-Cluster
+#   <NAMESPACE>               : Kubernetes-Namespace, z. B. tools-test
+#   <HARBOR_REGISTRY>         : Harbor-Hostname, z. B. harbor.example.com
+#   <HARBOR_PROJECT>          : Harbor-Projektname, z. B. wilbeth
+#   <BUILD_PIPELINE_ID>       : ID oder Name der Build-Pipeline (für den Resource-Trigger)
+
+trigger: none   # Wird von der Build-Pipeline ausgelöst (s. resources) oder manuell
+
+resources:
+  pipelines:
+    - pipeline: build
+      source: "<BUILD_PIPELINE_ID>"   # Name/ID der Build-Pipeline in Azure DevOps
+      trigger:
+        branches:
+          include:
+            - main
+
+variables:
+  k8sServiceConnection: "<K8S_SERVICE_CONNECTION>"
+  namespace: "<NAMESPACE>"
+  harborRegistry: "<HARBOR_REGISTRY>"
+  harborProject: "<HARBOR_PROJECT>"
+  imageName: "$(harborRegistry)/$(harborProject)/wilbeth"
+
+stages:
+  - stage: Deploy
+    displayName: "Deploy to Kubernetes"
+    jobs:
+      - deployment: deploy_wilbeth
+        displayName: "kubectl apply — Wilbeth"
+        pool:
+          vmImage: "ubuntu-latest"
+        environment: "$(namespace)"
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                # Die Manifeste aus dem Repo auschecken
+                - checkout: self
+
+                # App-Deployment mit dem aus der Build-Pipeline stammenden Tag
+                - task: KubernetesManifest@1
+                  displayName: "Deploy wilbeth app"
+                  inputs:
+                    action: deploy
+                    connectionType: kubernetesServiceConnection
+                    kubernetesServiceConnection: "$(k8sServiceConnection)"
+                    namespace: "$(namespace)"
+                    manifests: |
+                      k8s/deployment.yaml
+                      k8s/service.yaml
+                      k8s/ingress.yaml
+                    # Das Image wird auf den gerade gebauten Tag gesetzt.
+                    # resources.pipelines.build.runID enthält die BuildId des Trigger-Runs.
+                    containers: "$(imageName):$(resources.pipeline.build.runID)"

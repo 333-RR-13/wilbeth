@@ -161,12 +161,22 @@ Die App soll langfristig **alle** Azubis/Studis abdecken, nicht nur IT-Blockunte
 - Berücksichtigt: Schulwochen/Schultage, Ferien, Doppelbelegung, Rotation (mehrere Abteilungen über die Ausbildung), **Wünsche** (Abteilungs-Prioritäten aus Sprint 5 P2).
 - Heuristik/greedy zuerst (kein ILP-Solver); Vorschlag → Bestätigen über den bestehenden Confirm-Flow.
 
+## Zusätzlich umgesetzt (über die Roadmap hinaus, siehe CHANGELOG)
+
+- **Konflikt-Erklärung** („Warum?"-Panel + Begründung im Zell-Dialog).
+- **Schulblöcke sichtbar + automatische Schul-Einsätze**: Schulplan-Wochen werden für alle Klassenmitglieder als `BERUFSSCHULE`/`UNI`-Einsätze (`source=AUTO`) materialisiert und synchron gehalten (nur leere Wochen, manuelle Einträge bleiben).
+- **Abteilungs-Historie**: „War-schon-in"-Anzeige in der Planungszeile + weiche Wiederholungs-Warnung beim Zuweisen (kein Block).
+- **Bedienbarkeit**: klickbare Tabellenzeilen, Klassen-Mitglieder im Bearbeiten-Tab, Azubi-Sidebar.
+- **Deployment vorbereitet**: Dockerfile + Kubernetes-Manifeste (inkl. PostgreSQL-StatefulSet) + Azure-DevOps-Pipelines (Build → Harbor → Deploy auf `tools-test`/`prod`). Platzhalter müssen mit den Firmen-Werten gefüllt werden.
+
 ## Backlog (später)
 
+- **Auto-Planer (Sprint 7)** — Vorschlags-Button mit Wünschen (noch offen).
+- **PostgreSQL für Prod**: Alembic-Migrationen einmal gegen echtes Postgres verifizieren (Enum-Migration `f5db…` ist das Risiko).
 - SAP-SuccessFactors-Anbindung (Urlaub automatisch) — abhängig von Compliance/Credentials
 - Excel-Import/Export
 - E-Mail-Benachrichtigungen
-- **User-Auth mit echtem Login** — Anbindung an bestehendes System (SAP, Active Directory); User sind dort bereits angelegt. Bis dahin dient der Token-Zugang (Sprint 5 P2) als Übergangslösung.
+- **User-Auth mit echtem Login** — Anbindung an bestehendes System (SAP, Active Directory); User sind dort bereits angelegt. Bis dahin dient der Token-Zugang (Sprint 5 P2) als Übergangslösung. **Blocker für Produktivbetrieb** (App ist bis dahin offen → nur netzintern).
 
 ## Beispieldaten zum Seed (anonymisiert, aus realer Excel)
 

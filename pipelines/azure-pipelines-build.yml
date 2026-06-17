@@ -1,0 +1,82 @@
+# Azure DevOps Build Pipeline — Wilbeth
+#
+# Ablauf: Test (Python) → Build & Push Image (Docker → Harbor)
+# Das Image wird nur gebaut, wenn alle Tests grün sind.
+#
+# Alle Platzhalter sind unten in der variables-Sektion dokumentiert.
+# Vor der ersten Ausführung müssen sie in der Pipeline-UI oder als
+# Library-Variablen gesetzt werden.
+
+trigger:
+  branches:
+    include:
+      - main
+
+resources:
+  repositories:
+    - repository: wilbeth
+      type: github
+      name: 333-RR-13/wilbeth
+      endpoint: <GITHUB_SERVICE_CONNECTION>   # Azure DevOps Service Connection (GitHub)
+
+variables:
+  # ── Platzhalter — VOR erster Ausführung füllen ───────────────────────────
+  # <HARBOR_SERVICE_CONNECTION>  : Name der Azure DevOps Service Connection zur Harbor-Registry
+  # <HARBOR_REGISTRY>            : Harbor-Hostname, z. B. harbor.example.com
+  # <HARBOR_PROJECT>             : Harbor-Projektname, z. B. wilbeth
+  # <GITHUB_SERVICE_CONNECTION>  : Name der Azure DevOps Service Connection zu GitHub
+  # ─────────────────────────────────────────────────────────────────────────
+  harborServiceConnection: "<HARBOR_SERVICE_CONNECTION>"
+  harborRegistry: "<HARBOR_REGISTRY>"
+  harborProject: "<HARBOR_PROJECT>"
+  imageName: "$(harborRegistry)/$(harborProject)/wilbeth"
+
+stages:
+  # ── Stage 1: Tests ────────────────────────────────────────────────────────
+  - stage: Test
+    displayName: "Run Tests"
+    jobs:
+      - job: pytest
+        displayName: "pytest"
+        pool:
+          vmImage: "ubuntu-latest"
+        steps:
+          - checkout: wilbeth
+
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: "3.13"
+            displayName: "Use Python 3.13"
+
+          - script: |
+              python -m pip install --upgrade pip
+              pip install -r requirements.txt
+            displayName: "Install dependencies"
+
+          - script: |
+              python -m pytest -q
+            displayName: "Run pytest"
+
+  # ── Stage 2: Build & Push ─────────────────────────────────────────────────
+  - stage: Build
+    displayName: "Build & Push Image"
+    dependsOn: Test
+    condition: succeeded()
+    jobs:
+      - job: docker_build
+        displayName: "Docker buildAndPush"
+        pool:
+          vmImage: "ubuntu-latest"
+        steps:
+          - checkout: wilbeth
+
+          - task: Docker@2
+            displayName: "Build and push to Harbor"
+            inputs:
+              command: buildAndPush
+              containerRegistry: "$(harborServiceConnection)"
+              repository: "$(harborProject)/wilbeth"
+              Dockerfile: "Dockerfile"
+              tags: |
+                $(Build.BuildId)
+                latest

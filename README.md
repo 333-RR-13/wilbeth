@@ -14,8 +14,10 @@ Vollstaendiger Verlauf in [CHANGELOG.md](CHANGELOG.md).
 - **Einsatz-Anlage** fuer einzelne KW oder KW-Bereich, mit Eingabe-Hierarchie (BS/UNI > Urlaub > Abteilung > Frei).
 - **Unterrichts-Typen**: Blockunterricht (FISI, FIAE, DHBW, BWL) **und** Wochentag-Schule (Buerokaufleute, feste Schultage je Woche).
 - **Automatische Schul-Einsaetze**: Schulplan-Wochen werden fuer alle Klassenmitglieder als `BERUFSSCHULE`/`UNI`-Einsaetze (`source=AUTO`) materialisiert und synchron gehalten.
+- **Abteilungs-Historie**: „War-schon-in"-Chips in der Planungszeile + weiche Wiederholungs-Warnung beim Zuweisen einer bereits besuchten Abteilung (kein Block).
 - **Azubi-Self-Service** (Token-Link `/mein-plan/{token}`): eigener Plan, Klassen-Matrix, Urlaub selbst eintragen, Wuensche, ICS-Kalender-Export.
-- **„Ueber Wilbeth"**-Erzaehlseite und **Docker-Deployment**.
+- **„Ueber Wilbeth"**-Erzaehlseite.
+- **Deployment**: Container (Dockerfile) + Kubernetes-Manifeste + Azure-DevOps-Pipelines (Harbor) mit PostgreSQL — siehe „Deployment".
 
 ## Tech-Stack
 
@@ -88,7 +90,7 @@ python -m pytest -q       # kompakt
 python -m pytest tests/test_conflict_checker.py -v   # einzelne Datei
 ```
 
-Aktuell **92 Tests**, alle gruen.
+Aktuell **107 Tests**, alle gruen.
 
 | Testdatei | Deckt ab |
 |---|---|
@@ -99,6 +101,7 @@ Aktuell **92 Tests**, alle gruen.
 | `test_cell_endpoints.py` | Inline-Cell-Edit (edit/save/delete + OOB-Zaehler) |
 | `test_school_plan_chips.py` | Schulblock-Anzeige in den Matrizen |
 | `test_school_sync.py` | Automatische AUTO-Schul-Einsaetze (anlegen/synchronisieren) |
+| `test_dept_history.py` | Abteilungs-Historie (War-schon-in + Wiederholungs-Warnung) |
 | `test_tage_fest.py` | Wochentag-Schule (Buerokaufleute), Klassen-Matrix |
 | `test_trainee_detail.py` | Trainee-Detailseite, Konflikt-Highlight |
 | `test_klassen_detail.py` | Klassen-Bearbeiten + Mitglieder-Zuweisung |
@@ -187,39 +190,111 @@ Eingabe-Hierarchie beim Anlegen (`BERUFSSCHULE = UNI` > `URLAUB` > `ABTEILUNG` >
 | `no such table: …` beim Seed | Schema fehlt. `alembic upgrade head` vor dem Seed laufen lassen. |
 | Server startet, aber keine Daten | Seed vergessen: `python -m seed.seed`. |
 
-## Deployment (Docker)
+## Deployment (Kubernetes / Azure DevOps / Harbor)
 
-> **Sicherheitshinweis:** Wilbeth hat **keine Authentifizierung**. Admin- und Trainee-Daten sind fuer jeden offen, der den Port erreicht. Die App **nur im abgeschirmten internen Netz** oder **hinter einem authentifizierenden Reverse-Proxy** betreiben — niemals direkt ins Internet stellen. Zusaetzlich: Datenschutzkonzept (DSB grenke digital) muss vor dem Einsatz mit echten personenbezogenen Daten abgesegnet sein.
+> **Sicherheitshinweis:** Wilbeth hat **keine Authentifizierung**. Admin- und Trainee-Daten sind fuer jeden offen, der den Port erreicht. Die App **nur im abgeschirmten internen Netz** oder **hinter einem authentifizierenden Reverse-Proxy** betreiben — niemals direkt ins Internet stellen.
+>
+> **Datenschutz:** Das Datenschutzkonzept (DSB grenke digital) muss vor dem Einsatz mit echten personenbezogenen Daten abgesegnet sein.
 
-### Starten
+### Gesamtablauf
 
-```bash
-docker compose up -d --build
+```
+GitHub (main-Push)
+  └─► Azure DevOps Build-Pipeline  (pipelines/azure-pipelines-build.yml)
+        ├─ Tests (pytest)           — CI-Gate; kein Image ohne gruene Tests
+        └─ Docker buildAndPush      — Image → Harbor-Registry
+              └─► Deploy-Pipeline  (pipelines/azure-pipelines-deploy.yml)
+                    └─ kubectl apply → Cluster tools-test (Namespace <NAMESPACE>)
+                                    → spaeter: tools-prod
 ```
 
-Die App laeuft danach auf <http://localhost:8000>.
+### Voraussetzungen (vom Nutzer zu organisieren)
 
-### Datenpersistenz
+- **Harbor-Zugriff**: Harbor-Projekt anlegen, Serviceaccount mit Push-Rechten.
+- **Azure DevOps Repo/Projekt**: Pipeline-Dateien aus `pipelines/` dort eintragen.
+- **3 Service Connections** in Azure DevOps (Project Settings → Service Connections):
+  1. **GitHub** — Zugriff auf `333-RR-13/wilbeth` (OAuth oder PAT).
+  2. **Harbor** — Docker Registry, URL `https://<HARBOR_REGISTRY>`, Harbor-Credentials.
+  3. **Kubernetes** — Kubeconfig oder Service-Account-Token fuer Namespace `<NAMESPACE>` auf `tools-test`.
+- **Namespace + RBAC** auf `tools-test`: Namespace anlegen, ServiceAccount mit `kubectl apply`-Rechten.
 
-Die SQLite-Datenbank liegt im benannten Docker-Volume `wilbeth_data` unter `/data/wilbeth.db` im Container. Beim Start des Containers laufen automatisch `alembic upgrade head` — das Schema wird also immer aktuell gehalten, bevor uvicorn startet.
+### Platzhalter-Tabelle
 
-### Seed / Wartung
+Alle `<PLACEHOLDER>`-Werte muessen vor dem ersten Pipeline-Lauf gefuellt werden:
 
-```bash
-# Beispieldaten laden
-docker compose exec wilbeth python -m seed.seed
+| Platzhalter | Datei(en) | Was eintragen |
+|---|---|---|
+| `<NAMESPACE>` | alle k8s/, deploy-Pipeline | Kubernetes-Namespace, z. B. `tools-test` |
+| `<DB_PASSWORD>` | `k8s/secret.example.yaml` | Sicheres Passwort fuer Postgres-User `wilbeth` |
+| `<STORAGE_CLASS>` | `k8s/postgres.yaml` | StorageClass des Clusters (beim Cluster-Admin erfragen) |
+| `<HARBOR_REGISTRY>` | `k8s/deployment.yaml`, Pipelines | Hostname der Harbor-Registry, z. B. `harbor.example.com` |
+| `<HARBOR_PROJECT>` | `k8s/deployment.yaml`, Pipelines | Harbor-Projektname, z. B. `wilbeth` |
+| `<IMAGE_TAG>` | `k8s/deployment.yaml` | Wird von der Deploy-Pipeline automatisch auf `$(Build.BuildId)` gesetzt |
+| `<INGRESS_HOST>` | `k8s/ingress.yaml` | Hostname der App, z. B. `wilbeth.tools.example.com` |
+| `<INGRESS_CLASS>` | `k8s/ingress.yaml` | Ingress-Controller-Name (`nginx`, `traefik`, …) |
+| `<GITHUB_SERVICE_CONNECTION>` | Build-Pipeline | Name der Azure DevOps Service Connection zu GitHub |
+| `<HARBOR_SERVICE_CONNECTION>` | Build-Pipeline | Name der Azure DevOps Service Connection zu Harbor |
+| `<K8S_SERVICE_CONNECTION>` | Deploy-Pipeline | Name der Azure DevOps Service Connection zum Cluster |
+| `<BUILD_PIPELINE_ID>` | Deploy-Pipeline | Name/ID der Build-Pipeline in Azure DevOps |
 
-# FI-SI-Plan nachtraeglich einfuegen
-docker compose exec wilbeth python -m seed.add_fisi_plan
+### PostgreSQL
 
-# Datenbank leeren (Vorsicht: loescht alle Daten!)
-docker compose exec wilbeth python -m seed.clean
+Standardmaessig wird ein PostgreSQL-Pod via `k8s/postgres.yaml` im Cluster deployt (StatefulSet mit PVC).
+
+Alternativ: Falls die Firma eine **gemanagte PostgreSQL** bereitstellt (z. B. Azure Database for PostgreSQL), `k8s/postgres.yaml` weglassen und `DATABASE_URL` im Secret direkt auf die externe DB zeigen.
+
+Verbindungs-URL Format (SQLAlchemy / psycopg v3):
+```
+postgresql+psycopg://wilbeth:<DB_PASSWORD>@wilbeth-db:5432/wilbeth
 ```
 
-### Produktionshinweise
+### Reihenfolge beim Erst-Deploy
 
-- SQLite erlaubt nur einen gleichzeitigen Schreiber. Daher **einen einzigen uvicorn-Worker** nutzen (`--workers 1`, bereits im Dockerfile gesetzt). Bei hoeherem Last-Bedarf auf PostgreSQL umstellen (`DATABASE_URL` in `docker-compose.yml` setzen und `asyncpg` / `psycopg2` zu `requirements.txt` hinzufuegen).
-- Das Volume `wilbeth_data` regelmaessig sichern (`docker run --rm -v wilbeth_data:/data …`).
+1. **Secret anlegen** (niemals committen — nur lokal bearbeiten und mit kubectl anwenden):
+   ```bash
+   cp k8s/secret.example.yaml /tmp/wilbeth-secret.yaml
+   # Platzhalter in /tmp/wilbeth-secret.yaml fuellen
+   kubectl apply -f /tmp/wilbeth-secret.yaml -n <NAMESPACE>
+   rm /tmp/wilbeth-secret.yaml
+   ```
+2. **PostgreSQL deployen** (oder weglassen bei externer DB):
+   ```bash
+   kubectl apply -f k8s/postgres.yaml -n <NAMESPACE>
+   ```
+3. **Build-Pipeline** in Azure DevOps einrichten und einmal ausfuehren (push auf `main` genuegt).
+4. **Deploy-Pipeline** einrichten — wird automatisch nach der Build-Pipeline getriggert.
+5. **Seed einmalig ausfuehren** (nur beim ersten Mal, nach erfolgreichem Deploy):
+   ```bash
+   kubectl exec -n <NAMESPACE> deploy/wilbeth -- python -m seed.seed
+   ```
+
+### Lokales Docker-Testing mit Postgres (optional)
+
+```bash
+# Postgres-Profil starten (App auf Port 8001, Postgres intern)
+docker compose --profile postgres up -d --build
+
+# Seed
+docker compose exec wilbeth-pg python -m seed.seed
+```
+
+### Seed / Wartung im Cluster
+
+```bash
+# Beispieldaten laden (einmalig)
+kubectl exec -n <NAMESPACE> deploy/wilbeth -- python -m seed.seed
+
+# FI-SI-Plan nachtragen
+kubectl exec -n <NAMESPACE> deploy/wilbeth -- python -m seed.add_fisi_plan
+
+# Daten leeren (Vorsicht!)
+kubectl exec -n <NAMESPACE> deploy/wilbeth -- python -m seed.clean
+```
+
+### Weitergehende Dokumentation
+
+- `k8s/README.md` — Platzhalter-Tabelle, Reihenfolge, Secret-Handling
+- `pipelines/README.md` — Service Connections anlegen, Pipeline-Ablauf
 
 ## Offene Punkte
 

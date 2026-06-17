@@ -19,6 +19,7 @@ from app.models import (
     Trainee,
 )
 from app.services.conflict_checker import ConflictKind, describe_conflict, find_conflicts
+from app.services.dept_history import visited_department_ids
 from app.utils.kw import iter_kw_range
 
 router = APIRouter(prefix="/einsaetze", tags=["einsaetze"])
@@ -377,6 +378,9 @@ def cell_edit(request: Request, db: DB):
         )
     ]
 
+    # Visited dept ids excluding the current cell so the warning reflects other stints
+    visited_ids = visited_department_ids(db, trainee_id, exclude_kw=kw, exclude_jahr=jahr)
+
     return templates.TemplateResponse(request, "_partials/cell_form.html", {
         "trainee_id": trainee_id,
         "trainee_name": f"{trainee.nachname}, {trainee.vorname}" if trainee else "",
@@ -387,6 +391,7 @@ def cell_edit(request: Request, db: DB):
         "depts": depts,
         "typen": list(AssignmentTyp),
         "cell_conflicts": cell_conflicts,
+        "visited_dept_ids": list(visited_ids),
     })
 
 

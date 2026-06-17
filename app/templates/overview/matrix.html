@@ -88,6 +88,12 @@
             &#128218; {{ tage_fest_map[klasse_id] }}
           </span>
           {% endif %}
+          {% set v_depts = visited_map.get(t.id, []) %}
+          {% if v_depts %}
+          <span class="visited-depts" title="War bereits in: {% for d in v_depts %}{{ d.name }}{% if not loop.last %}, {% endif %}{% endfor %}">
+            {% for d in v_depts %}<span class="visited-chip">{{ d.code }}</span>{% endfor %}
+          </span>
+          {% endif %}
         </td>
         {% for w in weeks %}
         {% set cell_key = w.kw ~ "," ~ w.jahr %}

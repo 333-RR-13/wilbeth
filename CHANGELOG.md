@@ -6,14 +6,23 @@ Format orientiert an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
 ## [Unreleased]
 
-### Docker-Deployment
+### Deployment: Kubernetes / Azure DevOps / Harbor (+ PostgreSQL)
 
 - `Dockerfile`: Python 3.13-slim, Layer-Caching fuer `requirements.txt`, SQLite-Daten auf separatem Volume `/data`, Alembic-Migration laeuft automatisch beim Container-Start vor uvicorn, HEALTHCHECK ueber `/health`.
 - `.dockerignore`: schliessst `.venv`, Caches, `.git`, Testverzeichnis, `design bib/`, `*.db` und `.env` aus.
 - `docker-compose.yml`: Service `wilbeth`, benanntes Volume `wilbeth_data`, `restart: unless-stopped`.
 - `/health`-Endpunkt in `app/main.py`: gibt `{"status": "ok"}` zurueck (200), genutzt vom Docker HEALTHCHECK.
 - `tests/test_health.py`: prueft GET /health → 200 + `{"status": "ok"}`.
-- README: Deployment-Abschnitt mit Build/Run-Anleitung, Seed-Befehlen und **Hinweis: App nur netzintern betreiben bis Auth (SAP/AD) existiert**; DSB-Freigabe vor echten Personendaten erforderlich.
+- **Kubernetes-Manifeste** (`k8s/`): App-`Deployment` (1 Replica, Liveness/Readiness auf `/health`), `Service`, `Ingress`, **PostgreSQL-`StatefulSet` + PVC**, Secret-Vorlage (`DATABASE_URL`), `kustomization.yaml` — alles mit Platzhaltern + `k8s/README.md`.
+- **Azure-DevOps-Pipelines** (`pipelines/`): Build (Checkout GitHub → `pytest`-Gate → `Docker@2 buildAndPush` nach Harbor) und Deploy (`KubernetesManifest@1` auf den Cluster), je mit README + Platzhaltern.
+- **PostgreSQL** als Cluster-DB: `psycopg[binary]` ergaenzt; `app/database.py` setzt `check_same_thread` nur noch fuer SQLite (lokal weiterhin SQLite, im Cluster Postgres via `DATABASE_URL`). Optionales Postgres-Profil in `docker-compose.yml`.
+- README: Deployment-Abschnitt auf den k8s/Harbor/Azure-Flow umgestellt — Voraussetzungen (Harbor-Zugang, Azure-Repo, 3 Service Connections, Namespace/RBAC), Platzhalter-Tabelle, **Hinweis: App nur netzintern betreiben bis Auth (SAP/AD) existiert**; DSB-Freigabe vor echten Personendaten erforderlich.
+
+### Abteilungs-Historie pro Azubi
+
+- **„War schon in"-Anzeige**: In der Planungs-Matrix erscheinen neben dem Azubi-Namen kleine Chips der Abteilungen, in denen er bereits einen Einsatz hatte (Tooltip mit vollen Namen).
+- **Weiche Wiederholungs-Warnung**: Im Inline-Zell-Dialog wird beim Waehlen einer Abteilung, in der der Azubi schon war, „⚠️ … war bereits in dieser Abteilung" eingeblendet — rein informativ, **kein** Block (zweiter Einsatz bleibt erlaubt). Die aktuell bearbeitete Woche ist von der Pruefung ausgenommen.
+- Neuer Helfer `app/services/dept_history.py` (`visited_department_ids`, `visited_departments`); Tests `tests/test_dept_history.py` (15). Gesamt-Suite **107 gruen**.
 
 ### AUTO-Einsätze aus Schulplan materialisieren (School-Sync)
 

@@ -1414,3 +1414,37 @@ tr.htmx-swapping td { opacity: 0; transition: opacity 0.15s; }
   font-size: 12px;
   margin-top: 24px;
 }
+
+/* ── Abteilungs-Historie pro Trainee (Matrix-Namenspalte) ──────────────── */
+.visited-depts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-top: 3px;
+}
+
+.visited-chip {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: var(--radius-sm, 3px);
+  background: var(--surface-2, #f0f0f0);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+/* ── Wiederholungs-Warnung im Cell-Edit-Dialog ─────────────────────────── */
+.cell-repeat-warn {
+  margin-top: 6px;
+  padding: 5px 8px;
+  border-radius: var(--radius-sm, 3px);
+  background: #fff8e1;
+  border: 1px solid #f9c740;
+  color: #7a5c00;
+  font-size: 12px;
+  font-weight: 500;
+}

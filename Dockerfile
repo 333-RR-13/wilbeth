@@ -25,4 +25,6 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
 
 # Run migrations then start the server.
 # Using sh -c avoids a separate shell script (no CRLF risk on Windows dev machines).
+# --workers 1: alembic upgrade head runs on every container start; multiple workers would
+# race to apply migrations simultaneously and corrupt the schema. Keep at 1.
 CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1"]

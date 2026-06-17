@@ -41,7 +41,7 @@
 
     <div class="form-group" id="cell-abt-group">
       <label for="cell-abt">Abteilung</label>
-      <select id="cell-abt" name="abteilung_id">
+      <select id="cell-abt" name="abteilung_id" onchange="checkRepeatDept(this)">
         <option value="">– keine –</option>
         {% for d in depts %}
         <option value="{{ d.id }}"
@@ -50,6 +50,9 @@
         </option>
         {% endfor %}
       </select>
+      <div id="cell-repeat-warn" class="cell-repeat-warn" hidden>
+        &#9888; {{ trainee_name }} war bereits in dieser Abteilung
+      </div>
     </div>
 
     <div class="form-group">
@@ -82,8 +85,24 @@
 {% endif %}
 
 <script>
-function syncCellAbt(sel) {
-  document.getElementById('cell-abt-group').style.display = sel.value === 'ABTEILUNG' ? '' : 'none';
-}
-syncCellAbt(document.getElementById('cell-typ'));
+(function () {
+  var visitedIds = {{ visited_dept_ids | tojson }};
+
+  function syncCellAbt(sel) {
+    document.getElementById('cell-abt-group').style.display = sel.value === 'ABTEILUNG' ? '' : 'none';
+    checkRepeatDept(document.getElementById('cell-abt'));
+  }
+
+  function checkRepeatDept(sel) {
+    var warn = document.getElementById('cell-repeat-warn');
+    if (!warn) return;
+    var val = parseInt(sel.value, 10);
+    warn.hidden = !(val && visitedIds.indexOf(val) !== -1);
+  }
+
+  window.syncCellAbt = syncCellAbt;
+  window.checkRepeatDept = checkRepeatDept;
+
+  syncCellAbt(document.getElementById('cell-typ'));
+})();
 </script>

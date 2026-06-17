@@ -1,0 +1,60 @@
+# Wilbeth App – Kubernetes Deployment
+#
+# HINWEIS: replicas > 1 ist NICHT safe ohne separaten Migrations-Job.
+# Das Dockerfile-CMD führt "alembic upgrade head" beim Start aus.
+# Mit mehreren Replicas würden alle Pods gleichzeitig die Migration laufen lassen
+# und sich gegenseitig blockieren oder Daten korrumpieren.
+# Für horizontales Skalieren: alembic upgrade head in einen eigenen Kubernetes
+# Job (initContainer) auslagern und aus dem CMD entfernen.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wilbeth
+  namespace: <NAMESPACE>
+  labels:
+    app: wilbeth
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wilbeth
+  template:
+    metadata:
+      labels:
+        app: wilbeth
+    spec:
+      containers:
+        - name: wilbeth
+          image: <HARBOR_REGISTRY>/<HARBOR_PROJECT>/wilbeth:<IMAGE_TAG>
+          ports:
+            - containerPort: 8000
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: wilbeth-secrets
+                  key: DATABASE_URL
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3

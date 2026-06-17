@@ -19,6 +19,7 @@ from app.models import (
     UnterrichtsTyp,
 )
 from app.services.conflict_checker import describe_conflict, find_conflicts
+from app.services.dept_history import visited_departments
 from app.utils.kw import format_weekdays, iter_schoolyear_weeks, kw_to_monday
 
 router = APIRouter(tags=["overview"])
@@ -72,6 +73,7 @@ def overview(request: Request, db: DB):
             "conflict_count": 0, "years": years, "classes": classes,
             "depts": {}, "all_depts": all_depts, "school_week_map": {}, "trainee_klasse_map": {},
             "tage_fest_map": tage_fest_map,
+            "visited_map": {},
             "selected_year": schoolyear_id, "selected_klasse": klasse_id_str,
             "selected_abteilung": abteilung_id_str,
             "active_nav": "overview",
@@ -148,6 +150,9 @@ def overview(request: Request, db: DB):
 
     trainee_klasse_map = {t.id: t.klasse_id for t in trainees}
 
+    # visited_map[trainee_id] = list of departments this trainee has already been in
+    visited_map: dict[int, list] = {t.id: visited_departments(db, t.id) for t in trainees}
+
     return templates.TemplateResponse(request, "overview/matrix.html", {
         "trainees": trainees,
         "weeks": weeks,
@@ -161,6 +166,7 @@ def overview(request: Request, db: DB):
         "school_week_map": school_week_map,
         "trainee_klasse_map": trainee_klasse_map,
         "tage_fest_map": tage_fest_map,
+        "visited_map": visited_map,
         "selected_year": schoolyear_id,
         "selected_klasse": klasse_id_str,
         "selected_abteilung": abteilung_id_str,
