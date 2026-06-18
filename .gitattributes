@@ -1,0 +1,8 @@
+# Normalize line endings: all text files use LF (container is Linux)
+* text=auto eol=lf
+
+# Explicitly mark binary files so git never touches their line endings
+*.png  binary
+*.ico  binary
+*.zip  binary
+*.min.js -text

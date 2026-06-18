@@ -6,6 +6,29 @@ Format orientiert an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
 ## [Unreleased]
 
+### Postgres-Härtung & Deployment-Verbesserungen
+
+- **Migrationen zusammengefasst**: Die bisherigen 5 Alembic-Migrationen
+  (`cf3e27b74779` → `f5db6557783c` → `a7c1e9f4b2d8` → `b3f2a9c5d1e7` →
+  `c4a8e1f2d3b9`) wurden durch eine einzige initiale Migration
+  `0001squashed` ersetzt. Alle `sa.Enum`-Spalten verwenden jetzt
+  `native_enum=False` — auf PostgreSQL werden sie als `VARCHAR` statt als
+  nativer PG-ENUM-Typ angelegt. Damit entfallen künftige `ALTER TYPE … ADD
+  VALUE`-Migrationen bei neuen Enum-Werten, und der komplette
+  Enum-Wertestand (`TAGE_FEST` bei `UnterrichtsTyp`; `SELBST`, `SAP` bei
+  `AssignmentSource`) ist von Anfang an auf einem frischen PostgreSQL
+  verfügbar.
+- **imagePullSecret-Platzhalter** (`k8s/deployment.yaml`): Unter
+  `spec.template.spec` wurde `imagePullSecrets: [{name: <HARBOR_PULL_SECRET>}]`
+  ergänzt (mit Kommentar, dass es nur bei fehlendem globalem Cluster-Pull-
+  Credential benötigt wird). `k8s/README.md` listet den neuen Platzhalter
+  und enthält eine Kurzanleitung zur Secret-Erstellung via
+  `kubectl create secret docker-registry`.
+- **`.gitattributes`**: Neue Datei im Repo-Root normalisiert Zeilenenden auf
+  LF (`* text=auto eol=lf`) und markiert Binärdateien
+  (`*.png`, `*.ico`, `*.zip`, `*.min.js`). Verhindert CRLF-Warnungen und
+  stellt konsistente Zeilenenden im Linux-Container sicher.
+
 ### Matrix-Darstellung: Chip-Overhaul (Sprint 8)
 
 - **Abteilungsfarben**: `Department`-Modell erhält Feld `farbe` (hex, Default `#9CA3AF`). Alembic-Migration `c4a8e1f2d3b9` (down_revision `b3f2a9c5d1e7`) fügt Spalte hinzu und setzt bekannte Abteilungsfarben per Data-Migration. Abteilungsformular (`departments/form.html`) zeigt `<input type="color">` Feld „Farbe". Router `departments.py` akzeptiert und persistiert `farbe`.

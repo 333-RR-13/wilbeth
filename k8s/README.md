@@ -15,6 +15,23 @@ Vor dem ersten `kubectl apply` müssen alle Platzhalter gefüllt werden.
 | `<IMAGE_TAG>` | `deployment.yaml` | Image-Tag; wird von der Deploy-Pipeline auf `$(Build.BuildId)` gesetzt |
 | `<INGRESS_HOST>` | `ingress.yaml` | Hostname der App, z. B. `wilbeth.tools.example.com` |
 | `<INGRESS_CLASS>` | `ingress.yaml` | Name des Ingress-Controllers (`nginx`, `traefik`, …) |
+| `<HARBOR_PULL_SECRET>` | `deployment.yaml` | Name des Image-Pull-Secrets; nur nötig wenn kein globales Cluster-Pull-Credential existiert |
+
+## Image-Pull-Secret anlegen (optional)
+
+Nur erforderlich wenn der Cluster kein globales Harbor-Pull-Credential besitzt:
+
+```bash
+kubectl create secret docker-registry harbor-pull \
+  --docker-server=<HARBOR_REGISTRY> \
+  --docker-username=... \
+  --docker-password=... \
+  -n <NAMESPACE>
+```
+
+Danach in `deployment.yaml` den Platzhalter `<HARBOR_PULL_SECRET>` durch `harbor-pull` ersetzen
+(oder den gewählten Secret-Namen).  Wenn ein globales Pull-Credential vorhanden ist,
+kann der `imagePullSecrets`-Block in `deployment.yaml` vollständig entfernt werden.
 
 ## Reihenfolge beim Erst-Deploy
 
