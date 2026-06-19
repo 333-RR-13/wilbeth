@@ -1,66 +1,57 @@
-# k8s/ — Kubernetes Manifests
+# k8s – Wilbeth Kubernetes-Deployment
 
-Alle Dateien hier enthalten Platzhalter in spitzen Klammern `<LIKE_THIS>`.
-Vor dem ersten `kubectl apply` müssen alle Platzhalter gefüllt werden.
+Kustomize-basierte Struktur für das Wilbeth-Deployment im grenke-Cluster.
 
-## Platzhalter-Übersicht
+## Struktur
 
-| Platzhalter | Datei(en) | Bedeutung |
-|---|---|---|
-| `<NAMESPACE>` | alle | Kubernetes-Namespace, z. B. `tools-test` |
-| `<DB_PASSWORD>` | `secret.example.yaml` | Passwort für den Postgres-User `wilbeth` |
-| `<STORAGE_CLASS>` | `postgres.yaml` | StorageClass für das Postgres-PVC (beim Cluster-Admin erfragen) |
-| `<HARBOR_REGISTRY>` | `deployment.yaml` | Hostname der Harbor-Registry, z. B. `harbor.example.com` |
-| `<HARBOR_PROJECT>` | `deployment.yaml` | Harbor-Projektname, z. B. `wilbeth` oder `tools` |
-| `<IMAGE_TAG>` | `deployment.yaml` | Image-Tag; wird von der Deploy-Pipeline auf `$(Build.BuildId)` gesetzt |
-| `<INGRESS_HOST>` | `ingress.yaml` | Hostname der App, z. B. `wilbeth.tools.example.com` |
-| `<INGRESS_CLASS>` | `ingress.yaml` | Name des Ingress-Controllers (`nginx`, `traefik`, …) |
-| `<HARBOR_PULL_SECRET>` | `deployment.yaml` | Name des Image-Pull-Secrets; nur nötig wenn kein globales Cluster-Pull-Credential existiert |
-
-## Image-Pull-Secret anlegen (optional)
-
-Nur erforderlich wenn der Cluster kein globales Harbor-Pull-Credential besitzt:
-
-```bash
-kubectl create secret docker-registry harbor-pull \
-  --docker-server=<HARBOR_REGISTRY> \
-  --docker-username=... \
-  --docker-password=... \
-  -n <NAMESPACE>
+```
+k8s/
+├── base/                         # Gemeinsame Manifeste (alle Environments)
+│   ├── kustomization.yaml
+│   ├── configmap.yaml            # Nicht-sensitive Konfiguration (POSTGRES_USER, PORT …)
+│   ├── secret.yaml               # Sensible Werte – Tokens werden von der Pipeline ersetzt
+│   ├── pvc.yaml                  # Postgres-PersistentVolumeClaim (longhorn, 10 Gi)
+│   ├── deployment.postgres.yaml  # PostgreSQL 16 (non-root UID 999)
+│   ├── deployment.wilbeth.yaml   # Wilbeth FastAPI App (non-root UID 1654)
+│   ├── service.wilbeth.yaml      # ClusterIP :8080
+│   └── service.postgres.yaml     # ClusterIP :5432
+└── overlays/
+    └── test/                     # Test-Environment
+        ├── kustomization.yaml
+        └── ingress.yaml          # Ingress + cert-manager Certificate
 ```
 
-Danach in `deployment.yaml` den Platzhalter `<HARBOR_PULL_SECRET>` durch `harbor-pull` ersetzen
-(oder den gewählten Secret-Namen).  Wenn ein globales Pull-Credential vorhanden ist,
-kann der `imagePullSecrets`-Block in `deployment.yaml` vollständig entfernt werden.
+## Platzhalter – wen fragen?
 
-## Reihenfolge beim Erst-Deploy
+Alle folgenden Werte sind **unbekannt** und müssen vor dem ersten Deployment
+von der **AI-Platform** (bzw. dem zuständigen Ops-Team) erfragt werden.
 
-1. **Secret anlegen** (niemals committen!):
-   ```bash
-   # secret.example.yaml kopieren, Platzhalter füllen, anwenden, dann lokal löschen
-   cp k8s/secret.example.yaml k8s/secret.yaml
-   # ... Werte eintragen ...
-   kubectl apply -f k8s/secret.yaml -n <NAMESPACE>
-   rm k8s/secret.yaml
-   ```
-2. **PostgreSQL deployen** (oder weglassen bei externer DB):
-   ```bash
-   kubectl apply -f k8s/postgres.yaml -n <NAMESPACE>
-   ```
-3. **App deployen** (nach erfolgreicher Build-Pipeline):
-   ```bash
-   kubectl apply -f k8s/deployment.yaml -f k8s/service.yaml -f k8s/ingress.yaml -n <NAMESPACE>
-   # oder mit Kustomize:
-   kubectl apply -k k8s/
-   ```
-4. **Seed einmalig ausführen** (nur beim ersten Mal):
-   ```bash
-   kubectl exec -n <NAMESPACE> deploy/wilbeth -- python -m seed.seed
-   ```
+| Platzhalter | Wo verwendet | Wen fragen |
+|---|---|---|
+| `<<<HARBOR_PROJEKT>>>` | `deployment.wilbeth.yaml`, `azure-pipelines.yml` | AI-Platform – Harbor-Projektname (z. B. `ai-apps`) |
+| `<<<NAMESPACE>>>` | `base/kustomization.yaml`, `overlays/test/kustomization.yaml`, `azure-pipelines.yml` | AI-Platform – k8s-Namespace (z. B. `wilbeth-test`) |
+| `<<<K8S_ENVIRONMENT>>>` | `azure-pipelines.yml` | AI-Platform – Azure DevOps Environment-Name (Muster wie `env-test-wilbeth.cluster-wilbeth-test`) |
+| `<<<HARBOR_SERVICE_CONNECTION>>>` | `azure-pipelines.yml` | AI-Platform – Name der Harbor Docker Registry Service Connection in Azure DevOps |
+| `<<<HOST>>>` | `overlays/test/ingress.yaml` | AI-Platform – Ingress-Hostname (z. B. `wilbeth.k8s-ai-apps-test.grenke.com`) |
+| `<<<RESPONSIBLE_TEAM_EMAIL>>>` | `overlays/test/ingress.yaml` | AI-Platform – Team-E-Mail-Adresse für Keyfactor-Annotation (z. B. `T-G-DE-IT-OPS-DP@GRENKE.DE`) |
 
-## Sicherheitshinweis
+## Token-Ersetzung durch die Pipeline
 
-`secret.example.yaml` ist nur eine Vorlage. Die Datei mit echten Credentials
-darf **niemals** in Git committed werden. `.gitignore` enthält `k8s/secret.yaml`
-als Schutz — prüfen, ob die Unternehmens-Git-Policy zusätzlich Pre-Commit-Hooks
-oder eine Vault-Integration erfordert.
+Die Azure-DevOps-Pipeline (replacetokens@6, tokenPattern `doublebraces`) ersetzt
+zur Laufzeit folgende Tokens in den Manifesten:
+
+| Token | Quelle |
+|---|---|
+| `{{dbPassword}}` | Pipeline Variable / Variable Group – `dbPassword` (secret) |
+| `{{imageTag}}` | Pipeline Variable – `$(Build.BuildId)` |
+
+**Variable Group**: Name und Ablageort (Azure Key Vault oder manuell) ebenfalls
+bei der AI-Platform erfragen.
+
+## Lokales Rendern (ohne Pipeline)
+
+```bash
+# Voraussetzung: kubectl + kustomize installiert, Platzhalter bereits ersetzt
+cd k8s/overlays/test
+kubectl kustomize . > rendered.yaml
+```

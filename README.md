@@ -37,29 +37,34 @@ Vollstaendiger Verlauf in [CHANGELOG.md](CHANGELOG.md).
 ## Setup (Erstinstallation)
 
 ```powershell
-# 1. Virtuelle Umgebung anlegen und aktivieren
+# 1. Virtuelle Umgebung anlegen und aktivieren (im Repo-Root)
 python -m venv .venv
 .venv\Scripts\Activate.ps1          # Linux/macOS: source .venv/bin/activate
 
-# 2. Abhaengigkeiten installieren
+# 2. In den App-Ordner wechseln — der App-Code liegt jetzt unter src/
+cd src
+
+# 3. Abhaengigkeiten installieren
 pip install -r requirements.txt
 
-# 3. Datenbank-Schema anlegen
+# 4. Datenbank-Schema anlegen
 alembic upgrade head
 
-# 4. Beispieldaten laden
+# 5. Beispieldaten laden
 python -m seed.seed
 
-# 5. Server starten
+# 6. Server starten
 uvicorn app.main:app --reload
 ```
 
 Danach laeuft die App auf <http://127.0.0.1:8000> — Startseite leitet auf `/overview` (Matrix-Ansicht) um.
 
-> **Tipp:** Ist die venv aktiviert (Prompt zeigt `(.venv)`), genuegen `python` und `uvicorn`.
-> Ohne Aktivierung den venv-Python explizit aufrufen: `.venv\Scripts\python.exe -m uvicorn app.main:app --reload`.
+> **Wichtig (Repo-Struktur):** Der gesamte App-Code liegt seit dem Deployment-Umbau unter **`src/`** (App + Dockerfile = Image-Kontext). **Alle** Kommandos in dieser README (`alembic`, `python -m seed…`, `pytest`, `uvicorn`) werden **aus dem `src/`-Verzeichnis** ausgefuehrt. Die k8s-Manifeste liegen unter `k8s/`, die Pipeline in `azure-pipelines.yml`.
 
-> **„Wie starte ich die Datenbank?"** — Lokal gibt es **keinen** separaten DB-Server. Die Datenbank ist die Datei `wilbeth.db` (SQLite). `alembic upgrade head` legt das Schema darin an, `python -m seed.seed` fuellt Beispieldaten, und die App (uvicorn) liest die Datei direkt. Ein echter Server (PostgreSQL) kommt erst beim Kubernetes-Deployment ins Spiel.
+> **Tipp:** Ist die venv aktiviert (Prompt zeigt `(.venv)`), genuegen `python` und `uvicorn`.
+> Ohne Aktivierung den venv-Python explizit aufrufen (aus `src/`): `..\.venv\Scripts\python.exe -m uvicorn app.main:app --reload`.
+
+> **„Wie starte ich die Datenbank?"** — Lokal gibt es **keinen** separaten DB-Server. Die Datenbank ist die Datei `src/wilbeth.db` (SQLite). `alembic upgrade head` legt das Schema darin an, `python -m seed.seed` fuellt Beispieldaten, und die App (uvicorn) liest die Datei direkt. Ein echter Server (PostgreSQL) kommt erst beim Kubernetes-Deployment ins Spiel.
 
 > **„Wo sehe ich, wo ein Azubi schon war?"** — In der Uebersicht (`/overview`) unter dem Azubi-Namen als „War-schon-in"-Chips, und beim Klick auf eine Zelle als Warnhinweis im Dialog. Das erscheint nur, wenn der Azubi bereits ABTEILUNG-Einsaetze hat — also erst nach dem Seed bzw. nach dem Anlegen von Einsaetzen.
 
@@ -94,7 +99,7 @@ python -m pytest -q       # kompakt
 python -m pytest tests/test_conflict_checker.py -v   # einzelne Datei
 ```
 
-Aktuell **107 Tests**, alle gruen.
+Aktuell **130 Tests**, alle gruen.
 
 | Testdatei | Deckt ab |
 |---|---|
@@ -144,16 +149,17 @@ Auto-generierte Skripte enthalten `import sqlmodel` (in `script.py.mako` vorbere
 
 | Schicht | Verzeichnis | Aufgabe |
 |---|---|---|
-| **Routers** | `app/routers/` | HTTP-Endpunkte, ein Modul pro Bereich (overview, trainees, assignments, school_plans, …) |
-| **Models** | `app/models/` | SQLModel-Tabellen, eine Datei pro Entity |
-| **Services** | `app/services/` | Domaenenlogik (`conflict_checker.py`, `school_sync.py`) |
-| **Utils** | `app/utils/` | KW-/Datums-Arithmetik (`kw.py`) |
-| **Templates** | `app/templates/` | Jinja2-Views, Partials in `_partials/` |
-| **Static** | `app/static/` | `style.css`, lokales `htmx.min.js` |
-| **Migrationen** | `alembic/` | Schema-Versionierung |
-| **Seed** | `seed/` | Beispieldaten |
+| **Routers** | `src/app/routers/` | HTTP-Endpunkte, ein Modul pro Bereich (overview, trainees, assignments, school_plans, …) |
+| **Models** | `src/app/models/` | SQLModel-Tabellen, eine Datei pro Entity |
+| **Services** | `src/app/services/` | Domaenenlogik (`conflict_checker.py`, `school_sync.py`) |
+| **Utils** | `src/app/utils/` | KW-/Datums-Arithmetik (`kw.py`) |
+| **Templates** | `src/app/templates/` | Jinja2-Views, Partials in `_partials/` |
+| **Static** | `src/app/static/` | `style.css`, lokales `htmx.min.js` |
+| **Migrationen** | `src/alembic/` | Schema-Versionierung |
+| **Seed** | `src/seed/` | Beispieldaten |
+| **Deployment** | `k8s/`, `azure-pipelines.yml` | Kustomize-Manifeste + Azure-Pipeline (s. [`k8s/README.md`](k8s/README.md)) |
 
-Patterns: PRG (Post-Redirect-Get) mit Flash via `?msg=…`, HTMX fuer Inline-Edits und Loeschen ohne Seitenwechsel, ISO-8601-Kalenderwochen durchgehend (`app/utils/kw.py`).
+Patterns: PRG (Post-Redirect-Get) mit Flash via `?msg=…`, HTMX fuer Inline-Edits und Loeschen ohne Seitenwechsel, ISO-8601-Kalenderwochen durchgehend (`src/app/utils/kw.py`).
 
 ## Domaenenmodell
 
@@ -200,99 +206,54 @@ Eingabe-Hierarchie beim Anlegen (`BERUFSSCHULE = UNI` > `URLAUB` > `ABTEILUNG` >
 >
 > **Datenschutz:** Das Datenschutzkonzept (DSB grenke digital) muss vor dem Einsatz mit echten personenbezogenen Daten abgesegnet sein.
 
-### Gesamtablauf
+### Gesamtablauf (Kustomize – kein Helm)
 
 ```
-GitHub (main-Push)
-  └─► Azure DevOps Build-Pipeline  (pipelines/azure-pipelines-build.yml)
-        ├─ Tests (pytest)           — CI-Gate; kein Image ohne gruene Tests
-        └─ Docker buildAndPush      — Image → Harbor-Registry
-              └─► Deploy-Pipeline  (pipelines/azure-pipelines-deploy.yml)
-                    └─ kubectl apply → Cluster tools-test (Namespace <NAMESPACE>)
-                                    → spaeter: tools-prod
+GitHub (main-Push) ──► Azure-DevOps-Repo ──► azure-pipelines.yml
+  Stage 1 Build:  Docker-Image aus src/ bauen ──► Harbor-Registry
+  Stage 2 Deploy: replacetokens (Secret + Image-Tag)
+                  └─ kubectl kustomize k8s/overlays/test ──► kubectl apply ──► Rollout-Checks
+  Ziel: Cluster-Namespace <NAMESPACE>; PostgreSQL laeuft als eigenes Deployment im selben Namespace.
 ```
 
-### Voraussetzungen (vom Nutzer zu organisieren)
+### Struktur
 
-- **Harbor-Zugriff**: Harbor-Projekt anlegen, Serviceaccount mit Push-Rechten.
-- **Azure DevOps Repo/Projekt**: Pipeline-Dateien aus `pipelines/` dort eintragen.
-- **3 Service Connections** in Azure DevOps (Project Settings → Service Connections):
-  1. **GitHub** — Zugriff auf `333-RR-13/wilbeth` (OAuth oder PAT).
-  2. **Harbor** — Docker Registry, URL `https://<HARBOR_REGISTRY>`, Harbor-Credentials.
-  3. **Kubernetes** — Kubeconfig oder Service-Account-Token fuer Namespace `<NAMESPACE>` auf `tools-test`.
-- **Namespace + RBAC** auf `tools-test`: Namespace anlegen, ServiceAccount mit `kubectl apply`-Rechten.
+- `src/` — App + `Dockerfile` (= Docker-Build-Kontext)
+- `k8s/base/` — `configmap.yaml`, `secret.yaml` (nur `{{dbPassword}}`-Token), `pvc.yaml`, `deployment.wilbeth.yaml`, `deployment.postgres.yaml`, `service.*.yaml`, `kustomization.yaml`
+- `k8s/overlays/test/` — `ingress.yaml` (+ cert-manager `Certificate`), `kustomization.yaml`
+- `azure-pipelines.yml` — Build- + Deploy-Stage
 
-### Platzhalter-Tabelle
+### Geheimnisse & Platzhalter
 
-Alle `<PLACEHOLDER>`-Werte muessen vor dem ersten Pipeline-Lauf gefuellt werden:
-
-| Platzhalter | Datei(en) | Was eintragen |
-|---|---|---|
-| `<NAMESPACE>` | alle k8s/, deploy-Pipeline | Kubernetes-Namespace, z. B. `tools-test` |
-| `<DB_PASSWORD>` | `k8s/secret.example.yaml` | Sicheres Passwort fuer Postgres-User `wilbeth` |
-| `<STORAGE_CLASS>` | `k8s/postgres.yaml` | StorageClass des Clusters (beim Cluster-Admin erfragen) |
-| `<HARBOR_REGISTRY>` | `k8s/deployment.yaml`, Pipelines | Hostname der Harbor-Registry, z. B. `harbor.example.com` |
-| `<HARBOR_PROJECT>` | `k8s/deployment.yaml`, Pipelines | Harbor-Projektname, z. B. `wilbeth` |
-| `<IMAGE_TAG>` | `k8s/deployment.yaml` | Wird von der Deploy-Pipeline automatisch auf `$(Build.BuildId)` gesetzt |
-| `<INGRESS_HOST>` | `k8s/ingress.yaml` | Hostname der App, z. B. `wilbeth.tools.example.com` |
-| `<INGRESS_CLASS>` | `k8s/ingress.yaml` | Ingress-Controller-Name (`nginx`, `traefik`, …) |
-| `<GITHUB_SERVICE_CONNECTION>` | Build-Pipeline | Name der Azure DevOps Service Connection zu GitHub |
-| `<HARBOR_SERVICE_CONNECTION>` | Build-Pipeline | Name der Azure DevOps Service Connection zu Harbor |
-| `<K8S_SERVICE_CONNECTION>` | Deploy-Pipeline | Name der Azure DevOps Service Connection zum Cluster |
-| `<BUILD_PIPELINE_ID>` | Deploy-Pipeline | Name/ID der Build-Pipeline in Azure DevOps |
+- **Secrets stehen nie im Git.** `k8s/base/secret.yaml` enthaelt nur den Token `{{dbPassword}}`; der Azure-Task `replacetokens@6` setzt den echten Wert beim Deploy aus einer **Variable Group** ein. Der Image-Tag (`{{imageTag}}`) wird genauso gesetzt.
+- **`<<<…>>>`-Platzhalter** (Namespace, Harbor-Projekt, Host, Service-Connection, Environment, Responsible-Team-Mail) muessen **einmalig** in den Dateien ersetzt werden — vollstaendige Liste + Ansprechpartner in **[`k8s/README.md`](k8s/README.md)**. Die Deploy-Pipeline bricht ab, falls im gerenderten Manifest noch `{{…}}` oder `<<<…>>>` stehen.
 
 ### PostgreSQL
 
-Standardmaessig wird ein PostgreSQL-Pod via `k8s/postgres.yaml` im Cluster deployt (StatefulSet mit PVC).
+Laeuft als eigenes Deployment im Cluster (`k8s/base/deployment.postgres.yaml` + `pvc.yaml`, StorageClass `longhorn`). Die App verbindet sich ueber die `DATABASE_URL` aus dem Secret:
 
-Alternativ: Falls die Firma eine **gemanagte PostgreSQL** bereitstellt (z. B. Azure Database for PostgreSQL), `k8s/postgres.yaml` weglassen und `DATABASE_URL` im Secret direkt auf die externe DB zeigen.
-
-Verbindungs-URL Format (SQLAlchemy / psycopg v3):
 ```
-postgresql+psycopg://wilbeth:<DB_PASSWORD>@wilbeth-db:5432/wilbeth
+postgresql+psycopg://wilbeth:<dbPassword>@postgres:5432/wilbeth
 ```
 
-### Reihenfolge beim Erst-Deploy
+### Sicherheit / TLS
 
-1. **Secret anlegen** (niemals committen — nur lokal bearbeiten und mit kubectl anwenden):
-   ```bash
-   cp k8s/secret.example.yaml /tmp/wilbeth-secret.yaml
-   # Platzhalter in /tmp/wilbeth-secret.yaml fuellen
-   kubectl apply -f /tmp/wilbeth-secret.yaml -n <NAMESPACE>
-   rm /tmp/wilbeth-secret.yaml
-   ```
-2. **PostgreSQL deployen** (oder weglassen bei externer DB):
-   ```bash
-   kubectl apply -f k8s/postgres.yaml -n <NAMESPACE>
-   ```
-3. **Build-Pipeline** in Azure DevOps einrichten und einmal ausfuehren (push auf `main` genuegt).
-4. **Deploy-Pipeline** einrichten — wird automatisch nach der Build-Pipeline getriggert.
-5. **Seed einmalig ausfuehren** (nur beim ersten Mal, nach erfolgreichem Deploy):
-   ```bash
-   kubectl exec -n <NAMESPACE> deploy/wilbeth -- python -m seed.seed
-   ```
+Der Pod spricht **HTTP** auf Port 8080 (non-root, UID 1654). TLS terminiert der **nginx-Ingress**; das Zertifikat stellt **cert-manager** (ClusterIssuer `keyfactor-command-issuer`) fuer den Host aus.
 
 ### Lokales Docker-Testing mit Postgres (optional)
 
 ```bash
-# Postgres-Profil starten (App auf Port 8001, Postgres intern)
-docker compose --profile postgres up -d --build
-
-# Seed
+cd src
+docker compose --profile postgres up -d --build   # App auf Port 8081, Postgres intern
 docker compose exec wilbeth-pg python -m seed.seed
 ```
 
 ### Seed / Wartung im Cluster
 
 ```bash
-# Beispieldaten laden (einmalig)
 kubectl exec -n <NAMESPACE> deploy/wilbeth -- python -m seed.seed
-
-# FI-SI-Plan nachtragen
 kubectl exec -n <NAMESPACE> deploy/wilbeth -- python -m seed.add_fisi_plan
-
-# Daten leeren (Vorsicht!)
-kubectl exec -n <NAMESPACE> deploy/wilbeth -- python -m seed.clean
+kubectl exec -n <NAMESPACE> deploy/wilbeth -- python -m seed.clean   # Vorsicht: leert Daten
 ```
 
 ### Weitergehende Dokumentation

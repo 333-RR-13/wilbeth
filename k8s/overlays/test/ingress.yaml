@@ -1,0 +1,66 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wilbeth-ingress
+  annotations:
+    # TLS-Redirect erzwingen; Backend ist Plain-HTTP (Port 8080) – kein backend-protocol: HTTPS
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        # Hostname: bei AI-Platform erfragen -> <<<HOST>>>
+        # Beispiel: wilbeth.k8s-ai-apps-test.grenke.com
+        - <<<HOST>>>
+      secretName: wilbeth-tls
+  rules:
+    - host: <<<HOST>>>
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: wilbeth
+                port:
+                  number: 8080
+
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  annotations:
+    # Responsible Team E-Mail: bei AI-Platform erfragen -> <<<RESPONSIBLE_TEAM_EMAIL>>>
+    metadata.command-issuer.keyfactor.com/Responsible_Team: <<<RESPONSIBLE_TEAM_EMAIL>>>
+  name: wilbeth-tls
+  # Namespace wird von kustomization.yaml gesetzt (<<<NAMESPACE>>>)
+spec:
+  # Hostname: bei AI-Platform erfragen -> <<<HOST>>>
+  # Beispiel: wilbeth.k8s-ai-apps-test.grenke.com
+  commonName: <<<HOST>>>
+  dnsNames:
+    - <<<HOST>>>
+  duration: 4320h
+  renewBefore: 1440h
+  isCA: false
+  issuerRef:
+    name: keyfactor-command-issuer
+    kind: ClusterIssuer
+    group: command-issuer.keyfactor.com
+  privateKey:
+    algorithm: RSA
+    encoding: PKCS1
+    rotationPolicy: Always
+    size: 2048
+  secretName: wilbeth-tls
+  subject:
+    organizations:
+      - GRENKE digital GmbH
+    organizationalUnits:
+      - DCS
+    countries:
+      - DE
+    localities:
+      - Baden-Baden
+    provinces:
+      - Baden-Wuerttemberg

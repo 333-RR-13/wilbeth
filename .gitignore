@@ -28,6 +28,10 @@ data/
 design bib/
 *.zip
 
+# Interne Deployment-Referenzen (fremde Firmen-Repos — nur zum Nachschauen, nicht committen)
+DP.helm-generic/
+GAI.ai-prod-label-studio/
+
 # Temporäre Hilfsdateien
 _*.db
 _check_db.py

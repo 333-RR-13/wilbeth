@@ -16,6 +16,43 @@ Format orientiert an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
   `wochen`, Slicing der Wochenliste) und `app/templates/overview/matrix.html`
   (Dropdown in der Filterleiste, `onchange`-Submit).
 
+### Overview-Matrix: volle Breite, vereinheitlichte Chips
+
+- **Tabelle nutzt die volle Seitenbreite**: Die Einsatzübersicht ist nicht mehr
+  auf 1100px begrenzt (`content-inner--wide`); die Wochen-Spalten verteilen sich
+  über `width: 100%` über die ganze Breite.
+- **„Bereits eingeplant"-Spalte ohne Umbruch**: Die Abteilungs-Chips stehen jetzt
+  immer in einer Zeile (`flex-wrap: nowrap`), die Spalte wird so breit wie nötig.
+- **Urlaub-Chip**: Das Kürzel „BLK" heißt jetzt „U", die Legende „Urlaub"
+  (vorher „Blocker (Urlaub/Frei)").
+- **Schulwochen vereinheitlicht**: Die separate, ausgeblasste „Schulwoche
+  (Klasse)"-Darstellung (`cell-auto`) und die hellblaue Zell-Hintergrund-
+  markierung (`mc-school`) wurden entfernt. Schulwochen erscheinen jetzt als
+  normaler, solider BS/HS-Chip (mit `title="laut Klassen-Schulplan"`) — auch in
+  den Azubi-Ansichten (Mein Plan / Meine Klasse). Tests entsprechend angepasst.
+
+### Deployment auf Kustomize umgestellt (noch nicht committet)
+
+- **Helm-Ansatz verworfen**: Statt des `helm-generic`-Charts wird – wie das
+  Referenz-Repo der AI Platform – ein **Kustomize**-Setup verwendet. Alte
+  Artefakte entfernt (`helm/`, altes `k8s/` mit losen Manifesten, `pipelines/`).
+- **App nach `src/` verschoben**: `app/`, `alembic/`, `seed/`, `tests/`,
+  `requirements.txt`, `Dockerfile`, `docker-entrypoint.sh`, `docker-compose.yml`
+  liegen jetzt unter `src/` (= Docker-Build-Kontext). Befehle laufen aus `src/`.
+- **Dockerfile/Entrypoint auf schlichtes HTTP** (Port 8080) vereinfacht: kein
+  TLS im Pod mehr (das übernimmt der Ingress), `openssl`/`WILBETH_TLS`/8443
+  entfernt. Bleibt non-root (UID 1654), HEALTHCHECK über HTTP.
+- **Neue `k8s/`-Struktur**: `k8s/base/` (configmap, secret mit `{{dbPassword}}`-
+  Token, pvc, `deployment.wilbeth`, `deployment.postgres`, services,
+  kustomization) und `k8s/overlays/test/` (ingress + cert-manager `Certificate`
+  mit ClusterIssuer `keyfactor-command-issuer`). PostgreSQL läuft selbst im
+  Cluster (PVC `longhorn`).
+- **Neue `azure-pipelines.yml`**: Stage 1 baut das Image aus `src/` und pusht es
+  nach Harbor; Stage 2 ersetzt Tokens via `replacetokens@6` (Secret + Image-Tag),
+  rendert Kustomize und führt `kubectl apply` mit Rollout-Checks aus.
+  Firmenspezifische Unbekannte als `<<<…>>>`-Platzhalter; Details in `k8s/README.md`.
+- README-Deployment-Abschnitt und Architektur-Tabelle entsprechend aktualisiert.
+
 ### Postgres-Härtung & Deployment-Verbesserungen
 
 - **Migrationen zusammengefasst**: Die bisherigen 5 Alembic-Migrationen

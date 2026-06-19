@@ -1,0 +1,174 @@
+pool:
+  name: default-k8s-pipelineagents
+
+trigger:
+  branches:
+    include:
+      - main
+
+variables:
+  # Namespace im Cluster: bei AI-Platform erfragen -> <<<NAMESPACE>>>
+  # Beispiel: wilbeth-test
+  namespace: '<<<NAMESPACE>>>'
+
+  # Azure DevOps Service Connection zu Harbor: bei AI-Platform erfragen -> <<<HARBOR_SERVICE_CONNECTION>>>
+  dockerRegistryServiceConnection: '<<<HARBOR_SERVICE_CONNECTION>>>'
+
+  # Harbor-Projektname: bei AI-Platform erfragen -> <<<HARBOR_PROJEKT>>>
+  # Beispiel: ai-apps oder dcs
+  imageRepository: '<<<HARBOR_PROJEKT>>>/wilbeth'
+
+  containerRegistry: 'harbor.grenkeleasing.com'
+
+  # Azure DevOps Environment + k8s-Namespace-Kombination: bei AI-Platform erfragen -> <<<K8S_ENVIRONMENT>>>
+  # Beispiel (analog label-studio): 'env-test-wilbeth.ai-apps-test01-wilbeth-test'
+  k8sEnvironment: '<<<K8S_ENVIRONMENT>>>'
+
+  tag: '$(Build.BuildId)'
+
+
+stages:
+  # ---------------------------------------------------------------------------
+  # Stage 1: Docker-Image bauen und nach Harbor pushen
+  # ---------------------------------------------------------------------------
+  - stage: Build
+    displayName: 'Build & Push Docker Image'
+    jobs:
+      - job: BuildImage
+        displayName: 'Docker Build & Push'
+        pool:
+          name: default-k8s-pipelineagents
+        steps:
+          - checkout: self
+
+          - task: Docker@2
+            displayName: 'Build and Push wilbeth image to Harbor'
+            inputs:
+              command: buildAndPush
+              repository: $(imageRepository)
+              dockerfile: '$(Build.SourcesDirectory)/src/Dockerfile'
+              buildContext: '$(Build.SourcesDirectory)/src'
+              containerRegistry: $(dockerRegistryServiceConnection)
+              tags: |
+                $(tag)
+                latest
+
+  # ---------------------------------------------------------------------------
+  # Stage 2: Deployment auf Test-Cluster (Kustomize + kubectl apply)
+  # ---------------------------------------------------------------------------
+  - stage: DeployTest
+    displayName: 'Deploy Wilbeth Test'
+    dependsOn: Build
+    jobs:
+      - deployment: DeployWilbeth
+        displayName: 'Deploy Wilbeth'
+        environment: $(k8sEnvironment)
+        variables:
+          # dbPassword kommt aus einer Azure DevOps Variable Group / Library.
+          # Variable-Group-Name und Secret-Quelle (z.B. Azure Key Vault oder
+          # manuell gepflegtes Secret): bei AI-Platform erfragen.
+          # Das Secret muss im Pipeline-UI unter "Variables" oder via
+          # "Variable groups" als secret Variable "dbPassword" hinterlegt sein.
+          dbPassword: $(dbPassword)
+        pool:
+          name: default-k8s-pipelineagents
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+
+                - script: |
+                    echo "Deploying Wilbeth"
+                    echo "Namespace:       $(namespace)"
+                    echo "Image:           harbor.grenkeleasing.com/$(imageRepository):$(tag)"
+                    echo "K8s Environment: $(k8sEnvironment)"
+                  displayName: 'Display deployment info'
+
+                # Platzhalter {{dbPassword}} und {{imageTag}} in den Manifesten
+                # durch echte Werte ersetzen (tokenPattern: doublebraces).
+                - task: replacetokens@6
+                  displayName: 'Replace tokens in Kubernetes manifests'
+                  inputs:
+                    sources: |
+                      $(Build.SourcesDirectory)/k8s/base/secret.yaml
+                      $(Build.SourcesDirectory)/k8s/base/deployment.wilbeth.yaml
+                    tokenPattern: 'doublebraces'
+                    escape: 'off'
+                    ifNoFilesFound: 'error'
+                    missingVarLog: 'error'
+                    telemetryOptout: 'true'
+                  env:
+                    dbPassword: $(dbPassword)
+                    imageTag: $(tag)
+
+                - script: |
+                    set -euo pipefail
+                    kubectl kustomize . > rendered.yaml
+                  displayName: 'Render Kustomize (overlays/test)'
+                  workingDirectory: '$(Build.SourcesDirectory)/k8s/overlays/test'
+
+                - script: |
+                    set -euo pipefail
+                    echo "Rendered resources:"
+                    grep -E "kind:|  name:|  namespace:|host:|secretName:|storageClassName:" rendered.yaml || true
+
+                    echo ""
+                    echo "Checking for unresolved tokens:"
+                    if grep -R "{{.*}}" rendered.yaml; then
+                      echo "ERROR: Unresolved tokens found in rendered.yaml"
+                      exit 1
+                    fi
+
+                    echo ""
+                    echo "Checking for unresolved placeholders (<<<...>>>):"
+                    if grep -R "<<<.*>>>" rendered.yaml; then
+                      echo "ERROR: Unresolved placeholders (<<<...>>>) found in rendered.yaml"
+                      exit 1
+                    fi
+                  displayName: 'Validate rendered manifest'
+                  workingDirectory: '$(Build.SourcesDirectory)/k8s/overlays/test'
+
+                - task: Kubernetes@1
+                  displayName: 'Apply manifests'
+                  inputs:
+                    namespace: $(namespace)
+                    command: 'apply'
+                    arguments: '--validate=false'
+                    useConfigurationFile: true
+                    configuration: '$(Build.SourcesDirectory)/k8s/overlays/test/rendered.yaml'
+
+                - task: Kubernetes@1
+                  displayName: 'Verify Postgres rollout'
+                  inputs:
+                    namespace: $(namespace)
+                    command: 'rollout'
+                    arguments: 'status deployment/postgres --timeout=5m'
+
+                - task: Kubernetes@1
+                  displayName: 'Verify Wilbeth rollout'
+                  inputs:
+                    namespace: $(namespace)
+                    command: 'rollout'
+                    arguments: 'status deployment/wilbeth --timeout=5m'
+
+                - task: Kubernetes@1
+                  displayName: 'Show Pods'
+                  inputs:
+                    namespace: $(namespace)
+                    command: 'get'
+                    arguments: 'pods -o wide'
+
+                - task: Kubernetes@1
+                  displayName: 'Show Services'
+                  inputs:
+                    namespace: $(namespace)
+                    command: 'get'
+                    arguments: 'svc'
+
+                - task: Kubernetes@1
+                  displayName: 'Show Ingress'
+                  inputs:
+                    namespace: $(namespace)
+                    command: 'get'
+                    arguments: 'ingress'

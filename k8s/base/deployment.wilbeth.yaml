@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wilbeth
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wilbeth
+  template:
+    metadata:
+      labels:
+        app: wilbeth
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: wilbeth
+          # imageTag wird von der Pipeline per replacetokens@6 gesetzt (tokenPattern: doublebraces)
+          # Harbor-Projekt: bei AI-Platform erfragen -> <<<HARBOR_PROJEKT>>>
+          image: "harbor.grenkeleasing.com/<<<HARBOR_PROJEKT>>>/wilbeth:{{imageTag}}"
+          imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1654
+            runAsGroup: 1654
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: wilbeth-config
+            - secretRef:
+                name: wilbeth-secrets
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

@@ -1,0 +1,43 @@
+{% extends "share/_base.html" %}
+{% block title %}Meine Einsätze{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Meine Einsätze</h1>
+    <p class="page-subtitle">{{ trainee.vorname }} {{ trainee.nachname }}</p>
+  </div>
+</div>
+
+{% if schul_tage %}
+<p class="share-schooldays">&#128218; Deine festen Schultage: <strong>{{ schul_tage }}</strong></p>
+{% endif %}
+
+{% if years | length > 1 %}
+<div class="share-year-links">
+  {% for y in years %}
+  <a href="/mein-plan/{{ token }}?schoolyear_id={{ y.id }}"
+     class="share-year-link {{ 'active' if y.id == selected_year else '' }}">{{ y.id }}</a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if weeks %}
+<div class="matrix-legend">
+  <span class="legend-item"><span class="cell-chip" style="background:#A855F7;color:#fff">ABT</span> Abteilung (eigene Farbe)</span>
+  <span class="legend-item"><span class="cell-chip cell-school">BS</span> Berufsschule</span>
+  <span class="legend-item"><span class="cell-chip cell-school">HS</span> Hochschule/Uni</span>
+  <span class="legend-item"><span class="cell-chip cell-blocker">U</span> Urlaub</span>
+  <span class="legend-item"><span class="matrix-school-sample"></span> Schulwoche</span>
+  <span class="legend-item"><span class="matrix-today-sample"></span> Aktuelle KW</span>
+</div>
+
+{% include "_partials/week_matrix.html" %}
+
+{% else %}
+<div class="card card-body" style="text-align:center; color:var(--text-muted)">
+  Noch kein Plan hinterlegt.
+</div>
+{% endif %}
+
+{% endblock %}

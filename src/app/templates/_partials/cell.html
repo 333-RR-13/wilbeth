@@ -1,0 +1,8 @@
+{% from "_partials/chip.html" import cell_content %}
+<td id="cell-{{ trainee_id }}-{{ kw }}-{{ jahr }}"
+    class="matrix-cell cell-clickable{% if is_conflict %} mc-conflict{% endif %}"
+    hx-get="/einsaetze/cell-edit?trainee_id={{ trainee_id }}&kw={{ kw }}&jahr={{ jahr }}&schoolyear_id={{ schoolyear_id }}"
+    hx-target="#cell-dialog-body"
+    hx-swap="innerHTML">
+  {{ cell_content(a, dept_colors) }}
+</td>

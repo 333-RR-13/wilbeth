@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% from "_partials/chip.html" import cell_content, dept_chip %}
+{% block title %}Übersicht{% endblock %}
+{% block content_class %}content-inner--wide{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Einsatzübersicht</h1>
+    <div id="conflict-counter" class="conflict-counter-row">
+      {% if conflict_count > 0 %}
+        <span class="page-subtitle conflict-hint">&#9888; {{ conflict_count }} Konflikt{{ 'e' if conflict_count != 1 else '' }} erkannt</span>
+        <button type="button" class="btn btn-ghost btn-sm conflict-why-btn"
+                hx-get="/overview/konflikte?schoolyear_id={{ selected_year }}"
+                hx-target="#conflict-panel" hx-swap="innerHTML"
+                onclick="document.getElementById('conflict-panel').hidden = false">
+          Warum? &rarr;
+        </button>
+      {% else %}
+        <span class="page-subtitle">Keine Konflikte</span>
+      {% endif %}
+    </div>
+  </div>
+  <a href="/einsaetze/neu" class="btn btn-secondary">Einsatz anlegen</a>
+</div>
+
+<div id="conflict-panel" class="conflict-panel" hidden></div>
+
+<form class="filter-bar" method="get" action="/overview">
+  <select name="schoolyear_id">
+    {% for y in years %}
+    <option value="{{ y.id }}" {{ 'selected' if y.id == selected_year else '' }}>{{ y.id }}</option>
+    {% endfor %}
+  </select>
+  <select name="klasse_id">
+    <option value="">Alle Klassen</option>
+    {% for c in classes %}
+    <option value="{{ c.id }}" {{ 'selected' if (c.id | string) == selected_klasse else '' }}>{{ c.name }}</option>
+    {% endfor %}
+  </select>
+  <select name="abteilung_id">
+    <option value="">Alle Abteilungen</option>
+    {% for d in all_depts %}
+    <option value="{{ d.id }}" {{ 'selected' if (d.id | string) == selected_abteilung else '' }}>{{ d.code }} – {{ d.name }}</option>
+    {% endfor %}
+  </select>
+  <select name="wochen" onchange="this.form.submit()">
+    <option value="" {{ 'selected' if not selected_wochen else '' }}>Alle Wochen</option>
+    {% for n in wochen_options %}
+    <option value="{{ n }}" {{ 'selected' if selected_wochen == (n | string) else '' }}>{{ n }} Wochen</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="btn btn-secondary">Anwenden</button>
+</form>
+
+{% if weeks %}
+
+<div class="matrix-legend">
+  <span class="legend-item"><span class="cell-chip" style="background:#A855F7;color:#fff">ABT</span> Abteilung (eigene Farbe)</span>
+  <span class="legend-item"><span class="cell-chip cell-school">BS</span> Berufsschule</span>
+  <span class="legend-item"><span class="cell-chip cell-school">HS</span> Hochschule/Uni</span>
+  <span class="legend-item"><span class="cell-chip cell-blocker">U</span> Urlaub</span>
+  <span class="legend-item"><span class="matrix-conflict-sample"></span> Konflikt</span>
+  <span class="legend-item"><span class="matrix-today-sample"></span> Aktuelle KW</span>
+</div>
+
+<div class="matrix-scroll">
+  <table class="matrix-table">
+    <thead>
+      <tr>
+        <th class="matrix-th-name">Trainee</th>
+        {% for w in weeks %}
+        <th class="matrix-th-kw{% if w.is_today %} is-today{% endif %}"
+            title="KW {{ w.kw }} / {{ w.jahr }} – Woche ab Mo {{ w.monday.strftime('%d.%m.%Y') }}">
+          <span class="th-kw-num">{{ w.kw }}</span>
+          <span class="th-kw-date">{{ w.monday.strftime('%d.%m.') }}</span>
+        </th>
+        {% endfor %}
+        <th class="matrix-th-visited">Bereits eingeplant</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in trainees %}
+      {% set t_cells = cell_map.get(t.id, {}) %}
+      {% set klasse_id = trainee_klasse_map.get(t.id) %}
+      {% set t_school_weeks = (school_week_map.get(klasse_id) or {}) %}
+      <tr>
+        <td class="matrix-td-name">
+          <a href="/trainees/{{ t.id }}"
+             class="matrix-trainee-link">
+            {{ t.nachname }}, {{ t.vorname }}
+          </a>
+          {% if tage_fest_map.get(klasse_id) %}
+          <span class="school-days-badge" title="Schultage jede Woche: {{ tage_fest_map[klasse_id] }}">
+            &#128218; {{ tage_fest_map[klasse_id] }}
+          </span>
+          {% endif %}
+        </td>
+        {% for w in weeks %}
+        {% set cell_key = w.kw ~ "," ~ w.jahr %}
+        {% set conflict_key = t.id ~ "~" ~ w.kw ~ "~" ~ w.jahr %}
+        {% set a = t_cells.get(cell_key) %}
+        {% set is_conflict = conflict_key in conflict_cells %}
+        <td id="cell-{{ t.id }}-{{ w.kw }}-{{ w.jahr }}"
+            class="matrix-cell cell-clickable{% if is_conflict %} mc-conflict{% endif %}{% if w.is_today %} mc-today{% endif %}"
+            hx-get="/einsaetze/cell-edit?trainee_id={{ t.id }}&kw={{ w.kw }}&jahr={{ w.jahr }}&schoolyear_id={{ selected_year }}"
+            hx-target="#cell-dialog-body"
+            hx-swap="innerHTML">
+          {{ cell_content(a, dept_colors, t_school_weeks.get(cell_key)) }}
+        </td>
+        {% endfor %}
+        <td class="matrix-td-visited">
+          {% set v_depts = visited_map.get(t.id, []) %}
+          {% if v_depts %}
+          <div class="visited-col-chips" title="War bereits in: {% for d in v_depts %}{{ d.name }}{% if not loop.last %}, {% endif %}{% endfor %}">
+            {% for d in v_depts %}
+              {%- set c = dept_colors.get(d.id) -%}
+              {% if c %}{{ dept_chip(c) }}{% else %}<span class="visited-col-chip" style="background:#f0f0f0;color:#808080">{{ d.code }}</span>{% endif %}
+            {% endfor %}
+          </div>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="{{ (weeks | length) + 2 }}" class="empty-state">
+          Keine Trainees gefunden. <a href="/trainees/">Trainees anlegen</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% else %}
+<div class="card card-body" style="text-align:center; color: var(--text-muted)">
+  Kein Lehrjahr ausgewählt oder kein Lehrjahr vorhanden. <a href="/lehrjahre/neu">Lehrjahr anlegen</a>
+</div>
+{% endif %}
+
+<!-- ── Inline-Edit Dialog ─────────────────────────────────────────── -->
+<dialog id="cell-edit-dialog" class="cell-dialog">
+  <div id="cell-dialog-body"></div>
+</dialog>
+
+<script>
+document.addEventListener('htmx:afterSettle', function (evt) {
+  if (evt.target.id === 'cell-dialog-body') {
+    document.getElementById('cell-edit-dialog').showModal();
+  }
+});
+document.addEventListener('htmx:afterSwap', function (evt) {
+  if (evt.detail && evt.detail.target && evt.detail.target.classList &&
+      evt.detail.target.classList.contains('matrix-cell')) {
+    document.getElementById('cell-edit-dialog').close();
+  }
+});
+document.getElementById('cell-edit-dialog').addEventListener('click', function (evt) {
+  if (evt.target === this) { this.close(); }
+});
+</script>
+
+{% endblock %}
