@@ -43,6 +43,12 @@
     <option value="{{ d.id }}" {{ 'selected' if (d.id | string) == selected_abteilung else '' }}>{{ d.code }} – {{ d.name }}</option>
     {% endfor %}
   </select>
+  <select name="wochen" onchange="this.form.submit()">
+    <option value="" {{ 'selected' if not selected_wochen else '' }}>Alle Wochen</option>
+    {% for n in wochen_options %}
+    <option value="{{ n }}" {{ 'selected' if selected_wochen == (n | string) else '' }}>{{ n }} Wochen</option>
+    {% endfor %}
+  </select>
   <button type="submit" class="btn btn-secondary">Anwenden</button>
 </form>
 

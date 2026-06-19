@@ -6,6 +6,16 @@ Format orientiert an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
 ## [Unreleased]
 
+### Overview: Wochen-Breite einstellbar
+
+- **KW-Fenster-Dropdown**: Auf der Einsatzübersicht lässt sich über ein neues
+  Dropdown wählen, wie viele Kalenderwochen der mittlere Tabellenteil zeigt
+  (4 / 8 / 12 / 16 / 26 Wochen oder „Alle Wochen"). Das Fenster beginnt bei der
+  aktuellen KW (sonst am Lehrjahresanfang); ohne Auswahl wird wie bisher das
+  ganze Lehrjahr angezeigt. Umsetzung in `app/routers/overview.py` (Query-Param
+  `wochen`, Slicing der Wochenliste) und `app/templates/overview/matrix.html`
+  (Dropdown in der Filterleiste, `onchange`-Submit).
+
 ### Postgres-Härtung & Deployment-Verbesserungen
 
 - **Migrationen zusammengefasst**: Die bisherigen 5 Alembic-Migrationen

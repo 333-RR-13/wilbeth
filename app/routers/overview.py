@@ -46,11 +46,15 @@ def overview_conflicts(request: Request, db: DB):
     })
 
 
+WOCHEN_OPTIONS = [4, 8, 12, 16, 26]
+
+
 @router.get("/overview", response_class=HTMLResponse)
 def overview(request: Request, db: DB):
     schoolyear_id = request.query_params.get("schoolyear_id", "")
     klasse_id_str = request.query_params.get("klasse_id", "")
     abteilung_id_str = request.query_params.get("abteilung_id", "")
+    wochen_str = request.query_params.get("wochen", "")
 
     years = db.exec(select(Schoolyear).order_by(Schoolyear.start_year.desc())).all()
     classes = db.exec(select(TraineeClass).order_by(TraineeClass.name)).all()
@@ -79,12 +83,14 @@ def overview(request: Request, db: DB):
             "dept_colors": dept_colors,
             "selected_year": schoolyear_id, "selected_klasse": klasse_id_str,
             "selected_abteilung": abteilung_id_str,
+            "selected_wochen": wochen_str,
+            "wochen_options": WOCHEN_OPTIONS,
             "active_nav": "overview",
         })
 
     _today = date.today().isocalendar()
     _today_key = (_today.week, _today.year)
-    weeks = [
+    all_weeks = [
         {
             "kw": kw,
             "jahr": jahr,
@@ -96,6 +102,22 @@ def overview(request: Request, db: DB):
             year.end_kw, year.end_year,
         )
     ]
+
+    # Wochen-Fenster: nur N Wochen ab heutiger KW anzeigen
+    try:
+        n_wochen = int(wochen_str) if wochen_str else 0
+    except (ValueError, TypeError):
+        n_wochen = 0
+
+    if n_wochen > 0:
+        # Anker: Index der heutigen ISO-Woche; falls nicht im Lehrjahr → Index 0
+        anker = next(
+            (i for i, w in enumerate(all_weeks) if (w["kw"], w["jahr"]) == _today_key),
+            0,
+        )
+        weeks = all_weeks[anker: anker + n_wochen]
+    else:
+        weeks = all_weeks
 
     # Filter trainees by class if requested
     q = select(Trainee)
@@ -175,5 +197,7 @@ def overview(request: Request, db: DB):
         "selected_year": schoolyear_id,
         "selected_klasse": klasse_id_str,
         "selected_abteilung": abteilung_id_str,
+        "selected_wochen": wochen_str,
+        "wochen_options": WOCHEN_OPTIONS,
         "active_nav": "overview",
     })
