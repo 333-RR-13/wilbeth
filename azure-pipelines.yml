@@ -6,30 +6,23 @@ trigger:
     include:
       - main
 
-resources:
-  repositories:
-    - repository: templates
-      name: Common/AzureDevOps.Pipelines.Templates
-      type: git
-      ref: refs/tags/5.6.5-task-fix-build-container-template.5
-
 variables:
   # Namespace im Cluster: bei AI-Platform erfragen -> <<<NAMESPACE>>>
   # Beispiel: wilbeth-test
-  namespace: 'wilbeth'
+  namespace: '<<<NAMESPACE>>>'
 
-  # # Azure DevOps Service Connection zu Harbor: bei AI-Platform erfragen -> <<<HARBOR_SERVICE_CONNECTION>>>
-  # dockerRegistryServiceConnection: '<<<HARBOR_SERVICE_CONNECTION>>>'
+  # Azure DevOps Service Connection zu Harbor: bei AI-Platform erfragen -> <<<HARBOR_SERVICE_CONNECTION>>>
+  dockerRegistryServiceConnection: '<<<HARBOR_SERVICE_CONNECTION>>>'
 
   # Harbor-Projektname: bei AI-Platform erfragen -> <<<HARBOR_PROJEKT>>>
-  # Ordner wird erstellt wenn nicht vorhanden
-  imageRepository: 'harbor.grenkeleasing.com/wilbeth' 
+  # Beispiel: ai-apps oder dcs
+  imageRepository: '<<<HARBOR_PROJEKT>>>/wilbeth'
 
-  containerRegistry: 'harbor.grenkeleasing.com/wilbeth'
+  containerRegistry: 'harbor.grenkeleasing.com'
 
   # Azure DevOps Environment + k8s-Namespace-Kombination: bei AI-Platform erfragen -> <<<K8S_ENVIRONMENT>>>
   # Beispiel (analog label-studio): 'env-test-wilbeth.ai-apps-test01-wilbeth-test'
-  k8sEnvironment: 'env-staging-wilbeth.ai-apps-staging01-wilbeth'
+  k8sEnvironment: '<<<K8S_ENVIRONMENT>>>'
 
   tag: '$(Build.BuildId)'
 
@@ -38,52 +31,30 @@ stages:
   # ---------------------------------------------------------------------------
   # Stage 1: Docker-Image bauen und nach Harbor pushen
   # ---------------------------------------------------------------------------
-  - stage: BuildWilbethImage
+  - stage: Build
     displayName: 'Build & Push Docker Image'
     jobs:
-      - template: jobs/build-container-image.yml@templates
-        parameters:
-          dockerfilePath: "$(Build.SourcesDirectory)/src/Dockerfile"
-          imageRepository: $(imageRepository)
-          tag: |
-            $(tag)
-            latest
-
-# ============================================
-  # STAGE 2: Cleanup Previous Kaniko Job
-  # ============================================
-  - stage: CleanupKanikoJob
-    displayName: 'Cleanup Kaniko Build Job'
-    dependsOn: BuildWilbethImage
-    condition: succeeded()
-    jobs:
-      - deployment: CleanupKanikoJob
-        displayName: 'Cleanup Kaniko Build Job'
-        environment:
-          name: container-build-env.tools-prod-container-build-env
-          resourceType: Kubernetes
+      - job: BuildImage
+        displayName: 'Docker Build & Push'
         pool:
           name: default-k8s-pipelineagents
-        strategy:
-          runOnce:
-            deploy:
-              steps:
-                - checkout: none
-                - task: Kubernetes@1
-                  displayName: 'Delete previous Kaniko job attempt 1'
-                  inputs:
-                    namespace: "container-build-env"
-                    command: "delete"
-                    arguments: "job/container-build-job-$(Build.BuildId)-1 --ignore-not-found"
-                - task: Kubernetes@1
-                  displayName: 'Delete previous Kaniko job attempt 2'
-                  inputs:
-                    namespace: "container-build-env"
-                    command: "delete"
-                    arguments: "job/container-build-job-$(Build.BuildId)-2 --ignore-not-found"
+        steps:
+          - checkout: self
+
+          - task: Docker@2
+            displayName: 'Build and Push wilbeth image to Harbor'
+            inputs:
+              command: buildAndPush
+              repository: $(imageRepository)
+              dockerfile: '$(Build.SourcesDirectory)/src/Dockerfile'
+              buildContext: '$(Build.SourcesDirectory)/src'
+              containerRegistry: $(dockerRegistryServiceConnection)
+              tags: |
+                $(tag)
+                latest
 
   # ---------------------------------------------------------------------------
-  # Stage 3: Deployment auf Test-Cluster (Kustomize + kubectl apply)
+  # Stage 2: Deployment auf Test-Cluster (Kustomize + kubectl apply)
   # ---------------------------------------------------------------------------
   - stage: DeployTest
     displayName: 'Deploy Wilbeth Test'
