@@ -12,7 +12,7 @@ spec:
         # Host nach label-studio-Konvention (Cluster ai-apps-staging01).
         # BESTÄTIGEN bei AI-Platform: Wildcard-DNS *.k8s-ai-apps-staging.grenke.com -> Ingress?
         - wilbeth.k8s-ai-apps-staging.grenke.com
-      secretName: wilbeth-k8s-ai-apps-staging-tls
+      secretName: wilbeth-k8s-ai-apps-staging-tls-secret
   rules:
     - host: wilbeth.k8s-ai-apps-staging.grenke.com
       http:
@@ -50,7 +50,7 @@ spec:
     encoding: PKCS1
     rotationPolicy: Always
     size: 2048
-  secretName: wilbeth-k8s-ai-apps-staging-tls
+  secretName: wilbeth-k8s-ai-apps-staging-tls-secret
   subject:
     organizations:
       - GRENKE digital GmbH
