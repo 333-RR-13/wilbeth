@@ -8,9 +8,32 @@
     <p class="page-subtitle">{{ weeks | length }} Schulwoche{{ 'n' if weeks | length != 1 else '' }}</p>
   </div>
   <div class="btn-group">
+    <button type="button" class="btn btn-secondary"
+            hx-get="/imports/schulplan/{{ plan.id }}/dialog"
+            hx-target="#import-dialog-body"
+            hx-swap="innerHTML"
+            onclick="document.getElementById('import-dialog').showModal()">
+      Wochen importieren
+    </button>
     <a href="/schulplaene/" class="btn btn-secondary">Zurück</a>
   </div>
 </div>
+
+<!-- Import-Dialog -->
+<dialog id="import-dialog" class="cell-dialog">
+  <div id="import-dialog-body"></div>
+</dialog>
+
+<script>
+document.addEventListener('htmx:afterSettle', function (evt) {
+  if (evt.target.id === 'import-dialog-body') {
+    document.getElementById('import-dialog').showModal();
+  }
+});
+document.getElementById('import-dialog').addEventListener('click', function (evt) {
+  if (evt.target === this) { this.close(); }
+});
+</script>
 
 <div class="detail-layout">
 

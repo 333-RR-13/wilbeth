@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Lokale DB / Daten – darf NIE ins Image
+*.db
+*.sqlite
+*.sqlite3
+data/
+
+# Im Image nicht benötigt
+tests/
+docker-compose.yml
+
+# OS / Editor
+.DS_Store
+.idea/
+.vscode/

@@ -9,12 +9,12 @@ spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        # Hostname: bei AI-Platform erfragen -> <<<HOST>>>
-        # Beispiel: wilbeth.k8s-ai-apps-test.grenke.com
-        - <<<HOST>>>
-      secretName: wilbeth-tls
+        # Host nach label-studio-Konvention (Cluster ai-apps-staging01).
+        # BESTÄTIGEN bei AI-Platform: Wildcard-DNS *.k8s-ai-apps-staging.grenke.com -> Ingress?
+        - wilbeth.k8s-ai-apps-staging.grenke.com
+      secretName: wilbeth-k8s-ai-apps-staging-tls
   rules:
-    - host: <<<HOST>>>
+    - host: wilbeth.k8s-ai-apps-staging.grenke.com
       http:
         paths:
           - path: /
@@ -30,16 +30,14 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   annotations:
-    # Responsible Team E-Mail: bei AI-Platform erfragen -> <<<RESPONSIBLE_TEAM_EMAIL>>>
-    metadata.command-issuer.keyfactor.com/Responsible_Team: <<<RESPONSIBLE_TEAM_EMAIL>>>
-  name: wilbeth-tls
-  # Namespace wird von kustomization.yaml gesetzt (<<<NAMESPACE>>>)
+    # TODO: spaeter auf die Team-Mailadresse aendern
+    metadata.command-issuer.keyfactor.com/Responsible_Team: T-G-DE-IT-OPS-AIP@grenke.de
+  name: wilbeth-k8s-ai-apps-staging-tls
+  # Namespace wird von kustomization.yaml gesetzt (wilbeth)
 spec:
-  # Hostname: bei AI-Platform erfragen -> <<<HOST>>>
-  # Beispiel: wilbeth.k8s-ai-apps-test.grenke.com
-  commonName: <<<HOST>>>
+  commonName: wilbeth.k8s-ai-apps-staging.grenke.com
   dnsNames:
-    - <<<HOST>>>
+    - wilbeth.k8s-ai-apps-staging.grenke.com
   duration: 4320h
   renewBefore: 1440h
   isCA: false
@@ -52,12 +50,12 @@ spec:
     encoding: PKCS1
     rotationPolicy: Always
     size: 2048
-  secretName: wilbeth-tls
+  secretName: wilbeth-k8s-ai-apps-staging-tls
   subject:
     organizations:
       - GRENKE digital GmbH
     organizationalUnits:
-      - DCS
+      - AIPlatform
     countries:
       - DE
     localities:

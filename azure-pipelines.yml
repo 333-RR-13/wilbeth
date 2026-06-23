@@ -6,70 +6,164 @@ trigger:
     include:
       - main
 
+resources:
+  repositories:
+    - repository: templates
+      name: Common/AzureDevOps.Pipelines.Templates
+      type: git
+      ref: refs/tags/5.6.5-task-fix-build-container-template.5
+
 variables:
   # Namespace im Cluster: bei AI-Platform erfragen -> <<<NAMESPACE>>>
   # Beispiel: wilbeth-test
-  namespace: '<<<NAMESPACE>>>'
+  namespace: 'wilbeth'
 
-  # Azure DevOps Service Connection zu Harbor: bei AI-Platform erfragen -> <<<HARBOR_SERVICE_CONNECTION>>>
-  dockerRegistryServiceConnection: '<<<HARBOR_SERVICE_CONNECTION>>>'
+  # # Azure DevOps Service Connection zu Harbor: bei AI-Platform erfragen -> <<<HARBOR_SERVICE_CONNECTION>>>
+  # dockerRegistryServiceConnection: '<<<HARBOR_SERVICE_CONNECTION>>>'
 
   # Harbor-Projektname: bei AI-Platform erfragen -> <<<HARBOR_PROJEKT>>>
-  # Beispiel: ai-apps oder dcs
-  imageRepository: '<<<HARBOR_PROJEKT>>>/wilbeth'
+  # Ordner wird erstellt wenn nicht vorhanden
+  imageRepository: 'harbor.grenkeleasing.com/ai-platform/wilbeth' 
 
-  containerRegistry: 'harbor.grenkeleasing.com'
+  # containerRegistry: 'harbor.grenkeleasing.com/wilbeth' #not needed with template
 
-  # Azure DevOps Environment + k8s-Namespace-Kombination: bei AI-Platform erfragen -> <<<K8S_ENVIRONMENT>>>
-  # Beispiel (analog label-studio): 'env-test-wilbeth.ai-apps-test01-wilbeth-test'
-  k8sEnvironment: '<<<K8S_ENVIRONMENT>>>'
+  # ADO-Environment.Resource (vom AI-Platform-Engineer angelegt)
+  # Format: <ENVIRONMENT-NAME>.<RESOURCE-NAME>
+  k8sEnvironment: 'env-staging-azubi-wilbeth.ai-apps-staging01-wilbeth'
 
   tag: '$(Build.BuildId)'
+  # imageTag MUSS eine Pipeline-Variable sein: replacetokens@6 ersetzt {{imageTag}}
+  # aus den Pipeline-Variablen, nicht aus dem task-env-Block (sonst "variable 'imageTag' not found").
+  imageTag: '$(Build.BuildId)'
 
 
 stages:
   # ---------------------------------------------------------------------------
   # Stage 1: Docker-Image bauen und nach Harbor pushen
   # ---------------------------------------------------------------------------
-  - stage: Build
+  - stage: BuildWilbethImage
     displayName: 'Build & Push Docker Image'
     jobs:
-      - job: BuildImage
-        displayName: 'Docker Build & Push'
+      - template: jobs/build-container-image.yml@templates
+        parameters:
+          # Pfad RELATIV zum Repo-Root – Kaniko klont das Repo; ein absoluter Agent-Pfad
+          # ($(Build.SourcesDirectory)/...) existiert im Build-Pod nicht. Analog inspo.
+          dockerfilePath: "src/Dockerfile"
+          imageRepository: $(imageRepository)
+          # Genau EIN Tag – das Template hat einen einzelnen TAG-Token; ein mehrzeiliger
+          # Wert (… + latest) zerschiesst das Kaniko-Destination-Ziel.
+          tag: '$(tag)'
+
+# ============================================
+  # STAGE 2: Cleanup Previous Kaniko Job
+  # ============================================
+  - stage: CleanupKanikoJob
+    displayName: 'Cleanup Kaniko Build Job'
+    dependsOn: BuildWilbethImage
+    condition: succeeded()
+    jobs:
+      - deployment: CleanupKanikoJob
+        displayName: 'Cleanup Kaniko Build Job'
+        environment:
+          name: container-build-env.tools-prod-container-build-env
+          resourceType: Kubernetes
         pool:
           name: default-k8s-pipelineagents
-        steps:
-          - checkout: self
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: none
+                - task: Kubernetes@1
+                  displayName: 'Delete previous Kaniko job attempt 1'
+                  inputs:
+                    namespace: "container-build-env"
+                    command: "delete"
+                    arguments: "job/container-build-job-$(Build.BuildId)-1 --ignore-not-found"
+                - task: Kubernetes@1
+                  displayName: 'Delete previous Kaniko job attempt 2'
+                  inputs:
+                    namespace: "container-build-env"
+                    command: "delete"
+                    arguments: "job/container-build-job-$(Build.BuildId)-2 --ignore-not-found"
 
-          - task: Docker@2
-            displayName: 'Build and Push wilbeth image to Harbor'
-            inputs:
-              command: buildAndPush
-              repository: $(imageRepository)
-              dockerfile: '$(Build.SourcesDirectory)/src/Dockerfile'
-              buildContext: '$(Build.SourcesDirectory)/src'
-              containerRegistry: $(dockerRegistryServiceConnection)
-              tags: |
-                $(tag)
-                latest
+  # ============================================
+  # STAGE 2b: Diagnose (NUR bei Build-Fehler) – zeigt, warum der Kaniko-Pod nicht startet
+  # ============================================
+  - stage: DiagnoseBuild
+    displayName: 'Diagnose Kaniko Build Pod'
+    dependsOn: BuildWilbethImage
+    condition: failed()
+    jobs:
+      - deployment: DiagnoseBuild
+        displayName: 'Diagnose Kaniko Build Pod'
+        environment:
+          name: container-build-env.tools-prod-container-build-env
+          resourceType: Kubernetes
+        pool:
+          name: default-k8s-pipelineagents
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: none
+                - task: Kubernetes@1
+                  displayName: 'Pods'
+                  continueOnError: true
+                  inputs:
+                    namespace: "container-build-env"
+                    command: "get"
+                    arguments: "pods -o wide -l job-name=container-build-job-$(Build.BuildId)-1"
+                - task: Kubernetes@1
+                  displayName: 'Describe Pod (Versuch 1)'
+                  continueOnError: true
+                  inputs:
+                    namespace: "container-build-env"
+                    command: "describe"
+                    arguments: "pod -l job-name=container-build-job-$(Build.BuildId)-1"
+                - task: Kubernetes@1
+                  displayName: 'Describe Pod (Versuch 2)'
+                  continueOnError: true
+                  inputs:
+                    namespace: "container-build-env"
+                    command: "describe"
+                    arguments: "pod -l job-name=container-build-job-$(Build.BuildId)-2"
+                - task: Kubernetes@1
+                  displayName: 'Events'
+                  continueOnError: true
+                  inputs:
+                    namespace: "container-build-env"
+                    command: "get"
+                    arguments: "events --sort-by=.lastTimestamp"
+                - task: Kubernetes@1
+                  displayName: 'Kaniko-Logs (Versuch 1)'
+                  continueOnError: true
+                  inputs:
+                    namespace: "container-build-env"
+                    command: "logs"
+                    arguments: "job/container-build-job-$(Build.BuildId)-1 --all-containers=true --tail=200"
+                - task: Kubernetes@1
+                  displayName: 'Kaniko-Logs (Versuch 2)'
+                  continueOnError: true
+                  inputs:
+                    namespace: "container-build-env"
+                    command: "logs"
+                    arguments: "job/container-build-job-$(Build.BuildId)-2 --all-containers=true --tail=200"
 
   # ---------------------------------------------------------------------------
-  # Stage 2: Deployment auf Test-Cluster (Kustomize + kubectl apply)
+  # Stage 3: Deployment auf Test-Cluster (Kustomize + kubectl apply)
   # ---------------------------------------------------------------------------
   - stage: DeployTest
     displayName: 'Deploy Wilbeth Test'
-    dependsOn: Build
+    dependsOn: BuildWilbethImage
     jobs:
       - deployment: DeployWilbeth
         displayName: 'Deploy Wilbeth'
         environment: $(k8sEnvironment)
-        variables:
-          # dbPassword kommt aus einer Azure DevOps Variable Group / Library.
-          # Variable-Group-Name und Secret-Quelle (z.B. Azure Key Vault oder
-          # manuell gepflegtes Secret): bei AI-Platform erfragen.
-          # Das Secret muss im Pipeline-UI unter "Variables" oder via
-          # "Variable groups" als secret Variable "dbPassword" hinterlegt sein.
-          dbPassword: $(dbPassword)
+        # dbPassword wird als Pipeline-Variable (UI / Variable Group) gesetzt und vom
+        # replacetokens-Task unten direkt via $(dbPassword) gelesen.
+        # KEINE Job-Variable 'dbPassword: $(dbPassword)' -> das wäre ein Zirkelbezug
+        # auf sich selbst (cyclical reference) und bricht die Variablen-Auflösung ab.
         pool:
           name: default-k8s-pipelineagents
         strategy:

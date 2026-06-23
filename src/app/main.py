@@ -9,6 +9,7 @@ from app.routers import (
     assignments,
     departments,
     holidays,
+    imports,
     overview,
     school_plans,
     schoolyears,
@@ -26,6 +27,7 @@ app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 app.include_router(overview.router)
+app.include_router(imports.router)
 app.include_router(schoolyears.router)
 app.include_router(holidays.router)
 app.include_router(departments.router)

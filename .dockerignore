@@ -1,31 +1,40 @@
-# Virtual environment
-.venv/
+# Build-Context ist der Repo-Root. Nur src/ wird ins Image kopiert –
+# alles andere hier ausschliessen (kleinerer Context, schnellerer Kaniko-Build).
 
-# Python caches
+# Virtual environment / Python caches
+.venv/
+venv/
 **/__pycache__/
 *.pyc
 *.pyo
-.pytest_cache/
+**/.pytest_cache/
 
-# Database files – data goes on the Docker volume, not baked into the image
-*.db
-*.sqlite
-*.sqlite3
+# Datenbank-/Daten-Dateien – nie ins Image
+**/*.db
+**/*.sqlite
+**/*.sqlite3
 
-# Version control
+# Version control / Doku / CI
 .git/
 .gitignore
+.gitattributes
+*.md
+azure-pipelines.yml
 
-# Design / assets not needed in the image
+# Kubernetes-Manifeste + interne Referenz-Repos (nicht im Image)
+k8s/
+inspo/
+DP.helm-generic/
+GAI.ai-prod-label-studio/
 design bib/
 *.zip
 
-# Tests – not needed at runtime
-tests/
+# In src/, aber nicht im Image benoetigt
+src/tests/
+src/docker-compose.yml
+src/.dockerignore
 
-# Local environment overrides
+# Sonstiges
 .env
-
-# Editor / OS artefacts
 .DS_Store
 Thumbs.db

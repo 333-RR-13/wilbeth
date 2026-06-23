@@ -1,0 +1,75 @@
+<div class="cell-dialog-inner" style="min-width:420px;max-width:680px">
+  <h2 class="cell-dialog-title">Auto-Plan – Vorschau</h2>
+
+  {% if total_planned == 0 and total_skipped == 0 %}
+  <p style="color:var(--text-muted);margin:1rem 0">
+    Keine freien Wochen oder keine passenden Abteilungen gefunden.
+  </p>
+  {% else %}
+
+  {% if planned_by_trainee %}
+  <h3 style="font-size:.9rem;font-weight:600;margin:.75rem 0 .4rem">
+    Geplante Einsätze ({{ total_planned }} Wochen)
+  </h3>
+  {% for trainee_id, entries in planned_by_trainee.items() %}
+  {% set t = trainee_map.get(trainee_id) %}
+  <div style="margin-bottom:.75rem">
+    <div style="font-weight:600;font-size:.85rem;margin-bottom:.25rem">
+      {{ t.nachname ~ ', ' ~ t.vorname if t else 'Azubi #' ~ trainee_id }}
+    </div>
+    <ul style="margin:0;padding-left:1.2rem;font-size:.82rem;line-height:1.6">
+      {% for entry in entries %}
+      {% set dept = depts.get(entry.abteilung_id) %}
+      <li>KW {{ entry.kw }}/{{ entry.jahr }} →
+        <strong>{{ dept.code if dept else entry.abteilung_id }}
+          {% if dept %} – {{ dept.name }}{% endif %}</strong>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {% if skipped_by_trainee %}
+  <h3 style="font-size:.9rem;font-weight:600;margin:.75rem 0 .4rem;color:var(--text-muted)">
+    Übersprungen ({{ total_skipped }})
+  </h3>
+  {% for trainee_id, entries in skipped_by_trainee.items() %}
+  {% set t = trainee_map.get(trainee_id) %}
+  <div style="margin-bottom:.5rem">
+    <div style="font-weight:600;font-size:.85rem;margin-bottom:.2rem;color:var(--text-muted)">
+      {{ t.nachname ~ ', ' ~ t.vorname if t else 'Azubi #' ~ trainee_id }}
+    </div>
+    <ul style="margin:0;padding-left:1.2rem;font-size:.82rem;line-height:1.6;color:var(--text-muted)">
+      {% for s in entries %}
+      <li>
+        {% if s.kw %}KW {{ s.kw }}/{{ s.jahr }} – {% endif %}
+        {{ s.reason }}
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {% endif %}{# end if any data #}
+
+  <div style="display:flex;gap:.5rem;margin-top:1.25rem;justify-content:flex-end">
+    <button type="button" class="btn btn-ghost btn-sm"
+            onclick="document.getElementById('auto-plan-dialog').close()">
+      Abbrechen
+    </button>
+    {% if total_planned > 0 %}
+    <form method="post" action="/overview/auto-plan/apply" style="display:inline">
+      <input type="hidden" name="schoolyear_id" value="{{ schoolyear_id }}">
+      <input type="hidden" name="block_length" value="{{ block_length }}">
+      {% for tid in trainee_ids %}
+      <input type="hidden" name="trainee_ids" value="{{ tid }}">
+      {% endfor %}
+      <button type="submit" class="btn btn-primary btn-sm">
+        {{ total_planned }} Einsatz{{ 'e' if total_planned != 1 else '' }} übernehmen
+      </button>
+    </form>
+    {% endif %}
+  </div>
+</div>

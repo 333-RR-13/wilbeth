@@ -6,6 +6,20 @@ Format orientiert an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
 ## [Unreleased]
 
+### Auto-Plan & Daten-Import
+
+- **Auto-Plan**: Button + Checkboxen in der Einsatzübersicht. Weist ausgewählte
+  Azubis in ihren freien Wochen automatisch Abteilungen zu — in Blöcken nach
+  Wunsch-Priorität (`TraineeWish`), Block-Länge einstellbar (Default 4). Vermeidet
+  Doppelbelegung (je `erlaubt_mehrfachbelegung`) und meidet bereits besuchte
+  Abteilungen weich. Vorschau vor dem Übernehmen; nur freie Wochen, `source=AUTO`;
+  mehrfach ausführbar. (`app/services/auto_plan.py`)
+- **Daten-Import**: „Import"-Button auf der Schulplan-Seite (Schulplan-Wochen) und in
+  der Übersicht (vergangene Einsätze). Eingabe per Excel-Copy (Tab) oder CSV-Upload
+  (Tab/Semikolon/Komma automatisch erkannt), mit Vorschau + Validierung. Azubis per
+  „Nachname, Vorname", Abteilungen per Code. Bestehende Einträge werden übersprungen,
+  importierte Einsätze bekommen `source=IMPORT`. (`app/services/importer.py`)
+
 ### Overview: Wochen-Breite einstellbar
 
 - **KW-Fenster-Dropdown**: Auf der Einsatzübersicht lässt sich über ein neues

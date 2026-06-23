@@ -1,0 +1,114 @@
+<div class="cell-dialog-inner" style="min-width:460px;max-width:680px">
+
+  {% if mode == "schulplan" %}
+  <h2 class="cell-dialog-title">Vorschau – Schulplan-Wochen</h2>
+  {% else %}
+  <h2 class="cell-dialog-title">Vorschau – Einsätze</h2>
+  {% endif %}
+
+  {% if not valid and not errors %}
+  <p style="color:var(--text-muted);margin:1rem 0">Keine Daten erkannt. Bitte Text einfügen oder Datei hochladen.</p>
+
+  {% else %}
+
+  {% if valid %}
+  <h3 style="font-size:.9rem;font-weight:600;margin:.75rem 0 .4rem">
+    Gültige Zeilen ({{ valid | length }})
+  </h3>
+  <div style="max-height:260px;overflow-y:auto;margin-bottom:.5rem">
+    <table style="width:100%;font-size:.82rem;border-collapse:collapse">
+      <thead>
+        <tr style="background:var(--bg-subtle,#f8f9fa)">
+          {% if mode == "schulplan" %}
+          <th style="padding:.3rem .5rem;text-align:left">KW</th>
+          <th style="padding:.3rem .5rem;text-align:left">Jahr</th>
+          <th style="padding:.3rem .5rem;text-align:left">Typ</th>
+          {% else %}
+          <th style="padding:.3rem .5rem;text-align:left">Azubi</th>
+          <th style="padding:.3rem .5rem;text-align:left">KW</th>
+          <th style="padding:.3rem .5rem;text-align:left">Jahr</th>
+          <th style="padding:.3rem .5rem;text-align:left">Abteilung</th>
+          <th style="padding:.3rem .5rem;text-align:left">Typ</th>
+          {% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in valid %}
+        <tr style="border-top:1px solid var(--border-color,#e5e7eb)">
+          {% if mode == "schulplan" %}
+          <td style="padding:.3rem .5rem"><strong>KW {{ row.kw }}</strong></td>
+          <td style="padding:.3rem .5rem">{{ row.jahr }}</td>
+          <td style="padding:.3rem .5rem">
+            {% if row.typ.value == 'BERUFSSCHULE' %}
+            <span class="badge badge-blue">Berufsschule</span>
+            {% else %}
+            <span class="badge badge-orange">Uni</span>
+            {% endif %}
+          </td>
+          {% else %}
+          <td style="padding:.3rem .5rem">{{ row.trainee_name }}</td>
+          <td style="padding:.3rem .5rem"><strong>KW {{ row.kw }}</strong></td>
+          <td style="padding:.3rem .5rem">{{ row.jahr }}</td>
+          <td style="padding:.3rem .5rem">{{ row.abteilung_code }}</td>
+          <td style="padding:.3rem .5rem">{{ row.typ.value }}</td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  {% if errors %}
+  <h3 style="font-size:.9rem;font-weight:600;margin:.75rem 0 .4rem;color:var(--danger,#dc2626)">
+    Fehler / Übersprungen ({{ errors | length }})
+  </h3>
+  <div style="max-height:180px;overflow-y:auto;margin-bottom:.5rem">
+    <ul style="margin:0;padding-left:1.2rem;font-size:.82rem;line-height:1.7">
+      {% for err in errors %}
+      <li>
+        <span style="color:var(--danger,#dc2626)">Zeile {{ err.row_index }}:</span>
+        {{ err.reason }}
+        {% if err.raw %}<br><code style="font-size:.75rem;color:var(--text-muted)">{{ err.raw }}</code>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {% endif %}
+
+  <div style="display:flex;gap:.5rem;margin-top:1.25rem;justify-content:flex-end">
+    <button type="button" class="btn btn-ghost btn-sm"
+            onclick="closeImportDialog()">
+      Abbrechen
+    </button>
+
+    {% if valid %}
+    {% if mode == "schulplan" %}
+    <form method="post" action="/imports/schulplan/{{ plan_id }}/apply" style="display:inline">
+      <input type="hidden" name="raw_text" value="{{ raw_text | e }}">
+      <button type="submit" class="btn btn-primary btn-sm">
+        {{ valid | length }} Woche{{ 'n' if (valid | length) != 1 else '' }} übernehmen
+      </button>
+    </form>
+    {% else %}
+    <form method="post" action="/imports/einsaetze/apply" style="display:inline">
+      <input type="hidden" name="schoolyear_id" value="{{ schoolyear_id }}">
+      <input type="hidden" name="raw_text" value="{{ raw_text | e }}">
+      <button type="submit" class="btn btn-primary btn-sm">
+        {{ valid | length }} Einsatz{{ 'e' if (valid | length) != 1 else '' }} übernehmen
+      </button>
+    </form>
+    {% endif %}
+    {% endif %}
+  </div>
+
+</div>
+
+<script>
+function closeImportDialog() {
+  var d = document.getElementById('import-dialog');
+  if (d) d.close();
+}
+</script>

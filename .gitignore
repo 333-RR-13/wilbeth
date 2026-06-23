@@ -31,6 +31,7 @@ design bib/
 # Interne Deployment-Referenzen (fremde Firmen-Repos — nur zum Nachschauen, nicht committen)
 DP.helm-generic/
 GAI.ai-prod-label-studio/
+inspo/
 
 # Temporäre Hilfsdateien
 _*.db

@@ -1,0 +1,109 @@
+<div class="cell-dialog-inner" style="min-width:460px;max-width:640px">
+
+  {% if mode == "schulplan" %}
+  <h2 class="cell-dialog-title">Schulplan-Wochen importieren</h2>
+  <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:.75rem">
+    Spalten: <strong>KW &nbsp;|&nbsp; Jahr &nbsp;|&nbsp; Typ</strong><br>
+    Typ: <code>BS</code> oder <code>BERUFSSCHULE</code> &nbsp;/&nbsp; <code>HS</code> oder <code>UNI</code><br>
+    Kopfzeile wird automatisch erkannt und ignoriert.
+  </p>
+  {% else %}
+  <h2 class="cell-dialog-title">Einsätze importieren</h2>
+  <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:.75rem">
+    Spalten: <strong>Azubi &nbsp;|&nbsp; KW &nbsp;|&nbsp; Jahr &nbsp;|&nbsp; Abteilung &nbsp;[|&nbsp; Typ]</strong><br>
+    Azubi: <code>Nachname, Vorname</code> &nbsp;|&nbsp;
+    Abteilung: Kürzel (z.&nbsp;B. <code>ITO-SD</code>)<br>
+    Typ (optional): <code>ABTEILUNG</code> (Standard), <code>BS</code>, <code>HS</code>, <code>URLAUB</code>, <code>FREI</code>
+  </p>
+  {% endif %}
+
+  <!-- Tab-Umschalter -->
+  <div style="display:flex;gap:.5rem;margin-bottom:.75rem">
+    <button type="button" id="tab-paste-btn"
+            class="btn btn-secondary btn-sm"
+            onclick="switchTab('paste')">
+      Einfügen
+    </button>
+    <button type="button" id="tab-upload-btn"
+            class="btn btn-ghost btn-sm"
+            onclick="switchTab('upload')">
+      CSV-Datei hochladen
+    </button>
+  </div>
+
+  <!-- Tab: Einfügen -->
+  <div id="tab-paste">
+    {% if mode == "schulplan" %}
+    <form hx-post="/imports/schulplan/{{ plan_id }}/preview"
+          hx-target="#import-dialog-body"
+          hx-swap="innerHTML"
+          enctype="multipart/form-data">
+    {% else %}
+    <form hx-post="/imports/einsaetze/preview"
+          hx-target="#import-dialog-body"
+          hx-swap="innerHTML"
+          enctype="multipart/form-data">
+      <input type="hidden" name="schoolyear_id" value="{{ schoolyear_id }}">
+    {% endif %}
+      <div class="form-group" style="margin-bottom:.5rem">
+        <label style="font-size:.85rem;font-weight:600">
+          Daten aus Excel einfügen (Tab-getrennt):
+        </label>
+        <textarea name="raw_text" rows="10"
+                  style="width:100%;font-family:monospace;font-size:.8rem;resize:vertical"
+                  placeholder="{% if mode == 'schulplan' %}10	2026	BS
+11	2026	BERUFSSCHULE
+12	2026	HS{% else %}Mustermann, Max	10	2026	ITO-SD
+Musterfrau, Anna	11	2026	ITO-NW	ABTEILUNG{% endif %}"></textarea>
+      </div>
+      <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:.5rem">
+        <button type="button" class="btn btn-ghost btn-sm"
+                onclick="closeImportDialog()">Abbrechen</button>
+        <button type="submit" class="btn btn-primary btn-sm">Vorschau</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Tab: CSV-Upload -->
+  <div id="tab-upload" style="display:none">
+    {% if mode == "schulplan" %}
+    <form hx-post="/imports/schulplan/{{ plan_id }}/preview"
+          hx-target="#import-dialog-body"
+          hx-swap="innerHTML"
+          hx-encoding="multipart/form-data">
+    {% else %}
+    <form hx-post="/imports/einsaetze/preview"
+          hx-target="#import-dialog-body"
+          hx-swap="innerHTML"
+          hx-encoding="multipart/form-data">
+      <input type="hidden" name="schoolyear_id" value="{{ schoolyear_id }}">
+    {% endif %}
+      <div class="form-group" style="margin-bottom:.5rem">
+        <label style="font-size:.85rem;font-weight:600">CSV-Datei auswählen:</label>
+        <input type="file" name="csv_file" accept=".csv,.txt"
+               style="display:block;margin-top:.35rem">
+      </div>
+      <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:.5rem">
+        <button type="button" class="btn btn-ghost btn-sm"
+                onclick="closeImportDialog()">Abbrechen</button>
+        <button type="submit" class="btn btn-primary btn-sm">Vorschau</button>
+      </div>
+    </form>
+  </div>
+
+</div>
+
+<script>
+function switchTab(tab) {
+  document.getElementById('tab-paste').style.display = tab === 'paste' ? '' : 'none';
+  document.getElementById('tab-upload').style.display = tab === 'upload' ? '' : 'none';
+  document.getElementById('tab-paste-btn').className = tab === 'paste'
+    ? 'btn btn-secondary btn-sm' : 'btn btn-ghost btn-sm';
+  document.getElementById('tab-upload-btn').className = tab === 'upload'
+    ? 'btn btn-secondary btn-sm' : 'btn btn-ghost btn-sm';
+}
+function closeImportDialog() {
+  var d = document.getElementById('import-dialog');
+  if (d) d.close();
+}
+</script>

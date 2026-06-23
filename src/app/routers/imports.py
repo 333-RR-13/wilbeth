@@ -1,0 +1,175 @@
+"""Import-Router: Vorschau + Uebernehmen fuer Schulplan-Wochen und Einsaetze.
+
+Endpunkte:
+  GET  /imports/schulplan/{plan_id}/dialog
+      -> liefert das Einfuege-/Upload-Formular als HTMX-Partial
+
+  POST /imports/schulplan/{plan_id}/preview
+      -> parst + validiert, rendert Vorschau (kein DB-Write)
+
+  POST /imports/schulplan/{plan_id}/apply
+      -> schreibt gueltige Wochen in die DB, PRG-Redirect
+
+  GET  /imports/einsaetze/dialog
+      -> liefert das Einfuege-/Upload-Formular als HTMX-Partial
+
+  POST /imports/einsaetze/preview
+      -> parst + validiert, rendert Vorschau (kein DB-Write)
+
+  POST /imports/einsaetze/apply
+      -> schreibt gueltige Einsaetze in die DB, PRG-Redirect
+"""
+
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Form, Request, UploadFile
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
+from pathlib import Path
+from sqlmodel import Session
+
+from app.database import get_session
+from app.models import SchoolPlan
+from app.services.importer import (
+    apply_assignments,
+    apply_school_weeks,
+    parse_assignments,
+    parse_school_weeks,
+)
+
+router = APIRouter(prefix="/imports", tags=["imports"])
+templates = Jinja2Templates(directory=Path(__file__).resolve().parents[1] / "templates")
+DB = Annotated[Session, Depends(get_session)]
+
+
+# ── Hilfs-Funktion: Text aus textarea ODER UploadFile ────────────────────────
+
+async def _read_text(
+    raw_text: str | None,
+    csv_file: UploadFile | None,
+) -> str:
+    """Gibt den Import-Text zurueck.
+
+    Prioritaet: hochgeladene Datei > eingefuegter Text.
+    """
+    if csv_file and csv_file.filename:
+        raw_bytes = await csv_file.read()
+        # UTF-8 mit BOM-Toleranz, Fallback auf latin-1
+        try:
+            return raw_bytes.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            return raw_bytes.decode("latin-1", errors="replace")
+    return raw_text or ""
+
+
+# ── Schulplan-Import ──────────────────────────────────────────────────────────
+
+@router.get("/schulplan/{plan_id}/dialog", response_class=HTMLResponse)
+def schulplan_import_dialog(request: Request, plan_id: int, db: DB):
+    plan = db.get(SchoolPlan, plan_id)
+    return templates.TemplateResponse(request, "imports/_dialog.html", {
+        "mode": "schulplan",
+        "plan_id": plan_id,
+        "plan": plan,
+    })
+
+
+@router.post("/schulplan/{plan_id}/preview", response_class=HTMLResponse)
+async def schulplan_import_preview(
+    request: Request,
+    plan_id: int,
+    db: DB,
+    raw_text: Annotated[str | None, Form()] = None,
+    csv_file: UploadFile | None = None,
+):
+    text = await _read_text(raw_text, csv_file)
+    parse_result = parse_school_weeks(text)
+    plan = db.get(SchoolPlan, plan_id)
+    return templates.TemplateResponse(request, "imports/_preview.html", {
+        "mode": "schulplan",
+        "plan_id": plan_id,
+        "plan": plan,
+        "valid": parse_result.valid,
+        "errors": parse_result.errors,
+        "raw_text": text,
+    })
+
+
+@router.post("/schulplan/{plan_id}/apply", response_class=RedirectResponse)
+async def schulplan_import_apply(
+    request: Request,
+    plan_id: int,
+    db: DB,
+    raw_text: Annotated[str | None, Form()] = None,
+    csv_file: UploadFile | None = None,
+):
+    text = await _read_text(raw_text, csv_file)
+    parse_result = parse_school_weeks(text)
+    written, skipped = apply_school_weeks(db, plan_id, parse_result.valid)
+
+    n = len(written)
+    s = len(skipped)
+    parts = []
+    if n:
+        parts.append(f"{n} Woche{'n' if n != 1 else ''} importiert")
+    if s:
+        parts.append(f"{s} uebersprungen")
+    msg = ", ".join(parts) if parts else "Keine neuen Wochen"
+
+    return RedirectResponse(f"/schulplaene/{plan_id}?msg={msg}", status_code=303)
+
+
+# ── Einsatz-Import ────────────────────────────────────────────────────────────
+
+@router.get("/einsaetze/dialog", response_class=HTMLResponse)
+def einsaetze_import_dialog(
+    request: Request,
+    schoolyear_id: str = "",
+):
+    return templates.TemplateResponse(request, "imports/_dialog.html", {
+        "mode": "einsaetze",
+        "schoolyear_id": schoolyear_id,
+    })
+
+
+@router.post("/einsaetze/preview", response_class=HTMLResponse)
+async def einsaetze_import_preview(
+    request: Request,
+    db: DB,
+    schoolyear_id: Annotated[str, Form()],
+    raw_text: Annotated[str | None, Form()] = None,
+    csv_file: UploadFile | None = None,
+):
+    text = await _read_text(raw_text, csv_file)
+    parse_result = parse_assignments(text, db, schoolyear_id)
+    return templates.TemplateResponse(request, "imports/_preview.html", {
+        "mode": "einsaetze",
+        "schoolyear_id": schoolyear_id,
+        "valid": parse_result.valid,
+        "errors": parse_result.errors,
+        "raw_text": text,
+    })
+
+
+@router.post("/einsaetze/apply", response_class=RedirectResponse)
+async def einsaetze_import_apply(
+    request: Request,
+    db: DB,
+    schoolyear_id: Annotated[str, Form()],
+    raw_text: Annotated[str | None, Form()] = None,
+    csv_file: UploadFile | None = None,
+):
+    text = await _read_text(raw_text, csv_file)
+    parse_result = parse_assignments(text, db, schoolyear_id)
+    written, skipped = apply_assignments(db, schoolyear_id, parse_result.valid)
+
+    n = len(written)
+    s = len(skipped)
+    parts = []
+    if n:
+        parts.append(f"{n} Einsatz{'e' if n != 1 else ''} importiert")
+    if s:
+        parts.append(f"{s} uebersprungen")
+    msg = ", ".join(parts) if parts else "Keine neuen Einsaetze"
+
+    return RedirectResponse(f"/overview?schoolyear_id={schoolyear_id}&msg={msg}", status_code=303)

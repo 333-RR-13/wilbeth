@@ -17,6 +17,7 @@ class AssignmentSource(str, Enum):
     MANUAL = "MANUAL"    # von der Planerin im Admin angelegt
     SELBST = "SELBST"    # vom Azubi selbst eingetragen (z. B. Urlaub via /mein-plan)
     SAP = "SAP"          # reserviert: aus SAP-SuccessFactors synchronisiert
+    IMPORT = "IMPORT"    # per Bulk-Import (Excel-Copy oder CSV-Upload) eingetragen
 
 
 class Assignment(SQLModel, table=True):

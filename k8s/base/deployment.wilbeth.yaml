@@ -18,8 +18,8 @@ spec:
       containers:
         - name: wilbeth
           # imageTag wird von der Pipeline per replacetokens@6 gesetzt (tokenPattern: doublebraces)
-          # Harbor-Projekt: bei AI-Platform erfragen -> <<<HARBOR_PROJEKT>>>
-          image: "harbor.grenkeleasing.com/<<<HARBOR_PROJEKT>>>/wilbeth:{{imageTag}}"
+          # Image-Pfad MUSS zu imageRepository in azure-pipelines.yml passen
+          image: "harbor.grenkeleasing.com/ai-platform/wilbeth:{{imageTag}}"
           imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
