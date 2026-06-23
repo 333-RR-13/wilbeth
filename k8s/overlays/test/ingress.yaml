@@ -31,7 +31,7 @@ kind: Certificate
 metadata:
   annotations:
     # TODO: spaeter auf die Team-Mailadresse aendern
-    metadata.command-issuer.keyfactor.com/Responsible_Team: T-G-DE-IT-OPS-AIP@grenke.de
+    metadata.command-issuer.keyfactor.com/Responsible_Team: T-G-DE-IT-OPS-AIP@GRENKE.DE
   name: wilbeth-k8s-ai-apps-staging-tls-cert
   # Namespace wird von kustomization.yaml gesetzt (wilbeth)
 spec:
