@@ -366,7 +366,7 @@ def test_apply_idempotent(session: Session):
 # ── Router-Integrationstests ──────────────────────────────────────────────────
 
 def test_preview_endpoint_returns_html(client, session: Session):
-    """POST /overview/auto-plan/preview liefert HTML-Partial, kein DB-Write."""
+    """POST /auto-plan/preview liefert HTML-Partial, kein DB-Write."""
     _make_year(session)
     t = _make_trainee(session, "PreviewTest")
     d = _make_dept(session, "PRV")
@@ -375,7 +375,7 @@ def test_preview_endpoint_returns_html(client, session: Session):
 
     before = session.exec(select(Assignment)).all()
     response = client.post(
-        "/overview/auto-plan/preview",
+        "/auto-plan/preview",
         data={
             "schoolyear_id": YEAR_ID,
             "block_length": "4",
@@ -390,7 +390,7 @@ def test_preview_endpoint_returns_html(client, session: Session):
 
 
 def test_apply_endpoint_redirects_and_writes(client, session: Session):
-    """POST /overview/auto-plan/apply schreibt Einsaetze und leitet weiter."""
+    """POST /auto-plan/apply schreibt Einsaetze und leitet weiter."""
     _make_year(session)
     t = _make_trainee(session, "ApplyTest")
     d = _make_dept(session, "APL")
@@ -398,7 +398,7 @@ def test_apply_endpoint_redirects_and_writes(client, session: Session):
     session.commit()
 
     response = client.post(
-        "/overview/auto-plan/apply",
+        "/auto-plan/apply",
         data={
             "schoolyear_id": YEAR_ID,
             "block_length": "4",
@@ -408,7 +408,7 @@ def test_apply_endpoint_redirects_and_writes(client, session: Session):
     )
 
     assert response.status_code == 303
-    assert "/overview" in response.headers.get("location", "")
+    assert "/auto-plan" in response.headers.get("location", "")
 
     # DB-Einsaetze wurden angelegt
     db_rows = session.exec(
@@ -426,7 +426,7 @@ def test_apply_endpoint_no_trainee_ids(client, session: Session):
     session.commit()
 
     response = client.post(
-        "/overview/auto-plan/apply",
+        "/auto-plan/apply",
         data={"schoolyear_id": YEAR_ID, "block_length": "4"},
         follow_redirects=False,
     )

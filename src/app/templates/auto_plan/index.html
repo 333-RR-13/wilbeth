@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Auto-Plan{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Auto-Plan</h1>
+    <p class="page-subtitle">Einsätze automatisch aus Wünschen und freien Wochen berechnen</p>
+  </div>
+</div>
+
+{% if msg %}
+<div class="flash flash-success">{{ msg }}</div>
+{% endif %}
+
+<div class="card" style="max-width:680px">
+  <div class="card-body">
+    <form id="auto-plan-form">
+      <div class="form-group">
+        <label class="form-label" for="ap-schoolyear">Lehrjahr</label>
+        <select id="ap-schoolyear" name="schoolyear_id" class="form-control">
+          {% for y in years %}
+          <option value="{{ y.id }}" {{ 'selected' if y.id == selected_year else '' }}>{{ y.id }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="ap-block-length">Blocklänge (Wochen pro Abteilung)</label>
+        <input id="ap-block-length" name="block_length" type="number"
+               min="1" max="52" value="4" class="form-control"
+               style="max-width:120px"
+               title="Anzahl aufeinanderfolgender Wochen pro Abteilung">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Azubis auswählen</label>
+        <div style="display:flex;gap:.5rem;margin-bottom:.5rem">
+          <button type="button" class="btn btn-ghost btn-sm"
+                  onclick="document.querySelectorAll('.ap-trainee-cb').forEach(cb => cb.checked = true)">
+            Alle anhaken
+          </button>
+          <button type="button" class="btn btn-ghost btn-sm"
+                  onclick="document.querySelectorAll('.ap-trainee-cb').forEach(cb => cb.checked = false)">
+            Alle abwählen
+          </button>
+        </div>
+        <div class="trainee-checklist">
+          {% for t in trainees %}
+          <label class="trainee-check-row" style="display:flex;align-items:center;gap:.5rem;padding:.25rem 0;cursor:pointer">
+            <input type="checkbox" class="ap-trainee-cb" name="trainee_ids"
+                   value="{{ t.id }}" checked>
+            <a href="/trainees/{{ t.id }}" class="matrix-trainee-link"
+               onclick="event.stopPropagation()">
+              {{ t.nachname }}, {{ t.vorname }}
+            </a>
+          </label>
+          {% else %}
+          <p style="color:var(--text-muted)">Keine aktiven Azubis vorhanden.</p>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div style="display:flex;gap:.75rem;margin-top:1rem;align-items:center">
+        <button type="button" class="btn btn-secondary"
+                hx-post="/auto-plan/preview"
+                hx-target="#ap-preview"
+                hx-swap="innerHTML"
+                hx-include="#auto-plan-form"
+                onclick="
+                  var checked = document.querySelectorAll('.ap-trainee-cb:checked');
+                  if (checked.length === 0) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    alert('Bitte mindestens einen Azubi anhaken.');
+                    return false;
+                  }
+                  document.getElementById('ap-preview').scrollIntoView({behavior:'smooth',block:'nearest'});
+                ">
+          Vorschau berechnen
+        </button>
+        <span style="color:var(--text-muted);font-size:.85rem">Azubis anhaken, dann Vorschau klicken</span>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="ap-preview" style="margin-top:1.5rem;max-width:680px"></div>
+
+{% endblock %}

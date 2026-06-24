@@ -1,5 +1,5 @@
-<div class="cell-dialog-inner" style="min-width:420px;max-width:680px">
-  <h2 class="cell-dialog-title">Auto-Plan – Vorschau</h2>
+<div class="card-body" style="min-width:420px">
+  <h2 style="font-size:1rem;font-weight:600;margin-bottom:1rem">Auto-Plan – Vorschau</h2>
 
   {% if total_planned == 0 and total_skipped == 0 %}
   <p style="color:var(--text-muted);margin:1rem 0">
@@ -54,13 +54,9 @@
 
   {% endif %}{# end if any data #}
 
-  <div style="display:flex;gap:.5rem;margin-top:1.25rem;justify-content:flex-end">
-    <button type="button" class="btn btn-ghost btn-sm"
-            onclick="document.getElementById('auto-plan-dialog').close()">
-      Abbrechen
-    </button>
+  <div style="display:flex;gap:.5rem;margin-top:1.25rem">
     {% if total_planned > 0 %}
-    <form method="post" action="/overview/auto-plan/apply" style="display:inline">
+    <form method="post" action="/auto-plan/apply" style="display:inline">
       <input type="hidden" name="schoolyear_id" value="{{ schoolyear_id }}">
       <input type="hidden" name="block_length" value="{{ block_length }}">
       {% for tid in trainee_ids %}

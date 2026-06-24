@@ -6,6 +6,14 @@ Format orientiert an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
 ## [Unreleased]
 
+### Auto-Plan & Import als eigene Reiter
+
+- **Auto-Plan** und **Einsatz-Import** aus der Einsatzübersicht herausgelöst in je
+  einen eigenen Sidebar-Reiter (`/auto-plan`, `/import`); die Übersicht ist wieder
+  schlank wie zuvor. Auto-Plan-Logik (`auto_plan.py`) und Import (`importer.py`)
+  bleiben unverändert — nur Routen/Seiten/Navigation umgestellt. Schulplan-Import
+  bleibt kontextuell auf der Schulplan-Seite.
+
 ### Auto-Plan & Daten-Import
 
 - **Auto-Plan**: Button + Checkboxen in der Einsatzübersicht. Weist ausgewählte

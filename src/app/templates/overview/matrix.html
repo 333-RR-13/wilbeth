@@ -55,36 +55,6 @@
 
 {% if weeks %}
 
-<!-- ── Auto-Plan Toolbar ──────────────────────────────────────────── -->
-<div class="auto-plan-toolbar">
-  <span class="auto-plan-label">Auto-Plan:</span>
-  <label class="auto-plan-blocklabel" for="auto-plan-block-length">Blockl.:</label>
-  <input id="auto-plan-block-length" name="block_length" type="number"
-         min="1" max="52" value="4" class="auto-plan-block-input"
-         title="Anzahl aufeinanderfolgender Wochen pro Abteilung">
-  <button type="button" class="btn btn-secondary btn-sm"
-          hx-post="/overview/auto-plan/preview"
-          hx-target="#auto-plan-dialog-body"
-          hx-swap="innerHTML"
-          hx-include="#auto-plan-form-fields, .trainee-select-cb"
-          onclick="document.getElementById('auto-plan-dialog').showModal()">
-    Vorschau
-  </button>
-  <span class="auto-plan-hint">Azubis anhaken, dann Vorschau klicken</span>
-  <button type="button" class="btn btn-secondary btn-sm"
-          hx-get="/imports/einsaetze/dialog?schoolyear_id={{ selected_year }}"
-          hx-target="#import-dialog-body"
-          hx-swap="innerHTML"
-          onclick="document.getElementById('import-dialog').showModal()">
-    Einsätze importieren
-  </button>
-</div>
-
-<!-- Versteckte Felder: schoolyear_id + block_length fuer HTMX-Include -->
-<div id="auto-plan-form-fields" style="display:none">
-  <input type="hidden" name="schoolyear_id" value="{{ selected_year }}">
-</div>
-
 <div class="matrix-legend">
   <span class="legend-item"><span class="cell-chip" style="background:#A855F7;color:#fff">ABT</span> Abteilung (eigene Farbe)</span>
   <span class="legend-item"><span class="cell-chip cell-school">BS</span> Berufsschule</span>
@@ -116,9 +86,6 @@
       {% set t_school_weeks = (school_week_map.get(klasse_id) or {}) %}
       <tr>
         <td class="matrix-td-name">
-          <input type="checkbox" class="trainee-select-cb" name="trainee_ids"
-                 value="{{ t.id }}" title="Für Auto-Plan auswählen"
-                 style="margin-right:4px;vertical-align:middle;cursor:pointer">
           <a href="/trainees/{{ t.id }}"
              class="matrix-trainee-link">
             {{ t.nachname }}, {{ t.vorname }}
@@ -176,28 +143,10 @@
   <div id="cell-dialog-body"></div>
 </dialog>
 
-<!-- ── Auto-Plan Dialog ───────────────────────────────────────────── -->
-<dialog id="auto-plan-dialog" class="cell-dialog">
-  <div id="auto-plan-dialog-body">
-    <p style="color:var(--text-muted);padding:1rem">Vorschau wird geladen…</p>
-  </div>
-</dialog>
-
-<!-- ── Import Dialog ──────────────────────────────────────────────── -->
-<dialog id="import-dialog" class="cell-dialog">
-  <div id="import-dialog-body"></div>
-</dialog>
-
 <script>
 document.addEventListener('htmx:afterSettle', function (evt) {
   if (evt.target.id === 'cell-dialog-body') {
     document.getElementById('cell-edit-dialog').showModal();
-  }
-  if (evt.target.id === 'auto-plan-dialog-body') {
-    document.getElementById('auto-plan-dialog').showModal();
-  }
-  if (evt.target.id === 'import-dialog-body') {
-    document.getElementById('import-dialog').showModal();
   }
 });
 document.addEventListener('htmx:afterSwap', function (evt) {
@@ -209,29 +158,6 @@ document.addEventListener('htmx:afterSwap', function (evt) {
 document.getElementById('cell-edit-dialog').addEventListener('click', function (evt) {
   if (evt.target === this) { this.close(); }
 });
-document.getElementById('auto-plan-dialog').addEventListener('click', function (evt) {
-  if (evt.target === this) { this.close(); }
-});
-document.getElementById('import-dialog').addEventListener('click', function (evt) {
-  if (evt.target === this) { this.close(); }
-});
-
-// Synchronisiert block_length-Input mit dem versteckten Formularfeld
-(function () {
-  var blockInput = document.getElementById('auto-plan-block-length');
-  if (!blockInput) return;
-  // Beim HTMX-Include wird das input direkt mitgeschickt – kein Extra-Hidden-Field noetig.
-  // Sicherheitshalber: verhindere Submit wenn keine Checkbox angehakt
-  document.querySelector('[hx-post="/overview/auto-plan/preview"]').addEventListener('click', function (e) {
-    var checked = document.querySelectorAll('.trainee-select-cb:checked');
-    if (checked.length === 0) {
-      e.preventDefault();
-      e.stopPropagation();
-      alert('Bitte mindestens einen Azubi anhaken.');
-      return false;
-    }
-  });
-})();
 </script>
 
 {% endblock %}

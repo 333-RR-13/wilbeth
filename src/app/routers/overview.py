@@ -1,7 +1,7 @@
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
@@ -18,7 +18,6 @@ from app.models import (
     TraineeClass,
     UnterrichtsTyp,
 )
-from app.services.auto_plan import apply_auto_plan, plan_assignments
 from app.services.conflict_checker import describe_conflict, find_conflicts
 from app.services.dept_history import visited_departments
 from app.utils.colors import department_color_map
@@ -202,83 +201,3 @@ def overview(request: Request, db: DB):
         "wochen_options": WOCHEN_OPTIONS,
         "active_nav": "overview",
     })
-
-
-# ── Auto-Plan Endpunkte ───────────────────────────────────────────────────────
-
-def _parse_auto_plan_params(request: Request) -> tuple[str, list[int], int]:
-    """Liest schoolyear_id, trainee_ids (Liste) und block_length aus Form-Daten."""
-    form_data = request._form  # type: ignore[attr-defined]
-    schoolyear_id = form_data.get("schoolyear_id", "")
-    block_length_str = form_data.get("block_length", "4")
-    try:
-        block_length = max(1, int(block_length_str))
-    except (ValueError, TypeError):
-        block_length = 4
-    raw_ids = form_data.getlist("trainee_ids")
-    trainee_ids: list[int] = []
-    for raw in raw_ids:
-        try:
-            trainee_ids.append(int(raw))
-        except (ValueError, TypeError):
-            pass
-    return schoolyear_id, trainee_ids, block_length
-
-
-@router.post("/overview/auto-plan/preview", response_class=HTMLResponse)
-async def auto_plan_preview(request: Request, db: DB):
-    """Berechnet Auto-Plan-Vorschlag und rendert das Vorschau-Partial.
-
-    Kein DB-Write. Parameter: schoolyear_id, trainee_ids (mehrfach), block_length.
-    """
-    await request.form()  # Form-Daten einlesen (fuellt request._form)
-    schoolyear_id, trainee_ids, block_length = _parse_auto_plan_params(request)
-
-    plan_result = plan_assignments(db, schoolyear_id, trainee_ids, block_length)
-
-    depts = {d.id: d for d in db.exec(select(Department)).all()}
-    trainee_map = {t.id: t for t in db.exec(select(Trainee)).all()}
-
-    # Geplante Eintraege je Trainee gruppieren
-    planned_by_trainee: dict[int, list] = {}
-    for entry in plan_result.planned:
-        planned_by_trainee.setdefault(entry.trainee_id, []).append(entry)
-
-    # Uebersprungene je Trainee gruppieren
-    skipped_by_trainee: dict[int, list] = {}
-    for s in plan_result.skipped:
-        skipped_by_trainee.setdefault(s.trainee_id, []).append(s)
-
-    return templates.TemplateResponse(
-        request,
-        "overview/_auto_plan_preview.html",
-        {
-            "planned_by_trainee": planned_by_trainee,
-            "skipped_by_trainee": skipped_by_trainee,
-            "depts": depts,
-            "trainee_map": trainee_map,
-            "schoolyear_id": schoolyear_id,
-            "block_length": block_length,
-            "trainee_ids": trainee_ids,
-            "total_planned": len(plan_result.planned),
-            "total_skipped": len(plan_result.skipped),
-        },
-    )
-
-
-@router.post("/overview/auto-plan/apply", response_class=RedirectResponse)
-async def auto_plan_apply(request: Request, db: DB):
-    """Berechnet Auto-Plan und schreibt ihn als Assignment(source=AUTO) in die DB.
-
-    Danach PRG-Redirect auf /overview mit ?msg=... .
-    """
-    await request.form()
-    schoolyear_id, trainee_ids, block_length = _parse_auto_plan_params(request)
-
-    plan_result = apply_auto_plan(db, schoolyear_id, trainee_ids, block_length)
-
-    n = len(plan_result.planned)
-    msg = f"Auto-Plan: {n} Einsatz{'e' if n != 1 else ''} angelegt."
-
-    redirect_url = f"/overview?schoolyear_id={schoolyear_id}&msg={msg}"
-    return RedirectResponse(redirect_url, status_code=303)

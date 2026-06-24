@@ -1,23 +1,15 @@
 """Import-Router: Vorschau + Uebernehmen fuer Schulplan-Wochen und Einsaetze.
 
 Endpunkte:
-  GET  /imports/schulplan/{plan_id}/dialog
-      -> liefert das Einfuege-/Upload-Formular als HTMX-Partial
+  GET  /import                              -> Einstiegsseite Einsatz-Import (Sidebar)
 
-  POST /imports/schulplan/{plan_id}/preview
-      -> parst + validiert, rendert Vorschau (kein DB-Write)
+  GET  /imports/schulplan/{plan_id}/dialog  -> Einfuege-/Upload-Formular als HTMX-Partial
+  POST /imports/schulplan/{plan_id}/preview -> parst + validiert, rendert Vorschau
+  POST /imports/schulplan/{plan_id}/apply   -> schreibt gueltige Wochen in die DB
 
-  POST /imports/schulplan/{plan_id}/apply
-      -> schreibt gueltige Wochen in die DB, PRG-Redirect
-
-  GET  /imports/einsaetze/dialog
-      -> liefert das Einfuege-/Upload-Formular als HTMX-Partial
-
-  POST /imports/einsaetze/preview
-      -> parst + validiert, rendert Vorschau (kein DB-Write)
-
-  POST /imports/einsaetze/apply
-      -> schreibt gueltige Einsaetze in die DB, PRG-Redirect
+  GET  /imports/einsaetze/dialog            -> Einfuege-/Upload-Formular als HTMX-Partial
+  POST /imports/einsaetze/preview           -> parst + validiert, rendert Vorschau
+  POST /imports/einsaetze/apply             -> schreibt gueltige Einsaetze in die DB
 """
 
 from typing import Annotated
@@ -38,8 +30,22 @@ from app.services.importer import (
 )
 
 router = APIRouter(prefix="/imports", tags=["imports"])
+# Separater Router ohne Prefix fuer die /import-Einstiegsseite
+import_page_router = APIRouter(tags=["imports"])
 templates = Jinja2Templates(directory=Path(__file__).resolve().parents[1] / "templates")
 DB = Annotated[Session, Depends(get_session)]
+
+
+# ── Import-Einstiegsseite ─────────────────────────────────────────────────────
+
+@import_page_router.get("/import", response_class=HTMLResponse)
+def import_index(request: Request):
+    """Einstiegsseite für den Einsatz-Import (eigener Sidebar-Reiter)."""
+    schoolyear_id = request.query_params.get("schoolyear_id", "")
+    return templates.TemplateResponse(request, "imports/index.html", {
+        "schoolyear_id": schoolyear_id,
+        "active_nav": "import",
+    })
 
 
 # ── Hilfs-Funktion: Text aus textarea ODER UploadFile ────────────────────────

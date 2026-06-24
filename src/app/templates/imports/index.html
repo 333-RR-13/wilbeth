@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Import{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Einsätze importieren</h1>
+    <p class="page-subtitle">Einsätze aus Excel/CSV in die Datenbank übernehmen</p>
+  </div>
+</div>
+
+<div class="card" style="max-width:560px">
+  <div class="card-body">
+    <p style="margin-bottom:1rem">
+      Importiere Einsätze aus einer Tab-getrennten Tabelle oder CSV-Datei.
+      Erwartete Spalten:
+      <strong>Azubi &nbsp;|&nbsp; KW &nbsp;|&nbsp; Jahr &nbsp;|&nbsp; Abteilung &nbsp;[|&nbsp; Typ]</strong>
+    </p>
+    <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:1.25rem">
+      Azubi: <code>Nachname, Vorname</code> &nbsp;|&nbsp;
+      Abteilung: Kürzel (z.&nbsp;B. <code>ITO-SD</code>)<br>
+      Typ (optional): <code>ABTEILUNG</code> (Standard), <code>BS</code>, <code>HS</code>, <code>URLAUB</code>, <code>FREI</code>
+    </p>
+    <button type="button" class="btn btn-secondary"
+            hx-get="/imports/einsaetze/dialog?schoolyear_id={{ schoolyear_id }}"
+            hx-target="#import-dialog-body"
+            hx-swap="innerHTML"
+            onclick="document.getElementById('import-dialog').showModal()">
+      Einsätze importieren
+    </button>
+  </div>
+</div>
+
+<!-- ── Import Dialog ──────────────────────────────────────────────── -->
+<dialog id="import-dialog" class="cell-dialog">
+  <div id="import-dialog-body"></div>
+</dialog>
+
+<script>
+document.addEventListener('htmx:afterSettle', function (evt) {
+  if (evt.target.id === 'import-dialog-body') {
+    document.getElementById('import-dialog').showModal();
+  }
+});
+document.getElementById('import-dialog').addEventListener('click', function (evt) {
+  if (evt.target === this) { this.close(); }
+});
+</script>
+
+{% endblock %}

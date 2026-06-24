@@ -7,6 +7,7 @@ from app.database import init_db
 from app.routers import (
     about,
     assignments,
+    auto_plan,
     departments,
     holidays,
     imports,
@@ -27,6 +28,8 @@ app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 app.include_router(overview.router)
+app.include_router(auto_plan.router)
+app.include_router(imports.import_page_router)
 app.include_router(imports.router)
 app.include_router(schoolyears.router)
 app.include_router(holidays.router)
