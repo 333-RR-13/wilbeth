@@ -5,6 +5,7 @@ from app.models.school_plan import SchoolPlan, SchoolPlanWeek, SchoolWeekTyp
 from app.models.schoolyear import Schoolyear
 from app.models.trainee import Trainee, TraineeRolle
 from app.models.trainee_class import TraineeClass, UnterrichtsTyp
+from app.models.trainee_class_membership import TraineeClassMembership
 from app.models.trainee_wish import TraineeWish
 
 __all__ = [
@@ -21,6 +22,7 @@ __all__ = [
     "Trainee",
     "TraineeRolle",
     "TraineeClass",
+    "TraineeClassMembership",
     "TraineeWish",
     "UnterrichtsTyp",
 ]

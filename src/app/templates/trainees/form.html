@@ -40,17 +40,44 @@
       </div>
 
       <div class="form-group">
-        <label for="klasse_id">Klasse</label>
-        <select id="klasse_id" name="klasse_id">
+        <label for="membership_year_id">Lehrjahr für Klassenzuweisung</label>
+        <select id="membership_year_id" name="membership_year_id">
+          <option value="">– kein Lehrjahr –</option>
+          {% for y in years %}
+          <option value="{{ y.id }}" {{ 'selected' if y.id == selected_year_id else '' }}>{{ y.id }}</option>
+          {% endfor %}
+        </select>
+        <span class="form-hint">Wähle das Lehrjahr, für das die Klassenzuordnung gelten soll.</span>
+      </div>
+
+      <div class="form-group">
+        <label for="membership_klasse_id">Klasse <span class="required">*</span></label>
+        <select id="membership_klasse_id" name="membership_klasse_id">
           <option value="">– keine Klasse –</option>
           {% for c in classes %}
-          <option value="{{ c.id }}" {{ 'selected' if trainee and trainee.klasse_id == c.id else '' }}>
+          <option value="{{ c.id }}"
+            {{ 'selected' if selected_year_id and memberships.get(selected_year_id) == c.id else (
+               'selected' if not selected_year_id and trainee and trainee.klasse_id == c.id else ''
+            ) }}>
             {{ c.name }}
           </option>
           {% endfor %}
         </select>
-        <span class="form-hint">Praktikanten und Umschüler können ohne Klasse bleiben.</span>
+        <span class="form-hint">Klasse für das gewählte Lehrjahr. Praktikanten und Umschüler können ohne Klasse bleiben.</span>
       </div>
+
+      {% if trainee and memberships %}
+      <div class="form-group">
+        <label>Alle Klassenzuweisungen</label>
+        <div class="member-list">
+          {% for year_id, klasse_id in memberships.items() %}
+          <span class="badge badge-blue">{{ year_id }}</span>
+          {% for c in classes %}{% if c.id == klasse_id %}<span style="margin-left:4px">{{ c.name }}</span>{% endif %}{% endfor %}
+          <br>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
 
       <div class="form-group">
         <label for="notizen">Notizen</label>

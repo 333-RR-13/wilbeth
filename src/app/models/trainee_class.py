@@ -21,3 +21,9 @@ class TraineeClass(SQLModel, table=True):
     # davon als Halbtag (z. B. 3 = Mi). Fuer andere Typen leer/None.
     schul_wochentage: str = Field(default="")
     halbtag_wochentag: int | None = Field(default=None)
+    # Naechste Klasse beim Jahreswechsel (Self-Referenz); None = Abschluss
+    next_class_id: int | None = Field(
+        default=None,
+        foreign_key="trainee_class.id",
+        nullable=True,
+    )

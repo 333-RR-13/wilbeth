@@ -6,6 +6,17 @@ Format orientiert an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
 ## [Unreleased]
 
+### Klassen-Mitgliedschaft pro Lehrjahr + Jahreswechsel
+
+- Azubis werden **pro Lehrjahr** einer Klasse zugeordnet (neue Tabelle
+  `TraineeClassMembership`, Migration `0002membership`). `school_sync`, Übersicht
+  und Konfliktprüfung verwenden die Klasse des jeweiligen Lehrjahrs (Fallback auf
+  `Trainee.klasse_id`, damit bestehende Azubis weiter laufen).
+- Klassen haben eine **„nächste Klasse"** (`next_class_id`); ein globaler
+  **Jahreswechsel** (`/jahreswechsel`) übernimmt mit Vorschau alle Azubis ins nächste
+  Lehrjahr und synchronisiert die Schulwochen (`resync_all`). Trainee-Formular mit
+  Lehrjahr + Klasse; Klassen-Mitglieder pro Lehrjahr verwaltbar.
+
 ### Auto-Plan & Import als eigene Reiter
 
 - **Auto-Plan** und **Einsatz-Import** aus der Einsatzübersicht herausgelöst in je

@@ -20,6 +20,7 @@ from app.models import (
     SchoolWeekTyp,
     Trainee,
 )
+from app.models.trainee_class_membership import TraineeClassMembership
 
 _TYP_MAP: dict[SchoolWeekTyp, AssignmentTyp] = {
     SchoolWeekTyp.BERUFSSCHULE: AssignmentTyp.BERUFSSCHULE,
@@ -46,7 +47,30 @@ def sync_trainee(db: Session, trainee_id: int, commit: bool = True) -> None:
     # Build desired: (schoolyear_id, kw, jahr) -> AssignmentTyp
     desired: dict[tuple[str, int, int], AssignmentTyp] = {}
 
-    if trainee.klasse_id is not None:
+    memberships = db.exec(
+        select(TraineeClassMembership).where(
+            TraineeClassMembership.trainee_id == trainee_id
+        )
+    ).all()
+
+    if memberships:
+        # Membership-Pfad: fuer jede (Lehrjahr, Klasse)-Kombination
+        for m in memberships:
+            plan = db.exec(
+                select(SchoolPlan).where(
+                    SchoolPlan.klasse_id == m.klasse_id,
+                    SchoolPlan.schoolyear_id == m.schoolyear_id,
+                )
+            ).first()
+            if plan is None:
+                continue
+            weeks = db.exec(
+                select(SchoolPlanWeek).where(SchoolPlanWeek.plan_id == plan.id)
+            ).all()
+            for w in weeks:
+                desired[(plan.schoolyear_id, w.kw, w.jahr)] = _TYP_MAP[w.typ]
+    elif trainee.klasse_id is not None:
+        # Fallback: bisheriges Verhalten (alle Plaene von trainee.klasse_id)
         plans = db.exec(
             select(SchoolPlan).where(SchoolPlan.klasse_id == trainee.klasse_id)
         ).all()
@@ -100,12 +124,28 @@ def sync_trainee(db: Session, trainee_id: int, commit: bool = True) -> None:
 
 
 def sync_class(db: Session, klasse_id: int, commit: bool = True) -> None:
-    """Reconcile AUTO school assignments for every trainee in a class."""
-    trainees = db.exec(
-        select(Trainee).where(Trainee.klasse_id == klasse_id)
-    ).all()
-    for t in trainees:
-        sync_trainee(db, t.id, commit=False)
+    """Reconcile AUTO school assignments for every trainee in a class.
+
+    Beruecksichtigt sowohl Trainees mit klasse_id == klasse_id als auch
+    Trainees, die per Membership dieser Klasse zugeordnet sind.
+    """
+    # Direkte Mitglieder (klasse_id-Fallback)
+    direct_ids: set[int] = {
+        t.id
+        for t in db.exec(select(Trainee).where(Trainee.klasse_id == klasse_id)).all()
+    }
+    # Membership-Mitglieder
+    membership_ids: set[int] = {
+        m.trainee_id
+        for m in db.exec(
+            select(TraineeClassMembership).where(
+                TraineeClassMembership.klasse_id == klasse_id
+            )
+        ).all()
+    }
+    all_ids = direct_ids | membership_ids
+    for tid in all_ids:
+        sync_trainee(db, tid, commit=False)
     if commit:
         db.commit()
 

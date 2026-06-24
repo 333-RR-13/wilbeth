@@ -22,6 +22,7 @@ from app.models import (
     SchoolPlanWeek,
     Trainee,
 )
+from app.models.trainee_class_membership import TraineeClassMembership
 from app.utils.kw import holiday_contains_week
 
 
@@ -54,12 +55,22 @@ def find_conflicts(session: Session, schoolyear_id: str) -> list[Conflict]:
         select(SchoolHoliday).where(SchoolHoliday.schoolyear_id == schoolyear_id)
     ).all()
 
-    # trainee_id → klasse_id for trainees that have a class
-    trainee_class_map: dict[int, int] = {
-        t.id: t.klasse_id
-        for t in session.exec(select(Trainee)).all()
-        if t.klasse_id is not None
+    # trainee_id → klasse_id fuer das angegebene Lehrjahr.
+    # Prioritaet: Membership fuer schoolyear_id, sonst Fallback trainee.klasse_id
+    memberships_for_year: dict[int, int] = {
+        m.trainee_id: m.klasse_id
+        for m in session.exec(
+            select(TraineeClassMembership).where(
+                TraineeClassMembership.schoolyear_id == schoolyear_id
+            )
+        ).all()
     }
+    trainee_class_map: dict[int, int] = {}
+    for t in session.exec(select(Trainee)).all():
+        if t.id in memberships_for_year:
+            trainee_class_map[t.id] = memberships_for_year[t.id]
+        elif t.klasse_id is not None:
+            trainee_class_map[t.id] = t.klasse_id
 
     # (klasse_id, kw, jahr) → True for weeks that appear in any SchoolPlan
     school_weeks: set[tuple[int, int, int]] = set()

@@ -18,7 +18,9 @@ from app.models import (
     TraineeClass,
     UnterrichtsTyp,
 )
+from app.models.trainee_class_membership import TraineeClassMembership
 from app.services.conflict_checker import describe_conflict, find_conflicts
+from app.services.membership_utils import klasse_fuer
 from app.services.dept_history import visited_departments
 from app.utils.colors import department_color_map
 from app.utils.kw import format_weekdays, iter_schoolyear_weeks, kw_to_monday
@@ -119,10 +121,35 @@ def overview(request: Request, db: DB):
     else:
         weeks = all_weeks
 
+    # Membership-Map fuer das gewaehlte Lehrjahr (trainee_id -> klasse_id)
+    memberships_for_year: dict[int, int] = {
+        m.trainee_id: m.klasse_id
+        for m in db.exec(
+            select(TraineeClassMembership).where(
+                TraineeClassMembership.schoolyear_id == schoolyear_id
+            )
+        ).all()
+    }
+
     # Filter trainees by class if requested
     q = select(Trainee)
     if klasse_id_str:
-        q = q.where(Trainee.klasse_id == int(klasse_id_str))
+        klasse_id_int = int(klasse_id_str)
+        # Trainees entweder per Membership oder per klasse_id (Fallback)
+        membership_trainee_ids = [
+            tid for tid, kid in memberships_for_year.items() if kid == klasse_id_int
+        ]
+        # Auch Trainees ohne Membership aber mit passender klasse_id (Fallback)
+        all_trainees_for_q = db.exec(select(Trainee)).all()
+        fallback_ids = [
+            t.id for t in all_trainees_for_q
+            if t.id not in memberships_for_year and t.klasse_id == klasse_id_int
+        ]
+        combined_ids = list(set(membership_trainee_ids + fallback_ids))
+        if combined_ids:
+            q = q.where(Trainee.id.in_(combined_ids))
+        else:
+            q = q.where(Trainee.id.in_([-1]))  # leere Menge
     if abteilung_id_str:
         trainee_ids_in_dept = db.exec(
             select(Assignment.trainee_id).where(
@@ -174,7 +201,11 @@ def overview(request: Request, db: DB):
             sw[f"{w.kw},{w.jahr}"] = w.typ.value
         school_week_map[plan.klasse_id] = sw
 
-    trainee_klasse_map = {t.id: t.klasse_id for t in trainees}
+    # trainee_klasse_map: Membership fuer gewaehltes Lehrjahr, Fallback trainee.klasse_id
+    trainee_klasse_map = {
+        t.id: memberships_for_year.get(t.id, t.klasse_id)
+        for t in trainees
+    }
 
     # visited_map[trainee_id] = list of departments this trainee has already been in
     visited_map: dict[int, list] = {t.id: visited_departments(db, t.id) for t in trainees}

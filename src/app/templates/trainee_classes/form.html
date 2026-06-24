@@ -65,18 +65,45 @@
 
     </div>
 
+      <div class="form-group">
+        <label for="next_class_id">Nächste Klasse (Jahreswechsel)</label>
+        <select id="next_class_id" name="next_class_id">
+          <option value="">– keine / Abschluss –</option>
+          {% for c in all_classes %}
+          {% if not cls or c.id != cls.id %}
+          <option value="{{ c.id }}" {{ 'selected' if cls and cls.next_class_id == c.id else '' }}>
+            {{ c.name }}
+          </option>
+          {% endif %}
+          {% endfor %}
+        </select>
+        <span class="form-hint">Klasse, in die die Mitglieder beim globalen Jahreswechsel übernommen werden. Leer = Abschluss.</span>
+      </div>
+
     {% if cls %}
     <div class="form-group" style="margin-top: 24px;">
       <h2 class="form-section-title">Mitglieder</h2>
+
+      <div class="form-group">
+        <label for="membership_year_id">Lehrjahr</label>
+        <select id="membership_year_id" name="membership_year_id" onchange="reloadMemberships(this)">
+          <option value="">– kein Lehrjahr –</option>
+          {% for y in years %}
+          <option value="{{ y.id }}" {{ 'selected' if y.id == selected_year_id else '' }}>{{ y.id }}</option>
+          {% endfor %}
+        </select>
+        <span class="form-hint">Mitglieder werden pro Lehrjahr verwaltet.</span>
+      </div>
+
       {% if trainees %}
       <div class="member-list">
         {% for t in trainees %}
         <label class="member-row">
           <input type="checkbox" name="mitglied" value="{{ t.id }}"
-                 {{ 'checked' if t.klasse_id == cls.id else '' }}>
+                 {{ 'checked' if t.id in members_for_year else '' }}>
           <span class="member-name">{{ t.nachname }}, {{ t.vorname }}</span>
           {% if t.klasse_id and t.klasse_id != cls.id %}
-          <span class="member-other td-muted">(aktuell: {{ class_names[t.klasse_id] }})</span>
+          <span class="member-other td-muted">(Standard-Klasse: {{ class_names.get(t.klasse_id, '?') }})</span>
           {% endif %}
         </label>
         {% endfor %}
@@ -100,5 +127,11 @@ function syncTageFest() {
   document.getElementById('tage-fest-group').style.display = typ === 'TAGE_FEST' ? '' : 'none';
 }
 syncTageFest();
+
+function reloadMemberships(sel) {
+  var url = new URL(window.location.href);
+  url.searchParams.set('year_id', sel.value);
+  window.location.href = url.toString();
+}
 </script>
 {% endblock %}

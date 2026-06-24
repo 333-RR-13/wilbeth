@@ -7,7 +7,9 @@ from pathlib import Path
 from sqlmodel import Session, select
 
 from app.database import get_session
-from app.models import Trainee, TraineeClass, UnterrichtsTyp
+from app.models import Schoolyear, Trainee, TraineeClass, UnterrichtsTyp
+from app.models.trainee_class_membership import TraineeClassMembership
+from app.services.membership_utils import upsert_membership
 from app.services.school_sync import sync_trainee
 from app.utils.kw import WEEKDAY_LABELS, format_weekdays, parse_weekdays
 
@@ -43,11 +45,14 @@ def list_classes(request: Request, db: DB):
 
 
 @router.get("/neu", response_class=HTMLResponse)
-def new_class(request: Request):
+def new_class(request: Request, db: DB):
+    years = db.exec(select(Schoolyear).order_by(Schoolyear.start_year.desc())).all()
     return templates.TemplateResponse(request, "trainee_classes/form.html", {
         "cls": None, "typen": list(UnterrichtsTyp), "active_nav": "klassen",
         "weekday_labels": WEEKDAY_LABELS, "selected_weekdays": [],
         "trainees": [], "class_names": {},
+        "years": years, "selected_year_id": years[0].id if years else "",
+        "members_for_year": set(), "all_classes": [],
     })
 
 
@@ -59,6 +64,7 @@ def create_class(
     unterrichts_typ: Annotated[UnterrichtsTyp, Form()],
     wochentag: Annotated[list[str], Form()] = [],
     halbtag_wochentag: Annotated[str, Form()] = "",
+    next_class_id: Annotated[str, Form()] = "",
 ):
     schul_wochentage, halbtag = _weekday_fields(unterrichts_typ, wochentag, halbtag_wochentag)
     db.add(TraineeClass(
@@ -67,6 +73,7 @@ def create_class(
         unterrichts_typ=unterrichts_typ,
         schul_wochentage=schul_wochentage,
         halbtag_wochentag=halbtag,
+        next_class_id=int(next_class_id) if next_class_id else None,
     ))
     db.commit()
     return RedirectResponse("/klassen/?msg=created", status_code=303)
@@ -78,12 +85,30 @@ def edit_class(request: Request, class_id: int, db: DB):
     trainees = db.exec(select(Trainee).order_by(Trainee.nachname, Trainee.vorname)).all()
     all_classes = db.exec(select(TraineeClass)).all()
     class_names = {c.id: c.name for c in all_classes}
+    years = db.exec(select(Schoolyear).order_by(Schoolyear.start_year.desc())).all()
+    # Ausgewaehltes Lehrjahr fuer Mitglieder-Anzeige
+    default_year_id = years[0].id if years else ""
+    selected_year_id = request.query_params.get("year_id", default_year_id)
+    # Mitglieder dieser Klasse fuer das gewaehlte Lehrjahr
+    members_for_year: set[int] = {
+        m.trainee_id
+        for m in db.exec(
+            select(TraineeClassMembership).where(
+                TraineeClassMembership.klasse_id == class_id,
+                TraineeClassMembership.schoolyear_id == selected_year_id,
+            )
+        ).all()
+    }
     return templates.TemplateResponse(request, "trainee_classes/form.html", {
         "cls": cls, "typen": list(UnterrichtsTyp), "active_nav": "klassen",
         "weekday_labels": WEEKDAY_LABELS,
         "selected_weekdays": parse_weekdays(cls.schul_wochentage) if cls else [],
         "trainees": trainees,
         "class_names": class_names,
+        "years": years,
+        "selected_year_id": selected_year_id,
+        "members_for_year": members_for_year,
+        "all_classes": all_classes,
     })
 
 
@@ -95,6 +120,8 @@ def update_class(
     unterrichts_typ: Annotated[UnterrichtsTyp, Form()],
     wochentag: Annotated[list[str], Form()] = [],
     halbtag_wochentag: Annotated[str, Form()] = "",
+    next_class_id: Annotated[str, Form()] = "",
+    membership_year_id: Annotated[str, Form()] = "",
     mitglied: Annotated[list[str], Form()] = [],
 ):
     schul_wochentage, halbtag = _weekday_fields(unterrichts_typ, wochentag, halbtag_wochentag)
@@ -104,22 +131,53 @@ def update_class(
     cls.unterrichts_typ = unterrichts_typ
     cls.schul_wochentage = schul_wochentage
     cls.halbtag_wochentag = halbtag
+    cls.next_class_id = int(next_class_id) if next_class_id else None
+    db.add(cls)
 
     checked_ids = {int(i) for i in mitglied if i.isdigit()}
     trainees = db.exec(select(Trainee)).all()
-    # Collect all trainee ids whose membership may have changed so we can resync them
     affected_ids: set[int] = set()
-    for t in trainees:
-        if t.id in checked_ids:
-            if t.klasse_id != class_id:
+
+    if membership_year_id:
+        # Membership-basierte Verwaltung fuer das gewaehlte Lehrjahr
+        # Bestehende Memberships fuer (diese Klasse, dieses Jahr) laden
+        existing_memberships = db.exec(
+            select(TraineeClassMembership).where(
+                TraineeClassMembership.klasse_id == class_id,
+                TraineeClassMembership.schoolyear_id == membership_year_id,
+            )
+        ).all()
+        existing_member_ids = {m.trainee_id for m in existing_memberships}
+
+        # Neu hinzugekommen
+        for tid in checked_ids - existing_member_ids:
+            upsert_membership(db, tid, membership_year_id, class_id)
+            affected_ids.add(tid)
+            # klasse_id als Fallback setzen
+            t = db.get(Trainee, tid)
+            if t:
+                t.klasse_id = class_id
+                db.add(t)
+
+        # Entfernt
+        for m in existing_memberships:
+            if m.trainee_id not in checked_ids:
+                db.delete(m)
+                affected_ids.add(m.trainee_id)
+
+        # Unveraendert gebliebene Mitglieder: immer syncen (Schulplan koennte sich geaendert haben)
+        affected_ids |= checked_ids
+    else:
+        # Kein Jahr gewaehlt: altes Verhalten (klasse_id direkt setzen)
+        for t in trainees:
+            if t.id in checked_ids:
+                if t.klasse_id != class_id:
+                    affected_ids.add(t.id)
+                t.klasse_id = class_id
+            elif t.klasse_id == class_id:
                 affected_ids.add(t.id)
-            t.klasse_id = class_id
-        elif t.klasse_id == class_id:
-            affected_ids.add(t.id)
-            t.klasse_id = None
-        # Also include newly checked trainees (already in class — no change — still fine)
-    # Always sync all checked trainees so new members get their AUTO entries
-    affected_ids |= checked_ids
+                t.klasse_id = None
+        affected_ids |= checked_ids
 
     db.commit()
 

@@ -19,6 +19,7 @@ from app.models import (
     TraineeWish,
 )
 from app.services.conflict_checker import find_conflicts
+from app.services.membership_utils import upsert_membership
 from app.services.school_sync import sync_trainee
 from app.utils.colors import department_color_map
 
@@ -41,8 +42,16 @@ def list_trainees(request: Request, db: DB):
 @router.get("/neu", response_class=HTMLResponse)
 def new_trainee(request: Request, db: DB):
     classes = db.exec(select(TraineeClass).order_by(TraineeClass.name)).all()
+    years = db.exec(select(Schoolyear).order_by(Schoolyear.start_year.desc())).all()
+    default_year_id = years[0].id if years else ""
     return templates.TemplateResponse(request, "trainees/form.html", {
-        "trainee": None, "classes": classes, "rollen": list(TraineeRolle), "active_nav": "trainees",
+        "trainee": None,
+        "classes": classes,
+        "rollen": list(TraineeRolle),
+        "years": years,
+        "selected_year_id": default_year_id,
+        "memberships": {},
+        "active_nav": "trainees",
     })
 
 
@@ -53,20 +62,30 @@ def create_trainee(
     nachname: Annotated[str, Form()],
     rolle: Annotated[TraineeRolle, Form()],
     klasse_id: Annotated[str, Form()] = "",
+    membership_year_id: Annotated[str, Form()] = "",
+    membership_klasse_id: Annotated[str, Form()] = "",
     notizen: Annotated[str, Form()] = "",
     aktiv: Annotated[str, Form()] = "",
 ):
+    klasse_id_int = int(klasse_id) if klasse_id else None
     t = Trainee(
         vorname=vorname,
         nachname=nachname,
         rolle=rolle,
-        klasse_id=int(klasse_id) if klasse_id else None,
+        klasse_id=klasse_id_int,
         notizen=notizen,
         aktiv=bool(aktiv),
     )
     db.add(t)
     db.commit()
     db.refresh(t)
+    # Membership fuer gewaehltes Lehrjahr anlegen
+    mem_klasse_int = int(membership_klasse_id) if membership_klasse_id else klasse_id_int
+    if membership_year_id and mem_klasse_int:
+        upsert_membership(db, t.id, membership_year_id, mem_klasse_int)
+        t.klasse_id = mem_klasse_int
+        db.add(t)
+        db.commit()
     sync_trainee(db, t.id)
     return RedirectResponse("/trainees/?msg=created", status_code=303)
 
@@ -133,10 +152,30 @@ def revoke_share_token(trainee_id: int, db: DB):
 
 @router.get("/{trainee_id:int}/bearbeiten", response_class=HTMLResponse)
 def edit_trainee(request: Request, trainee_id: int, db: DB):
+    from app.models.trainee_class_membership import TraineeClassMembership
     trainee = db.get(Trainee, trainee_id)
     classes = db.exec(select(TraineeClass).order_by(TraineeClass.name)).all()
+    years = db.exec(select(Schoolyear).order_by(Schoolyear.start_year.desc())).all()
+    # Bestehende Memberships: year_id -> klasse_id
+    memberships = {
+        m.schoolyear_id: m.klasse_id
+        for m in db.exec(
+            select(TraineeClassMembership).where(
+                TraineeClassMembership.trainee_id == trainee_id
+            )
+        ).all()
+    }
+    # Default Lehrjahr: neuestes Jahr oder erstes mit Membership
+    default_year_id = years[0].id if years else ""
+    selected_year_id = request.query_params.get("year_id", default_year_id)
     return templates.TemplateResponse(request, "trainees/form.html", {
-        "trainee": trainee, "classes": classes, "rollen": list(TraineeRolle), "active_nav": "trainees",
+        "trainee": trainee,
+        "classes": classes,
+        "rollen": list(TraineeRolle),
+        "years": years,
+        "selected_year_id": selected_year_id,
+        "memberships": memberships,
+        "active_nav": "trainees",
     })
 
 
@@ -147,6 +186,8 @@ def update_trainee(
     nachname: Annotated[str, Form()],
     rolle: Annotated[TraineeRolle, Form()],
     klasse_id: Annotated[str, Form()] = "",
+    membership_year_id: Annotated[str, Form()] = "",
+    membership_klasse_id: Annotated[str, Form()] = "",
     notizen: Annotated[str, Form()] = "",
     aktiv: Annotated[str, Form()] = "",
 ):
@@ -154,9 +195,18 @@ def update_trainee(
     t.vorname = vorname
     t.nachname = nachname
     t.rolle = rolle
-    t.klasse_id = int(klasse_id) if klasse_id else None
     t.notizen = notizen
     t.aktiv = bool(aktiv)
+    # Membership fuer gewaehltes Lehrjahr setzen
+    mem_klasse_int = int(membership_klasse_id) if membership_klasse_id else (int(klasse_id) if klasse_id else None)
+    if membership_year_id and mem_klasse_int:
+        upsert_membership(db, trainee_id, membership_year_id, mem_klasse_int)
+        t.klasse_id = mem_klasse_int
+    elif klasse_id:
+        t.klasse_id = int(klasse_id)
+    else:
+        t.klasse_id = None
+    db.add(t)
     db.commit()
     sync_trainee(db, trainee_id)
     return RedirectResponse("/trainees/?msg=updated", status_code=303)
