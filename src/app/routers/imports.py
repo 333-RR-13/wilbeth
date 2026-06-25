@@ -18,10 +18,10 @@ from fastapi import APIRouter, Depends, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.database import get_session
-from app.models import SchoolPlan
+from app.models import SchoolPlan, Schoolyear
 from app.services.importer import (
     apply_assignments,
     apply_school_weeks,
@@ -133,13 +133,16 @@ def einsaetze_import_dialog(
     db: DB,
     schoolyear_id: str = "",
 ):
-    from app.models import Schoolyear as _Schoolyear
-    schoolyear = db.get(_Schoolyear, schoolyear_id) if schoolyear_id else None
+    years = db.exec(select(Schoolyear).order_by(Schoolyear.start_year.desc())).all()
+    if not schoolyear_id and years:
+        schoolyear_id = years[0].id
+    schoolyear = db.get(Schoolyear, schoolyear_id) if schoolyear_id else None
     default_start_kw = schoolyear.start_kw if schoolyear else None
     return templates.TemplateResponse(request, "imports/_dialog.html", {
         "mode": "einsaetze",
         "schoolyear_id": schoolyear_id,
         "default_start_kw": default_start_kw,
+        "years": years,
     })
 
 

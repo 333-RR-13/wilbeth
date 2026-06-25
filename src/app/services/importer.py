@@ -107,36 +107,57 @@ class AssignmentParseResult:
 
 # ── Delimiter-Erkennung und Zeilenzerlegung ───────────────────────────────────
 
-def _detect_delimiter(text: str) -> str:
-    """Erkennt Tab, Semikolon oder Komma als Trennzeichen.
+# Sentinel: "mehrere Leerzeichen als Spaltentrenner" (Excel-Paste ohne Tabs,
+# spalten-ausgerichtet). Wird nur intern verwendet, nie als echtes Zeichen.
+_MULTISPACE = "\x00multispace\x00"
 
-    Prueft die ersten Nicht-Leerzeilen und zaehlt Vorkommen.
-    Standard-Fallback: Tab.
+
+def _detect_delimiter(text: str) -> str:
+    """Erkennt das Spalten-Trennzeichen: Tab, Semikolon, Komma oder
+    mehrfaches Whitespace (>=2 Leerzeichen).
+
+    Es gewinnt das Zeichen mit den MEISTEN Vorkommen ueber die Beispielzeilen.
+    Dadurch schlaegt ein einzelnes Komma in einem Namen ("Meier, Marvin") nicht
+    die ~37 Spaltentrenner einer Matrixzeile, und ein spalten-ausgerichteter
+    Excel-Paste (Codes durch mehrere Leerzeichen getrennt) wird korrekt erkannt.
     """
-    candidates = ["\t", ";", ","]
-    sample_lines = [l for l in text.splitlines() if l.strip()][:5]
+    sample_lines = [l for l in text.splitlines() if l.strip()][:6]
     if not sample_lines:
         return "\t"
 
-    counts: dict[str, int] = {d: 0 for d in candidates}
-    for line in sample_lines:
-        for d in candidates:
-            counts[d] += line.count(d)
+    def occurrences(line: str, kind: str) -> int:
+        if kind == _MULTISPACE:
+            # Runs aus >=2 Whitespace INNERHALB der Zeile (getrimmt)
+            return len(re.findall(r"\s{2,}", line.strip()))
+        return line.count(kind)
 
-    best = max(candidates, key=lambda d: counts[d])
+    candidates = ["\t", ";", ",", _MULTISPACE]
+    counts = {k: sum(occurrences(l, k) for l in sample_lines) for k in candidates}
+    best = max(candidates, key=lambda k: counts[k])
     return best if counts[best] > 0 else "\t"
 
 
 def _split_rows(text: str) -> list[list[str]]:
     """Zerlegt den Rohtext in Zeilen → Spalten.
 
-    - Delimiter wird automatisch erkannt.
-    - Leere Zeilen werden ignoriert.
-    - Fuehrendes/nachfolgendes Whitespace pro Zelle wird entfernt.
+    - Trennzeichen wird automatisch erkannt (Tab/;/,/Mehrfach-Whitespace).
+    - Leere Zeilen werden ignoriert; Zell-Whitespace getrimmt.
     """
     delim = _detect_delimiter(text)
+    rows: list[list[str]] = []
+
+    if delim == _MULTISPACE:
+        # Spalten-ausgerichteter Text: an Runs aus >=2 Whitespace trennen.
+        # Einfache Leerzeichen (z. B. in "Meier, Marvin (2. LJ)") bleiben erhalten.
+        for line in text.splitlines():
+            if not line.strip():
+                continue
+            cells = [c.strip() for c in re.split(r"\s{2,}", line.strip())]
+            if any(cells):
+                rows.append(cells)
+        return rows
+
     reader = csv.reader(io.StringIO(text), delimiter=delim)
-    rows = []
     for row in reader:
         stripped = [cell.strip() for cell in row]
         if any(stripped):  # Zeile nicht leer

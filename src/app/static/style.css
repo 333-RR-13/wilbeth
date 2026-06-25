@@ -1010,21 +1010,19 @@ tr.htmx-swapping td { opacity: 0; transition: opacity 0.15s; }
   padding: 20px 24px 20px;
 }
 
-/* ── Import-Dialog (fest 800x800, zentriert) ────────────────────── */
+/* ── Import-Dialog (max. 800 breit, Hoehe = Inhalt, zentriert) ──── */
 #import-dialog {
   width: 800px;
-  height: 800px;
   max-width: 95vw;
-  max-height: 95vh;
+  max-height: 90vh;
   position: fixed;
   inset: 0;
   margin: auto;
+  overflow: auto;
 }
 
 #import-dialog-body {
   padding: 20px 24px;
-  height: 100%;
-  overflow: auto;
   box-sizing: border-box;
 }
 

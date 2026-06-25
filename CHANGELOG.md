@@ -43,6 +43,12 @@ Format orientiert an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
   Spaltenzahl erkannt; über ein **Start-KW**-Feld (Default = Lehrjahr-Start) werden die
   Spalten fortlaufend den Wochen zugeordnet (Jahreswechsel KW52→KW1 korrekt). Mit
   Kopfzeile hat diese weiterhin Vorrang.
+- **Import: Trennzeichen-Erkennung robuster** — Leerzeichen-getrennte Pastes (Codes durch
+  mehrere Spaces getrennt, Namen mit Komma wie „Meier, Marvin") werden jetzt korrekt
+  erkannt: es gewinnt das häufigste Trennzeichen, ein einzelnes Komma im Namen schlägt
+  nicht mehr die ~37 Spaltentrenner. Tab/CSV unverändert.
+- **Import-Dialog**: Höhe passt sich dem Inhalt an (kein leerer Block mehr) und es gibt
+  eine **Lehrjahr-Auswahl** direkt im Dialog.
 
 ### Klassen-Mitgliedschaft pro Lehrjahr + Jahreswechsel
 

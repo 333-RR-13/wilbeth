@@ -867,3 +867,28 @@ def test_parse_assignments_auto_headerless_matrix(session: Session):
     assert len(result.errors) == 0, [e.reason for e in result.errors]
     # 7 Codes (2 Leerspalten übersprungen nach Auswertung: c_start=2, c_end=8 → 7 Spalten)
     assert len(result.valid) == 7
+
+
+def test_multispace_delimiter_beats_comma_in_name():
+    """Leerzeichen-getrennte Matrix mit Komma-Namen: das haeufigste Trennzeichen
+    (mehrfaches Whitespace) gewinnt; das Komma in 'Meier, Marvin' fuehrt NICHT
+    mehr zu falschem Split."""
+    from app.services.importer import _MULTISPACE, _detect_delimiter, _split_rows
+    text = (
+        "Mustermann Max      CS      CS      BS      U      IAM\n"
+        "Meier, Marvin      U      U      BS      DWP      AI"
+    )
+    assert _detect_delimiter(text) == _MULTISPACE
+    rows = _split_rows(text)
+    assert rows[0] == ["Mustermann Max", "CS", "CS", "BS", "U", "IAM"]
+    # Komma im Namen bleibt EINE Zelle:
+    assert rows[1][0] == "Meier, Marvin"
+    assert rows[1][1:] == ["U", "U", "BS", "DWP", "AI"]
+
+
+def test_tab_and_csv_delimiters_still_win():
+    """Regression: Tab- und Komma-CSV-Erkennung bleibt unveraendert."""
+    from app.services.importer import _detect_delimiter, _split_rows
+    assert _detect_delimiter("a\tb\tc\nd\te\tf") == "\t"
+    assert _detect_delimiter("a,b,c,d\ne,f,g,h") == ","
+    assert _split_rows("a,b,c\nd,e,f") == [["a", "b", "c"], ["d", "e", "f"]]

@@ -43,7 +43,14 @@
           hx-target="#import-dialog-body"
           hx-swap="innerHTML"
           enctype="multipart/form-data">
-      <input type="hidden" name="schoolyear_id" value="{{ schoolyear_id }}">
+      <div class="form-group" style="margin-bottom:.5rem">
+        <label style="font-size:.85rem;font-weight:600">Lehrjahr:</label>
+        <select name="schoolyear_id" style="width:12rem">
+          {% for y in years %}
+          <option value="{{ y.id }}" {{ 'selected' if y.id == schoolyear_id else '' }}>{{ y.id }}</option>
+          {% endfor %}
+        </select>
+      </div>
     {% endif %}
       <div class="form-group" style="margin-bottom:.5rem">
         <label style="font-size:.85rem;font-weight:600">
@@ -89,7 +96,14 @@ Musterfrau, Anna	11	2026	ITO-NW	ABTEILUNG{% endif %}"></textarea>
           hx-target="#import-dialog-body"
           hx-swap="innerHTML"
           hx-encoding="multipart/form-data">
-      <input type="hidden" name="schoolyear_id" value="{{ schoolyear_id }}">
+      <div class="form-group" style="margin-bottom:.5rem">
+        <label style="font-size:.85rem;font-weight:600">Lehrjahr:</label>
+        <select name="schoolyear_id" style="width:12rem">
+          {% for y in years %}
+          <option value="{{ y.id }}" {{ 'selected' if y.id == schoolyear_id else '' }}>{{ y.id }}</option>
+          {% endfor %}
+        </select>
+      </div>
     {% endif %}
       <div class="form-group" style="margin-bottom:.5rem">
         <label style="font-size:.85rem;font-weight:600">CSV-Datei auswählen:</label>
