@@ -19,6 +19,7 @@ from sqlmodel import Session, select
 from app.database import get_session
 from app.models import Schoolyear, Trainee, TraineeClass
 from app.models.trainee_class_membership import TraineeClassMembership
+from app.services.membership_utils import klasse_fuer, upsert_membership
 from app.services.school_sync import resync_all
 
 router = APIRouter(prefix="/jahreswechsel", tags=["jahreswechsel"])
@@ -37,15 +38,11 @@ def _build_preview(
     - zu_uebertragen: Dicts mit trainee/alte Klasse/neue Klasse
     - abschluss: Dicts mit trainee/Klasse (kein next_class_id)
     """
-    memberships = db.exec(
-        select(TraineeClassMembership).where(
-            TraineeClassMembership.schoolyear_id == source_year_id
-        )
+    trainees = db.exec(
+        select(Trainee)
+        .where(Trainee.aktiv == True)  # noqa: E712
+        .order_by(Trainee.nachname, Trainee.vorname)
     ).all()
-
-    trainees_by_id: dict[int, Trainee] = {
-        t.id: t for t in db.exec(select(Trainee)).all()
-    }
     classes_by_id: dict[int, TraineeClass] = {
         c.id: c for c in db.exec(select(TraineeClass)).all()
     }
@@ -63,10 +60,11 @@ def _build_preview(
     zu_uebertragen: list[dict] = []
     abschluss: list[dict] = []
 
-    for m in memberships:
-        trainee = trainees_by_id.get(m.trainee_id)
-        klasse = classes_by_id.get(m.klasse_id)
-        if trainee is None or klasse is None:
+    for trainee in trainees:
+        # Klasse im Quell-Lehrjahr: Membership oder Fallback trainee.klasse_id
+        klasse_id = klasse_fuer(db, trainee, source_year_id)
+        klasse = classes_by_id.get(klasse_id) if klasse_id is not None else None
+        if klasse is None:
             continue
 
         if klasse.next_class_id is not None:
@@ -75,7 +73,7 @@ def _build_preview(
                 "trainee": trainee,
                 "alte_klasse": klasse,
                 "neue_klasse": next_klasse,
-                "already_exists": m.trainee_id in existing_targets,
+                "already_exists": trainee.id in existing_targets,
             })
         else:
             abschluss.append({
@@ -117,10 +115,8 @@ def jahreswechsel_uebernehmen(
     if not source_year_id or not target_year_id or source_year_id == target_year_id:
         return RedirectResponse("/jahreswechsel/?msg=error&detail=Ungültige+Jahresauswahl", status_code=303)
 
-    memberships = db.exec(
-        select(TraineeClassMembership).where(
-            TraineeClassMembership.schoolyear_id == source_year_id
-        )
+    trainees = db.exec(
+        select(Trainee).where(Trainee.aktiv == True)  # noqa: E712
     ).all()
 
     classes_by_id: dict[int, TraineeClass] = {
@@ -140,27 +136,30 @@ def jahreswechsel_uebernehmen(
     count_new = 0
     count_skipped = 0
 
-    for m in memberships:
-        klasse = classes_by_id.get(m.klasse_id)
+    for trainee in trainees:
+        # Klasse im Quell-Lehrjahr (Membership oder Fallback trainee.klasse_id)
+        klasse_id = klasse_fuer(db, trainee, source_year_id)
+        klasse = classes_by_id.get(klasse_id) if klasse_id is not None else None
         if klasse is None or klasse.next_class_id is None:
-            # Abschluss – nicht uebernehmen
+            # Keine Klasse oder Abschluss – nicht uebernehmen
             continue
 
-        if m.trainee_id in existing_targets:
+        if trainee.id in existing_targets:
             count_skipped += 1
             continue
 
-        # Neue Membership anlegen
+        # Quell-Lehrjahr festschreiben, damit es nach der klasse_id-Aenderung
+        # korrekt bleibt (sonst lieferte der Fallback spaeter die neue Klasse).
+        upsert_membership(db, trainee.id, source_year_id, klasse.id)
+        # Neue Membership im Ziel-Lehrjahr anlegen
         db.add(TraineeClassMembership(
-            trainee_id=m.trainee_id,
+            trainee_id=trainee.id,
             schoolyear_id=target_year_id,
             klasse_id=klasse.next_class_id,
         ))
-        # trainee.klasse_id auf neue Klasse setzen
-        trainee = db.get(Trainee, m.trainee_id)
-        if trainee:
-            trainee.klasse_id = klasse.next_class_id
-            db.add(trainee)
+        # trainee.klasse_id auf neue Klasse setzen (= aktuelle Klasse)
+        trainee.klasse_id = klasse.next_class_id
+        db.add(trainee)
         count_new += 1
 
     db.commit()

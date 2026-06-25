@@ -6,6 +6,17 @@ Format orientiert an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
 ## [Unreleased]
 
+### Fixes
+
+- **Auto-Plan** überschreibt keine eingetragenen Schulwochen mehr: die Schulplan-Wochen
+  der Klasse-fürs-Lehrjahr gelten als belegt, auch wenn sie noch nicht als `Assignment`
+  materialisiert sind.
+- **Jahreswechsel** funktioniert auch ohne explizite Mitgliedschaften (nutzt den
+  `klasse_fuer`-Fallback auf `klasse_id`) und schreibt das Quell-Lehrjahr fest, damit es
+  nach der Klassen-Änderung korrekt bleibt.
+- **Import-Dialog** fest 800×800 und zentriert; `style.css` per `?v=`-Query
+  cache-gebustet, damit CSS-Änderungen zuverlässig ankommen.
+
 ### Klassen-Mitgliedschaft pro Lehrjahr + Jahreswechsel
 
 - Azubis werden **pro Lehrjahr** einer Klasse zugeordnet (neue Tabelle

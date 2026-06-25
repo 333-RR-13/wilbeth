@@ -16,9 +16,12 @@ from sqlmodel import Session, select
 
 from app.models.assignment import Assignment, AssignmentSource, AssignmentTyp
 from app.models.department import Department
+from app.models.school_plan import SchoolPlan, SchoolPlanWeek
 from app.models.schoolyear import Schoolyear
+from app.models.trainee import Trainee
 from app.models.trainee_wish import TraineeWish
 from app.services.dept_history import visited_department_ids
+from app.services.membership_utils import klasse_fuer
 from app.utils.kw import iter_schoolyear_weeks
 
 
@@ -132,6 +135,20 @@ def plan_assignments(
         d.id: d for d in db.exec(select(Department)).all()
     }
 
+    # Schulwochen je Klasse fuer dieses Lehrjahr. Diese Wochen gelten als belegt,
+    # auch wenn sie (noch) nicht als Assignment materialisiert sind – sonst wuerde
+    # der Auto-Plan eingetragene Berufsschul-/Uni-Wochen ueberschreiben.
+    school_weeks_by_klasse: dict[int, set[tuple[int, int]]] = {}
+    for plan in db.exec(
+        select(SchoolPlan).where(SchoolPlan.schoolyear_id == schoolyear_id)
+    ).all():
+        school_weeks_by_klasse[plan.klasse_id] = {
+            (w.kw, w.jahr)
+            for w in db.exec(
+                select(SchoolPlanWeek).where(SchoolPlanWeek.plan_id == plan.id)
+            ).all()
+        }
+
     # Bereits belegte (abteilung_id, kw, jahr)-Tupel fuer Doppelbelegungs-Check.
     # Wird innerhalb der Schleife laufend aktualisiert.
     occupied: set[tuple[int, int, int]] = _build_occupied_keys(existing_assignments, [])
@@ -157,12 +174,19 @@ def plan_assignments(
         # Kandidatenliste sortieren: unbesuchte zuerst, dann besuchte
         candidates = _sort_candidates(wishes, visited_ids)
 
-        # Existierende Assignments dieses Azubis (fuer "freie Wochen"-Pruefung)
+        # Belegte Wochen dieses Azubis: bestehende Assignments PLUS die Schulwochen
+        # seiner Klasse-fuer-dieses-Lehrjahr (auch wenn noch nicht materialisiert).
+        trainee = db.get(Trainee, trainee_id)
+        klasse_id = klasse_fuer(db, trainee, schoolyear_id) if trainee else None
+        school_busy = (
+            school_weeks_by_klasse.get(klasse_id, set())
+            if klasse_id is not None else set()
+        )
         trainee_busy: set[tuple[int, int]] = {
             (a.kw, a.jahr)
             for a in existing_assignments
             if a.trainee_id == trainee_id
-        }
+        } | school_busy
         # Auch bereits in diesem Lauf geplante Wochen als besetzt markieren
         planned_busy: set[tuple[int, int]] = set()
 

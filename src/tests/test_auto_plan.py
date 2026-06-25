@@ -16,10 +16,15 @@ from app.models import (
     AssignmentTyp,
     Department,
     DepartmentKategorie,
+    SchoolPlan,
+    SchoolPlanWeek,
+    SchoolWeekTyp,
     Schoolyear,
     Trainee,
+    TraineeClass,
     TraineeRolle,
     TraineeWish,
+    UnterrichtsTyp,
 )
 from app.services.auto_plan import apply_auto_plan, plan_assignments
 
@@ -136,6 +141,47 @@ def test_does_not_overwrite_existing_assignment(session: Session):
     assert 1 not in planned_kws
     assert 2 not in planned_kws
     # Die restlichen 6 Wochen (KW3-KW8) sollen geplant worden sein
+    assert len(result.planned) == 6
+
+
+def test_does_not_overwrite_unmaterialized_school_weeks(session: Session):
+    """Schulwochen aus dem Schulplan gelten als belegt, auch wenn sie noch NICHT
+    als Assignment materialisiert sind (Regression: Auto-Plan ueberschrieb sie)."""
+    _make_year(session)
+
+    klasse = TraineeClass(
+        name="FISI Test",
+        berufsschule="BS Test",
+        unterrichts_typ=UnterrichtsTyp.BLOCK_FEST,
+    )
+    session.add(klasse)
+    session.flush()
+
+    t = _make_trainee(session)
+    t.klasse_id = klasse.id
+    session.add(t)
+    session.flush()
+
+    d = _make_dept(session, "AA")
+    _add_wish(session, t.id, d.id)
+
+    # Schulplan mit KW1+KW2 als Berufsschule – bewusst NICHT als Assignment materialisiert
+    plan = SchoolPlan(klasse_id=klasse.id, schoolyear_id=YEAR_ID)
+    session.add(plan)
+    session.flush()
+    session.add(SchoolPlanWeek(plan_id=plan.id, kw=1, jahr=START_YEAR, typ=SchoolWeekTyp.BERUFSSCHULE))
+    session.add(SchoolPlanWeek(plan_id=plan.id, kw=2, jahr=START_YEAR, typ=SchoolWeekTyp.BERUFSSCHULE))
+    session.flush()
+
+    # Sicherstellen, dass es wirklich keine materialisierten Schul-Assignments gibt
+    assert session.exec(select(Assignment).where(Assignment.trainee_id == t.id)).all() == []
+
+    result = plan_assignments(session, YEAR_ID, [t.id], block_length=4)
+
+    planned_kws = {e.kw for e in result.planned}
+    assert 1 not in planned_kws, "KW1 (Schulwoche) darf nicht verplant werden"
+    assert 2 not in planned_kws, "KW2 (Schulwoche) darf nicht verplant werden"
+    # Die restlichen 6 Wochen (KW3-KW8) duerfen verplant werden
     assert len(result.planned) == 6
 
 

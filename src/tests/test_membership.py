@@ -267,6 +267,51 @@ def test_jahreswechsel_skip_existing(client, session: Session):
     assert m.klasse_id == klasse_c.id
 
 
+def test_jahreswechsel_fallback_ohne_membership(client, session: Session):
+    """Regression: Azubis OHNE explizite Membership (nur klasse_id) werden per
+    Fallback uebernommen; das Quell-Jahr bleibt danach korrekt (festgepinnt)."""
+    _add_year(session, SY_A, 2025)
+    _add_year(session, SY_B, 2026)
+
+    klasse_a = _add_class(session, "FB FISI 1")
+    klasse_b = _add_class(session, "FB FISI 2")
+    klasse_a.next_class_id = klasse_b.id
+    session.add(klasse_a)
+
+    # Azubi NUR ueber klasse_id (keine Membership) – realistischer Ausgangszustand
+    trainee = _add_trainee(session, "Nora", klasse_id=klasse_a.id)
+    session.commit()
+
+    # Vorschau erkennt den Azubi (frueher: "keine Memberships gefunden")
+    r_prev = client.get(f"/jahreswechsel/?source_year_id={SY_A}&target_year_id={SY_B}")
+    assert r_prev.status_code == 200
+    assert "FB FISI 1" in r_prev.text
+    assert "FB FISI 2" in r_prev.text
+
+    # Uebernehmen
+    r = client.post(
+        "/jahreswechsel/uebernehmen",
+        data={"source_year_id": SY_A, "target_year_id": SY_B},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    session.expire_all()
+
+    trainee = session.get(Trainee, trainee.id)
+    # Ziel-Jahr: neue Klasse B; klasse_id (aktuelle Klasse) = B
+    assert klasse_fuer(session, trainee, SY_B) == klasse_b.id
+    assert trainee.klasse_id == klasse_b.id
+    # Quell-Jahr bleibt A – festgepinnt, trotz geaenderter klasse_id
+    assert klasse_fuer(session, trainee, SY_A) == klasse_a.id
+    m_source = session.exec(
+        select(TraineeClassMembership).where(
+            TraineeClassMembership.trainee_id == trainee.id,
+            TraineeClassMembership.schoolyear_id == SY_A,
+        )
+    ).first()
+    assert m_source is not None and m_source.klasse_id == klasse_a.id
+
+
 # ── (e) klasse_fuer-Helper ─────────────────────────────────────────────────────
 
 def test_klasse_fuer_with_membership(session: Session):
