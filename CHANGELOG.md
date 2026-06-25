@@ -29,6 +29,8 @@ Format orientiert an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
   (`parse_assignments_auto`); KW→Jahr wird aus dem gewählten Lehrjahr abgeleitet;
   Abteilungs-Kürzel/`BS`/`Uni`/`U` werden gemappt; Namen mit/ohne Komma inkl.
   Klammer-Zusatz; unbekannte Codes/Namen erscheinen als Fehlerzeilen in der Vorschau.
+- **Stammdaten-Seed** (`python -m seed.seed_stammdaten`): legt nur Lehrjahre,
+  Schulferien, Klassen, Abteilungen und Berufsschulpläne an – ohne Trainees/Einsätze.
 
 ### Klassen-Mitgliedschaft pro Lehrjahr + Jahreswechsel
 
