@@ -56,6 +56,19 @@
 12	2026	HS{% else %}Mustermann, Max	10	2026	ITO-SD
 Musterfrau, Anna	11	2026	ITO-NW	ABTEILUNG{% endif %}"></textarea>
       </div>
+      {% if mode == "einsaetze" %}
+      <div class="form-group" style="margin-bottom:.5rem">
+        <label style="font-size:.85rem;font-weight:600">
+          Start-KW (nur falls keine KW-Kopfzeile):
+        </label>
+        <input type="number" name="start_kw" min="1" max="53"
+               value="{{ default_start_kw if default_start_kw is not none else '' }}"
+               style="width:6rem">
+        <span style="font-size:.78rem;color:var(--text-muted);display:block;margin-top:.2rem">
+          Bei Einfügen MIT KW-Kopfzeile wird dieses Feld ignoriert.
+        </span>
+      </div>
+      {% endif %}
       <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:.5rem">
         <button type="button" class="btn btn-ghost btn-sm"
                 onclick="closeImportDialog()">Abbrechen</button>
@@ -83,6 +96,19 @@ Musterfrau, Anna	11	2026	ITO-NW	ABTEILUNG{% endif %}"></textarea>
         <input type="file" name="csv_file" accept=".csv,.txt"
                style="display:block;margin-top:.35rem">
       </div>
+      {% if mode == "einsaetze" %}
+      <div class="form-group" style="margin-bottom:.5rem">
+        <label style="font-size:.85rem;font-weight:600">
+          Start-KW (nur falls keine KW-Kopfzeile):
+        </label>
+        <input type="number" name="start_kw" min="1" max="53"
+               value="{{ default_start_kw if default_start_kw is not none else '' }}"
+               style="width:6rem">
+        <span style="font-size:.78rem;color:var(--text-muted);display:block;margin-top:.2rem">
+          Bei Einfügen MIT KW-Kopfzeile wird dieses Feld ignoriert.
+        </span>
+      </div>
+      {% endif %}
       <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:.5rem">
         <button type="button" class="btn btn-ghost btn-sm"
                 onclick="closeImportDialog()">Abbrechen</button>

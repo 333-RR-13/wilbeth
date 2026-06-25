@@ -746,3 +746,124 @@ def test_apply_assignments_matrix_source_import_skips_existing(session: Session)
 
     kw36 = next(a for a in assignments if a.kw == 36)
     assert kw36.source == AssignmentSource.MANUAL  # unveraendert
+
+
+# ── Neue Tests: Headerloser Matrix-Import ─────────────────────────────────────
+
+# (b) _looks_like_matrix bei ≥8 Spalten ohne KW-Zelle
+
+def test_looks_like_matrix_true_for_wide_rows_no_kw_header():
+    """_looks_like_matrix: True wenn breiteste Zeile ≥8 Spalten, auch ohne KW-Zellen."""
+    # 9 Spalten, keine einzige KW-Zelle
+    rows = _split_rows("Meier, Marvin (2.LJ)\t\tAI\tBS\tU\tDWP\tCS\tAI\tBS")
+    assert _looks_like_matrix(rows) is True
+
+
+def test_looks_like_matrix_false_for_narrow_no_kw_header():
+    """_looks_like_matrix: False wenn ≤5 Spalten und keine KW-Zellen (Langformat)."""
+    rows = _split_rows("Muster, Anna\t10\t2026\tITO-SD")
+    assert _looks_like_matrix(rows) is False
+
+
+# (a) Headerloser Matrix-Import mit start_kw=36, Jahreswechsel korrekt
+
+def test_matrix_headerless_jahreswechsel(session: Session):
+    """Headerlose Matrix mit start_kw=36: KW36/2025..KW1/2026 korrekt zugeordnet."""
+    _make_matrix_setup(session)
+
+    # Spalte 0 = Name, Spalte 1 = leer (Trennspalte), Spalten 2-4 = Codes
+    # KW36/2025, KW37/2025, KW52/2025 – wir prüfen Jahreswechsel mit KW1
+    # Lehrjahr SY_MATRIX: start_kw=36/2025, end_kw=35/2026
+    # Wir geben 3 Codes ab KW36 -> KW36,KW37,KW38 (alles 2025)
+    # Und dann testen wir explizit mit 18 Codes um KW52->KW1 zu erreichen
+    # (KW36+16 = KW52; KW36+17 = KW1/2026)
+    codes_row = ["Meier, Marvin (2.LJ FISI)", ""] + ["AI"] * 17 + ["CS"]
+    text = "\t".join(codes_row)
+    result = parse_assignments_matrix(text, session, SY_MATRIX, start_kw=36)
+
+    assert len(result.errors) == 0, [e.reason for e in result.errors]
+    # 18 Eintraege (KW36..KW52 = 17, + KW1 = 18; aber KW52 2025 existiert auch)
+    kw_jahre = {(pa.kw, pa.jahr) for pa in result.valid}
+    # KW36/2025 muss drin sein
+    assert (36, 2025) in kw_jahre
+    # KW1/2026 muss drin sein (Jahreswechsel)
+    assert (1, 2026) in kw_jahre
+    # KW52/2025 muss drin sein
+    assert (52, 2025) in kw_jahre
+
+
+# (c) Regression: MIT Kopfzeile weiterhin korrekt, start_kw wird ignoriert
+
+def test_matrix_with_header_start_kw_ignored(session: Session):
+    """Mit KW-Kopfzeile: start_kw wird ignoriert, Kopfzeile bestimmt Mapping."""
+    _make_matrix_setup(session)
+
+    text = (
+        "Woche\t\tKW36\tKW37\n"
+        "Meier, Marvin (2.LJ FISI)\t\tAI\tDWP\n"
+    )
+    # start_kw=1 würde falsches Mapping ergeben wenn es nicht ignoriert wird
+    result = parse_assignments_matrix(text, session, SY_MATRIX, start_kw=1)
+
+    assert len(result.errors) == 0, [e.reason for e in result.errors]
+    assert len(result.valid) == 2
+
+    kw_jahre = {(pa.kw, pa.jahr) for pa in result.valid}
+    # Kopfzeile sagt KW36/2025 und KW37/2025 – start_kw=1 darf nichts ändern
+    assert (36, 2025) in kw_jahre
+    assert (37, 2025) in kw_jahre
+
+
+# (d) start_kw=None nutzt schoolyear.start_kw als Default
+
+def test_matrix_headerless_default_start_kw(session: Session):
+    """Headerlose Matrix mit start_kw=None: schoolyear.start_kw (36) wird als Default genutzt."""
+    _make_matrix_setup(session)
+
+    # 3 Codes: werden KW36, KW37, KW38 zugeordnet (start=36 per Default)
+    text = "Meier, Marvin (2.LJ FISI)\t\tAI\tDWP\tCS"
+    result = parse_assignments_matrix(text, session, SY_MATRIX, start_kw=None)
+
+    assert len(result.errors) == 0, [e.reason for e in result.errors]
+    assert len(result.valid) == 3
+
+    kw_jahre = {(pa.kw, pa.jahr) for pa in result.valid}
+    assert (36, 2025) in kw_jahre
+    assert (37, 2025) in kw_jahre
+    assert (38, 2025) in kw_jahre
+
+
+# (e) Spalten über Lehrjahr-Ende → ErrorRow, kein Crash
+
+def test_matrix_headerless_columns_exceed_schoolyear(session: Session):
+    """Headerlose Matrix mit mehr Spalten als Lehrjahr-Wochen → ErrorRow, kein Crash."""
+    _make_matrix_setup(session)
+
+    # Lehrjahr SY_MATRIX hat 52 Wochen (KW36/2025..KW35/2026).
+    # start_kw=35 (letzte Woche), aber wir geben 5 Codes → 4 überschreiten Ende
+    text = "Meier, Marvin (2.LJ FISI)\t\tAI\tDWP\tCS\tAI\tDWP"
+    result = parse_assignments_matrix(text, session, SY_MATRIX, start_kw=35)
+
+    # Genau 1 ErrorRow "Spalte ueberschreitet Lehrjahr-Ende"
+    exceed_errors = [e for e in result.errors if "ueberschreitet" in e.reason]
+    assert len(exceed_errors) == 1
+
+    # Nur die erste Spalte (KW35/2026) landet in valid
+    assert len(result.valid) == 1
+    assert result.valid[0].kw == 35
+    assert result.valid[0].jahr == 2026
+
+
+# parse_assignments_auto mit headerloser Matrix (start_kw durchgereicht)
+
+def test_parse_assignments_auto_headerless_matrix(session: Session):
+    """parse_assignments_auto: Headerlose breite Matrix wird erkannt und mit start_kw verarbeitet."""
+    _make_matrix_setup(session)
+
+    # 9 Spalten → _looks_like_matrix gibt True (≥8)
+    text = "Meier, Marvin (2.LJ FISI)\t\tAI\tDWP\tCS\tAI\tBS\tU\tDWP"
+    result = parse_assignments_auto(text, session, SY_MATRIX, start_kw=36)
+
+    assert len(result.errors) == 0, [e.reason for e in result.errors]
+    # 7 Codes (2 Leerspalten übersprungen nach Auswertung: c_start=2, c_end=8 → 7 Spalten)
+    assert len(result.valid) == 7

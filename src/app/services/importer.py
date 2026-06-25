@@ -369,16 +369,22 @@ def _kw_to_jahr(schoolyear: Schoolyear) -> dict[int, int]:
 
 
 def _looks_like_matrix(rows: list[list[str]]) -> bool:
-    """True, wenn eine der ersten ~3 Zeilen ≥2 KW-Spaltenköpfe enthält.
+    """True, wenn eine der ersten ~3 Zeilen ≥2 KW-Spaltenköpfe enthält,
+    ODER wenn die breiteste Zeile ≥8 Spalten hat (headerlose Matrix).
 
     KW-Spaltenköpfe haben die Form 'KW36', 'KW 36' oder '36' — sie treten
     im Langformat nicht auf (dort stehen Zahlen als Werte, nicht als Header).
-    ≥2 ist ausreichend, um Langformat (Azubi|KW|Jahr|Abt) sicher abzugrenzen.
+    ≥2 KW-Zellen ist ausreichend, um Langformat (Azubi|KW|Jahr|Abt) sicher
+    abzugrenzen.  ≥8 Spalten greift für headerloses Matrix-Einfügen ohne
+    KW-Kopfzeile (Langformat hat ≤5 Spalten).
     """
     for row in rows[:3]:
         kw_count = sum(1 for cell in row if _KW_HEADER_RE.match(cell))
         if kw_count >= 2:
             return True
+    # Breiteste Zeile prüfen (alle Zeilen, nicht nur die ersten 3)
+    if rows and max(len(r) for r in rows) >= 8:
+        return True
     return False
 
 
@@ -386,11 +392,23 @@ def parse_assignments_matrix(
     text: str,
     db: Session,
     schoolyear_id: str,
+    start_kw: int | None = None,
 ) -> AssignmentParseResult:
     """Parst Matrixformat (Breitformat aus Excel) zu Assignment-Daten.
 
-    Kopfzeile: Woche | (leer) | KW36 | KW37 | … (Spalte 0/1 ignoriert)
-    Datenzeilen: Azubi-Name (mit optionalem Klammerzusatz) | (leer) | Code …
+    MIT Kopfzeile (erste Zeile mit ≥2 KW-Zellen):
+        Kopfzeile: Woche | (leer) | KW36 | KW37 | … (Spalte 0/1 ignoriert)
+        Datenzeilen folgen danach; start_kw wird ignoriert.
+
+    OHNE Kopfzeile (alle Zeilen sind Datenzeilen):
+        start_kw bestimmt die erste Code-Spalte (Default: schoolyear.start_kw).
+        Code-Spalten beginnen beim kleinsten Spaltenindex ≥1 mit irgendwo
+        nicht-leerer Zelle und werden fortlaufend auf die Lehrjahr-Wochen
+        ab start_kw gemappt.
+
+    In beiden Fällen identische Datenzeilen-Verarbeitung:
+        Namens-Matching mit/ohne Komma + Klammerzusatz, Code-Mapping
+        BS/Uni/U/Abteilung, unbekannte Codes/Namen → ErrorRow.
     """
     result = AssignmentParseResult()
     rows = _split_rows(text)
@@ -404,9 +422,7 @@ def parse_assignments_matrix(
             result.errors.append(ErrorRow(idx, "\t".join(row), f"Schuljahr '{schoolyear_id}' nicht gefunden"))
         return result
 
-    kw_jahr_map = _kw_to_jahr(schoolyear)
-
-    # Kopfzeile finden: erste Zeile mit ≥2 KW-Zellen
+    # Kopfzeile suchen: erste Zeile mit ≥2 KW-Zellen
     header_row_idx: int | None = None
     for i, row in enumerate(rows):
         kw_count = sum(1 for cell in row if _KW_HEADER_RE.match(cell))
@@ -414,33 +430,96 @@ def parse_assignments_matrix(
             header_row_idx = i
             break
 
-    if header_row_idx is None:
-        result.errors.append(ErrorRow(0, "", "Keine KW-Kopfzeile gefunden (mind. 2 KW-Spalten erwartet)"))
-        return result
-
-    header_row = rows[header_row_idx]
-
-    # Spalten-Mapping aufbauen: j -> (kw, jahr)
-    # Bereits gemeldete fehlende KWs nicht doppelt melden
-    reported_missing_kw: set[int] = set()
     kw_cols: list[tuple[int, int, int]] = []  # (spalten_index, kw, jahr)
-    for j, cell in enumerate(header_row):
-        m = _KW_HEADER_RE.match(cell)
-        if m:
-            kw = int(m.group(2))
-            jahr = kw_jahr_map.get(kw)
-            if jahr is None:
-                if kw not in reported_missing_kw:
-                    result.errors.append(ErrorRow(0, cell, f"KW {kw} nicht im Lehrjahr '{schoolyear_id}' – Spalte ignoriert"))
-                    reported_missing_kw.add(kw)
-            else:
-                kw_cols.append((j, kw, jahr))
 
-    if not kw_cols:
-        result.errors.append(ErrorRow(0, "", "Keine gültigen KW-Spalten im Lehrjahr gefunden"))
-        return result
+    if header_row_idx is not None:
+        # ── MIT Kopfzeile: unverändertes Verhalten ───────────────────────────
+        kw_jahr_map = _kw_to_jahr(schoolyear)
+        header_row = rows[header_row_idx]
 
-    # Lookup-Tabellen aufbauen
+        reported_missing_kw: set[int] = set()
+        for j, cell in enumerate(header_row):
+            m = _KW_HEADER_RE.match(cell)
+            if m:
+                kw = int(m.group(2))
+                jahr = kw_jahr_map.get(kw)
+                if jahr is None:
+                    if kw not in reported_missing_kw:
+                        result.errors.append(ErrorRow(0, cell, f"KW {kw} nicht im Lehrjahr '{schoolyear_id}' – Spalte ignoriert"))
+                        reported_missing_kw.add(kw)
+                else:
+                    kw_cols.append((j, kw, jahr))
+
+        if not kw_cols:
+            result.errors.append(ErrorRow(0, "", "Keine gültigen KW-Spalten im Lehrjahr gefunden"))
+            return result
+
+        data_rows = rows[header_row_idx + 1:]
+
+    else:
+        # ── OHNE Kopfzeile: alle Zeilen sind Datenzeilen ─────────────────────
+        # Effektives Start-KW ermitteln
+        eff_start_kw = start_kw if start_kw is not None else schoolyear.start_kw
+
+        # Wochen-Sequenz des Lehrjahrs aufbauen
+        seq = list(iter_schoolyear_weeks(
+            schoolyear.start_kw, schoolyear.start_year,
+            schoolyear.end_kw, schoolyear.end_year,
+        ))
+
+        # Offset = Index der Start-KW in der Sequenz
+        offset: int | None = None
+        for idx_seq, (seq_kw, _seq_yr) in enumerate(seq):
+            if seq_kw == eff_start_kw:
+                offset = idx_seq
+                break
+
+        if offset is None:
+            result.errors.append(ErrorRow(
+                0, "",
+                f"Start-KW {eff_start_kw} nicht im Lehrjahr '{schoolyear_id}'",
+            ))
+            return result
+
+        # Code-Spalten-Grenzen bestimmen:
+        # c_start = kleinster Spaltenindex ≥1 mit irgendwo nicht-leerer Zelle
+        # c_end   = größter Spaltenindex mit irgendwo nicht-leerer Zelle
+        c_start: int | None = None
+        c_end: int = 0
+        for row in rows:
+            for j, cell in enumerate(row):
+                if j >= 1 and cell.strip():
+                    if c_start is None or j < c_start:
+                        c_start = j
+                    if j > c_end:
+                        c_end = j
+
+        if c_start is None:
+            result.errors.append(ErrorRow(0, "", "Keine Code-Spalten gefunden"))
+            return result
+
+        # Spalten fortlaufend auf Wochen ab offset mappen
+        exceed_reported = False
+        for k, col_idx in enumerate(range(c_start, c_end + 1)):
+            seq_pos = offset + k
+            if seq_pos >= len(seq):
+                if not exceed_reported:
+                    result.errors.append(ErrorRow(
+                        0, "",
+                        "Spalte ueberschreitet Lehrjahr-Ende – überzählige Spalten ignoriert",
+                    ))
+                    exceed_reported = True
+                break
+            seq_kw, seq_yr = seq[seq_pos]
+            kw_cols.append((col_idx, seq_kw, seq_yr))
+
+        if not kw_cols:
+            result.errors.append(ErrorRow(0, "", "Keine Code-Spalten im Lehrjahr"))
+            return result
+
+        data_rows = rows
+
+    # ── Lookup-Tabellen aufbauen ──────────────────────────────────────────────
     trainees_all = db.exec(select(Trainee)).all()
     trainee_map: dict[str, Trainee] = {}
     for t in trainees_all:
@@ -454,8 +533,7 @@ def parse_assignments_matrix(
     depts_all = db.exec(select(Department)).all()
     dept_map: dict[str, Department] = {d.code.lower(): d for d in depts_all}
 
-    # Datenzeilen verarbeiten (alles nach der Kopfzeile)
-    data_rows = rows[header_row_idx + 1:]
+    # ── Datenzeilen verarbeiten ───────────────────────────────────────────────
     for idx, row in enumerate(data_rows, start=1):
         # Zeile still überspringen wenn in keiner KW-Spalte ein Wert steht
         has_value = any(
@@ -527,15 +605,19 @@ def parse_assignments_auto(
     text: str,
     db: Session,
     schoolyear_id: str,
+    start_kw: int | None = None,
 ) -> AssignmentParseResult:
     """Auto-Dispatcher: Matrix- oder Langformat wird automatisch erkannt.
 
-    Wenn die Eingabe eine KW-Kopfzeile (≥3 KW-Spalten) enthält, wird das
-    Matrix-Format verwendet; andernfalls das bestehende Langformat.
+    Wenn die Eingabe eine KW-Kopfzeile (≥2 KW-Spalten) enthält ODER die
+    breiteste Zeile ≥8 Spalten hat, wird das Matrix-Format verwendet;
+    andernfalls das bestehende Langformat.
+    start_kw wird an parse_assignments_matrix durchgereicht (nur für
+    headerloses Matrix-Format relevant).
     """
     rows = _split_rows(text)
     if _looks_like_matrix(rows):
-        return parse_assignments_matrix(text, db, schoolyear_id)
+        return parse_assignments_matrix(text, db, schoolyear_id, start_kw=start_kw)
     return parse_assignments(text, db, schoolyear_id)
 
 

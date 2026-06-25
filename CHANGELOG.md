@@ -39,6 +39,10 @@ Format orientiert an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
   Trainees-Liste hat einen Status-Filter (aktiv/archiviert/alle); archivierte Azubis
   lassen sich **reaktivieren** oder **endgültig löschen** (räumt Einsätze/Wünsche/
   Mitgliedschaften sauber mit weg).
+- **Matrix-Import auch ohne KW-Kopfzeile**: das Breitformat wird jetzt zusätzlich an der
+  Spaltenzahl erkannt; über ein **Start-KW**-Feld (Default = Lehrjahr-Start) werden die
+  Spalten fortlaufend den Wochen zugeordnet (Jahreswechsel KW52→KW1 korrekt). Mit
+  Kopfzeile hat diese weiterhin Vorrang.
 
 ### Klassen-Mitgliedschaft pro Lehrjahr + Jahreswechsel
 

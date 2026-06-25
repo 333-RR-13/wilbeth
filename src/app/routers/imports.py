@@ -130,11 +130,16 @@ async def schulplan_import_apply(
 @router.get("/einsaetze/dialog", response_class=HTMLResponse)
 def einsaetze_import_dialog(
     request: Request,
+    db: DB,
     schoolyear_id: str = "",
 ):
+    from app.models import Schoolyear as _Schoolyear
+    schoolyear = db.get(_Schoolyear, schoolyear_id) if schoolyear_id else None
+    default_start_kw = schoolyear.start_kw if schoolyear else None
     return templates.TemplateResponse(request, "imports/_dialog.html", {
         "mode": "einsaetze",
         "schoolyear_id": schoolyear_id,
+        "default_start_kw": default_start_kw,
     })
 
 
@@ -145,9 +150,13 @@ async def einsaetze_import_preview(
     schoolyear_id: Annotated[str, Form()],
     raw_text: Annotated[str | None, Form()] = None,
     csv_file: UploadFile | None = None,
+    start_kw: Annotated[str | None, Form()] = None,
 ):
     text = await _read_text(raw_text, csv_file)
-    parse_result = parse_assignments_auto(text, db, schoolyear_id)
+    parsed_start_kw: int | None = None
+    if start_kw and start_kw.strip().isdigit():
+        parsed_start_kw = int(start_kw.strip())
+    parse_result = parse_assignments_auto(text, db, schoolyear_id, start_kw=parsed_start_kw)
     return templates.TemplateResponse(request, "imports/_preview.html", {
         "mode": "einsaetze",
         "schoolyear_id": schoolyear_id,
@@ -164,9 +173,13 @@ async def einsaetze_import_apply(
     schoolyear_id: Annotated[str, Form()],
     raw_text: Annotated[str | None, Form()] = None,
     csv_file: UploadFile | None = None,
+    start_kw: Annotated[str | None, Form()] = None,
 ):
     text = await _read_text(raw_text, csv_file)
-    parse_result = parse_assignments_auto(text, db, schoolyear_id)
+    parsed_start_kw: int | None = None
+    if start_kw and start_kw.strip().isdigit():
+        parsed_start_kw = int(start_kw.strip())
+    parse_result = parse_assignments_auto(text, db, schoolyear_id, start_kw=parsed_start_kw)
     written, skipped = apply_assignments(db, schoolyear_id, parse_result.valid)
 
     n = len(written)
