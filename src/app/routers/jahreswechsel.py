@@ -167,10 +167,37 @@ def jahreswechsel_uebernehmen(
 
     db.commit()
 
+    # Abschluss-Azubis deaktivieren: aktive Azubis, deren Quell-Klasse kein
+    # next_class hat (= Abschluss) UND die nicht bereits promotet wurden.
+    # Frisch promotete Azubis haben jetzt eine Membership im Ziel-Jahr, daher
+    # reicht es, alle aktiven Azubis zu pruefen, deren Quell-Klasse None -> kein next.
+    count_archived = 0
+    trainees_after = db.exec(
+        select(Trainee).where(Trainee.aktiv == True)  # noqa: E712
+    ).all()
+    classes_by_id_after: dict[int, TraineeClass] = {
+        c.id: c for c in db.exec(select(TraineeClass)).all()
+    }
+    all_classes_after = list(classes_by_id_after.values())
+
+    for trainee in trainees_after:
+        klasse_id = klasse_fuer(db, trainee, source_year_id)
+        klasse = classes_by_id_after.get(klasse_id) if klasse_id is not None else None
+        if klasse is None:
+            continue
+        next_klasse = next_class_for(klasse, all_classes_after)
+        if next_klasse is None:
+            # Abschluss-Azubi → archivieren
+            trainee.aktiv = False
+            db.add(trainee)
+            count_archived += 1
+
+    db.commit()
+
     # Schulwochen fuer das Ziel-Jahr materialisieren
     resync_all(db)
 
-    detail = f"{count_new}+neue,{count_skipped}+übersprungen"
+    detail = f"{count_new}+neue,{count_skipped}+übersprungen,{count_archived}+archiviert"
     return RedirectResponse(
         f"/jahreswechsel/?msg=created&detail={detail}&source_year_id={source_year_id}&target_year_id={target_year_id}",
         status_code=303,

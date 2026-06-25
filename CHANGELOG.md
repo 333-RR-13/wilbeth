@@ -34,6 +34,11 @@ Format orientiert an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 - **Wunsch-Prioritäten** heißen jetzt **Muss / Sollte / Kann** (intern weiter 1/2/3,
   keine Migration). Der Auto-Plan plant Muss-Abteilungen garantiert vor Sollte vor
   Kann (Kann als Auffüller); die Tier-Logik ist jetzt explizit dokumentiert + getestet.
+- **Archivierung von Azubis**: Beim Jahreswechsel werden Abschluss-Azubis (Klasse ohne
+  nächste Klasse) automatisch **deaktiviert statt gelöscht** – die Historie bleibt. Die
+  Trainees-Liste hat einen Status-Filter (aktiv/archiviert/alle); archivierte Azubis
+  lassen sich **reaktivieren** oder **endgültig löschen** (räumt Einsätze/Wünsche/
+  Mitgliedschaften sauber mit weg).
 
 ### Klassen-Mitgliedschaft pro Lehrjahr + Jahreswechsel
 

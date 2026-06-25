@@ -13,6 +13,22 @@
   </a>
 </div>
 
+{# ── Status-Filter-Tabs ───────────────────────────────────────────────────── #}
+<div style="display:flex; gap:8px; margin-bottom:16px;">
+  <a href="/trainees/?status=aktiv"
+     class="btn btn-sm {% if status == 'aktiv' %}btn-primary{% else %}btn-secondary{% endif %}">
+    Aktiv
+  </a>
+  <a href="/trainees/?status=archiviert"
+     class="btn btn-sm {% if status == 'archiviert' %}btn-primary{% else %}btn-secondary{% endif %}">
+    Archiv
+  </a>
+  <a href="/trainees/?status=alle"
+     class="btn btn-sm {% if status == 'alle' %}btn-primary{% else %}btn-secondary{% endif %}">
+    Alle
+  </a>
+</div>
+
 <div class="search-bar">
   <input type="search" id="trainee-search" placeholder="Trainee suchen (Name, Klasse, Rolle)…"
          autocomplete="off" aria-label="Trainees durchsuchen">
@@ -55,11 +71,22 @@
           {% if t.aktiv %}
             <span class="badge badge-green">Aktiv</span>
           {% else %}
-            <span class="badge badge-gray">Inaktiv</span>
+            <span class="badge badge-gray">Archiviert</span>
           {% endif %}
         </td>
         <td class="td-actions">
           <a href="/trainees/{{ t.id }}/bearbeiten" class="btn btn-ghost btn-sm">Bearbeiten</a>
+          {% if not t.aktiv %}
+          {# Archivierte Azubis: Reaktivieren + Endgültig löschen #}
+          <form method="post" action="/trainees/{{ t.id }}/reaktivieren" style="display:inline">
+            <button type="submit" class="btn btn-ghost btn-sm">Reaktivieren</button>
+          </form>
+          <form method="post" action="/trainees/{{ t.id }}/loeschen" style="display:inline"
+                onsubmit="return confirm('{{ t.nachname }}, {{ t.vorname }} endgültig löschen? Diese Aktion entfernt auch alle Einsätze, Wünsche und Klassenmitgliedschaften und kann nicht rückgängig gemacht werden.')">
+            <button type="submit" class="btn btn-ghost-danger btn-sm">Endgültig löschen</button>
+          </form>
+          {% else %}
+          {# Aktive Azubis: HTMX-Delete (Sofort-Entfernung ohne Archiv) #}
           <button class="btn btn-ghost-danger btn-sm"
                   hx-delete="/trainees/{{ t.id }}"
                   hx-target="#row-t-{{ t.id }}"
@@ -67,10 +94,15 @@
                   hx-confirm="{{ t.nachname }}, {{ t.vorname }} wirklich löschen?">
             Löschen
           </button>
+          {% endif %}
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="5" class="empty-state">Noch keine Trainees angelegt.</td></tr>
+      <tr><td colspan="5" class="empty-state">
+        {% if status == 'archiviert' %}Keine archivierten Trainees vorhanden.
+        {% elif status == 'aktiv' %}Noch keine aktiven Trainees angelegt.
+        {% else %}Noch keine Trainees angelegt.{% endif %}
+      </td></tr>
       {% endfor %}
       <tr id="trainee-search-empty" hidden>
         <td colspan="5" class="search-no-results">Keine Trainees gefunden.</td>
