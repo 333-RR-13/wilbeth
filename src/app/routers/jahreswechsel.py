@@ -19,7 +19,7 @@ from sqlmodel import Session, select
 from app.database import get_session
 from app.models import Schoolyear, Trainee, TraineeClass
 from app.models.trainee_class_membership import TraineeClassMembership
-from app.services.membership_utils import klasse_fuer, upsert_membership
+from app.services.membership_utils import klasse_fuer, next_class_for, upsert_membership
 from app.services.school_sync import resync_all
 
 router = APIRouter(prefix="/jahreswechsel", tags=["jahreswechsel"])
@@ -57,6 +57,7 @@ def _build_preview(
         ).all()
     }
 
+    all_classes = list(classes_by_id.values())
     zu_uebertragen: list[dict] = []
     abschluss: list[dict] = []
 
@@ -67,8 +68,8 @@ def _build_preview(
         if klasse is None:
             continue
 
-        if klasse.next_class_id is not None:
-            next_klasse = classes_by_id.get(klasse.next_class_id)
+        next_klasse = next_class_for(klasse, all_classes)
+        if next_klasse is not None:
             zu_uebertragen.append({
                 "trainee": trainee,
                 "alte_klasse": klasse,
@@ -133,6 +134,7 @@ def jahreswechsel_uebernehmen(
         ).all()
     }
 
+    all_classes = list(classes_by_id.values())
     count_new = 0
     count_skipped = 0
 
@@ -140,7 +142,8 @@ def jahreswechsel_uebernehmen(
         # Klasse im Quell-Lehrjahr (Membership oder Fallback trainee.klasse_id)
         klasse_id = klasse_fuer(db, trainee, source_year_id)
         klasse = classes_by_id.get(klasse_id) if klasse_id is not None else None
-        if klasse is None or klasse.next_class_id is None:
+        next_klasse = next_class_for(klasse, all_classes) if klasse is not None else None
+        if klasse is None or next_klasse is None:
             # Keine Klasse oder Abschluss – nicht uebernehmen
             continue
 
@@ -155,10 +158,10 @@ def jahreswechsel_uebernehmen(
         db.add(TraineeClassMembership(
             trainee_id=trainee.id,
             schoolyear_id=target_year_id,
-            klasse_id=klasse.next_class_id,
+            klasse_id=next_klasse.id,
         ))
         # trainee.klasse_id auf neue Klasse setzen (= aktuelle Klasse)
-        trainee.klasse_id = klasse.next_class_id
+        trainee.klasse_id = next_klasse.id
         db.add(trainee)
         count_new += 1
 

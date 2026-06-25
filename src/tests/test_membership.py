@@ -25,7 +25,7 @@ from app.models import (
     TraineeRolle,
     UnterrichtsTyp,
 )
-from app.services.membership_utils import klasse_fuer, upsert_membership
+from app.services.membership_utils import klasse_fuer, next_class_for, upsert_membership
 from app.services.school_sync import sync_trainee
 
 SY_A = "2025-2026"
@@ -388,3 +388,60 @@ def test_upsert_membership_updates(session: Session):
     ).all()
     assert len(memberships) == 1
     assert memberships[0].klasse_id == klasse_b.id
+
+
+# ── Klassen-Progression nach Namens-Konvention ("<Beruf> n. LJ") ──────────────
+
+def test_next_class_for_by_name(session: Session):
+    """next_class_for leitet die naechste Klasse aus dem Namen ab."""
+    k1 = _add_class(session, "FISI 1. LJ")
+    k2 = _add_class(session, "FISI 2. LJ")
+    k3 = _add_class(session, "FISI 3. LJ")
+    b1 = _add_class(session, "Büro 1. LJ")
+    b2 = _add_class(session, "Büro 2. LJ")
+    session.commit()
+    alle = [k1, k2, k3, b1, b2]
+
+    assert next_class_for(k1, alle).id == k2.id
+    assert next_class_for(k2, alle).id == k3.id
+    assert next_class_for(k3, alle) is None      # 3. LJ = Abschluss
+    assert next_class_for(b1, alle).id == b2.id  # funktioniert auch fuer Büro
+    assert next_class_for(b2, alle) is None       # kein "Büro 3. LJ" vorhanden
+
+
+def test_next_class_for_override(session: Session):
+    """Expliziter next_class_id schlaegt die Namens-Ableitung."""
+    a = _add_class(session, "Sonderklasse A")
+    b = _add_class(session, "Sonderklasse B")
+    a.next_class_id = b.id
+    session.add(a)
+    session.commit()
+
+    assert next_class_for(a, [a, b]).id == b.id
+
+
+def test_jahreswechsel_by_name_without_next_class_id(client, session: Session):
+    """Jahreswechsel funktioniert OHNE gesetztes next_class_id (Namens-Ableitung)."""
+    _add_year(session, SY_A, 2025)
+    _add_year(session, SY_B, 2026)
+    k1 = _add_class(session, "FISI 1. LJ")
+    k2 = _add_class(session, "FISI 2. LJ")
+    # bewusst KEIN next_class_id gesetzt
+    trainee = _add_trainee(session, "Otto", klasse_id=k1.id)
+    session.commit()
+
+    r = client.get(f"/jahreswechsel/?source_year_id={SY_A}&target_year_id={SY_B}")
+    assert r.status_code == 200
+    assert "FISI 1. LJ" in r.text
+    assert "FISI 2. LJ" in r.text
+
+    r2 = client.post(
+        "/jahreswechsel/uebernehmen",
+        data={"source_year_id": SY_A, "target_year_id": SY_B},
+        follow_redirects=False,
+    )
+    assert r2.status_code == 303
+    session.expire_all()
+
+    t = session.get(Trainee, trainee.id)
+    assert klasse_fuer(session, t, SY_B) == k2.id

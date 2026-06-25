@@ -16,6 +16,12 @@ Format orientiert an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
   nach der Klassen-Änderung korrekt bleibt.
 - **Import-Dialog** fest 800×800 und zentriert; `style.css` per `?v=`-Query
   cache-gebustet, damit CSS-Änderungen zuverlässig ankommen.
+- **Klassen-Progression** beim Jahreswechsel wird aus dem Klassennamen abgeleitet
+  (`<Beruf> n. LJ` → `<Beruf> n+1. LJ`, deckt FISI/FIAE/Büro automatisch ab);
+  `next_class_id` bleibt manueller Override.
+- **Über Wilbeth**: der Schicksalsfaden zeichnet jetzt auch bei aktiviertem
+  „Animationen reduzieren" (reduced-motion, z. B. Firmen-Edge) scroll-gesteuert mit
+  – vorher war er dort statisch. Echte Auto-Animationen bleiben unter reduced-motion aus.
 
 ### Klassen-Mitgliedschaft pro Lehrjahr + Jahreswechsel
 

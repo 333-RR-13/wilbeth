@@ -670,11 +670,13 @@ body { background: #171231; }
 
   function updateThread() {
     if (!threadLen) return;
-    if (reduceMotion) {
-      path.style.strokeDashoffset = 0;
-      cta.classList.add('is-complete');
-      return;
-    }
+    /* Der Faden wird bewusst AUCH bei prefers-reduced-motion scroll-gesteuert
+       gezeichnet: er folgt ausschliesslich der Scroll-Position des Nutzers
+       (keine Eigenbewegung) und gilt damit unter reduced-motion als unkritisch.
+       Die echten Auto-Animationen (Sterne, Scroll-Pfeil, Button-Puls) bleiben per
+       CSS-@media weiterhin abgeschaltet. Vorher brach diese Funktion hier bei
+       reduceMotion ab -> der Faden war in Umgebungen mit deaktivierten Animationen
+       (z. B. Firmen-Edge per Gruppenrichtlinie) statisch. */
     var mythRect = myth.getBoundingClientRect();
     var ctaRect = cta.getBoundingClientRect();
     /* "Schreibspitze" bei 75 % der Viewport-Hoehe; voll gezeichnet,
