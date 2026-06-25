@@ -18,6 +18,7 @@ from app.models import (
     TraineeRolle,
     TraineeWish,
 )
+from app.models.trainee_wish import prioritaet_label
 from app.services.conflict_checker import find_conflicts
 from app.services.membership_utils import upsert_membership
 from app.services.school_sync import sync_trainee
@@ -25,6 +26,7 @@ from app.utils.colors import department_color_map
 
 router = APIRouter(prefix="/trainees", tags=["trainees"])
 templates = Jinja2Templates(directory=Path(__file__).resolve().parents[1] / "templates")
+templates.env.globals["prioritaet_label"] = prioritaet_label
 DB = Annotated[Session, Depends(get_session)]
 
 

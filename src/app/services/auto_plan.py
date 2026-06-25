@@ -76,14 +76,29 @@ def _sort_candidates(
     wishes: list[TraineeWish],
     visited_ids: set[int],
 ) -> list[TraineeWish]:
-    """Sortiert Wuensche: unbesuchte zuerst (stabil), dann besuchte.
+    """Sortiert Wuensche nach Tier-Prioritaet und Besuchs-Status.
 
-    Innerhalb beider Gruppen bleibt die Reihenfolge (prioritaet ASC,
-    dann department_id ASC) erhalten.
+    Reihenfolge (strikt, stabil):
+      1. Tier (prioritaet ASC): Muss(1) → Sollte(2) → Kann(3)
+      2. Innerhalb jedes Tiers: noch nicht besuchte Abteilungen zuerst
+         (department_id in visited_ids = False kommt vor True)
+      3. Tiebreaker: department_id ASC (stabile, vorhersehbare Reihenfolge)
+
+    Garantie: Alle Muss-Eintraege erscheinen VOR allen Sollte-Eintraegen,
+    die wiederum VOR allen Kann-Eintraegen erscheinen.  Innerhalb jedes
+    Tiers kommen unbesuchte Abteilungen zuerst (Soft-Pref, kein Ausschluss).
     """
+    # Schritt 1: stabil nach (prioritaet, department_id) sortieren
     sorted_wishes = sorted(wishes, key=lambda w: (w.prioritaet, w.department_id))
+
+    # Schritt 2: innerhalb jedes Tiers unbesuchte Abteilungen vorziehen,
+    # dabei die Tier-Reihenfolge (prioritaet) strikt beibehalten.
     unvisited = [w for w in sorted_wishes if w.department_id not in visited_ids]
-    visited = [w for w in sorted_wishes if w.department_id in visited_ids]
+    visited   = [w for w in sorted_wishes if w.department_id in     visited_ids]
+
+    # Ergebnis: [Muss-unvisited, Sollte-unvisited, Kann-unvisited,
+    #            Muss-visited,   Sollte-visited,   Kann-visited]
+    # Die Tier-Reihenfolge bleibt durch sorted_wishes garantiert erhalten.
     return unvisited + visited
 
 

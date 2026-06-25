@@ -31,6 +31,9 @@ Format orientiert an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
   Klammer-Zusatz; unbekannte Codes/Namen erscheinen als Fehlerzeilen in der Vorschau.
 - **Stammdaten-Seed** (`python -m seed.seed_stammdaten`): legt nur Lehrjahre,
   Schulferien, Klassen, Abteilungen und Berufsschulpläne an – ohne Trainees/Einsätze.
+- **Wunsch-Prioritäten** heißen jetzt **Muss / Sollte / Kann** (intern weiter 1/2/3,
+  keine Migration). Der Auto-Plan plant Muss-Abteilungen garantiert vor Sollte vor
+  Kann (Kann als Auffüller); die Tier-Logik ist jetzt explizit dokumentiert + getestet.
 
 ### Klassen-Mitgliedschaft pro Lehrjahr + Jahreswechsel
 

@@ -29,12 +29,14 @@ from app.models import (
     TraineeWish,
     UnterrichtsTyp,
 )
+from app.models.trainee_wish import prioritaet_label
 from app.routers.assignments import _apply_assignments, _resolve_range
 from app.utils.colors import department_color_map
 from app.utils.kw import format_weekdays, iter_schoolyear_weeks, iter_kw_range, kw_to_monday
 
 router = APIRouter(prefix="/mein-plan", tags=["self-service"])
 templates = Jinja2Templates(directory=Path(__file__).resolve().parents[1] / "templates")
+templates.env.globals["prioritaet_label"] = prioritaet_label
 DB = Annotated[Session, Depends(get_session)]
 
 

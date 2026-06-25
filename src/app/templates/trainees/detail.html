@@ -64,7 +64,7 @@
   <div class="wish-chips">
     {% for w in wishes %}
     <span class="wish-chip">
-      <span class="wish-prio">P{{ w.prioritaet }}</span>
+      <span class="wish-prio">{{ prioritaet_label(w.prioritaet) }}</span>
       {{ depts[w.department_id].code if w.department_id in depts else '?' }}
       <span class="wish-dept-name">{{ depts[w.department_id].name if w.department_id in depts else '' }}</span>
     </span>

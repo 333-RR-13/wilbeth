@@ -478,3 +478,134 @@ def test_apply_endpoint_no_trainee_ids(client, session: Session):
     )
 
     assert response.status_code == 303
+
+
+# ── Tier-Logik: Muss / Sollte / Kann ─────────────────────────────────────────
+
+def test_tier_two_muss_before_sollte(session: Session):
+    """(a) Zwei Muss-Abteilungen bekommen ihre Bloecke BEVOR die Sollte-Abteilung.
+
+    Setup: 8 freie Wochen, block_length=2, 2x Muss + 1x Sollte.
+    Erwartung: KW1-2 -> Muss-A, KW3-4 -> Muss-B, KW5-6 -> Sollte-C, KW7-8 -> Muss-A (Round-Robin).
+    """
+    _make_year(session)
+    t = _make_trainee(session)
+    d_muss_a = _make_dept(session, "MA", multi=True)
+    d_muss_b = _make_dept(session, "MB", multi=True)
+    d_sollte = _make_dept(session, "SC", multi=True)
+    _add_wish(session, t.id, d_muss_a.id, prio=1)
+    _add_wish(session, t.id, d_muss_b.id, prio=1)
+    _add_wish(session, t.id, d_sollte.id, prio=2)
+
+    result = plan_assignments(session, YEAR_ID, [t.id], block_length=2)
+
+    assert len(result.planned) == 8
+
+    # Die ersten vier Bloecke (KW1-4) muessen ausschliesslich Muss-Abteilungen sein
+    kw1_to_4 = [e for e in result.planned if e.kw in range(1, 5)]
+    assert all(
+        e.abteilung_id in (d_muss_a.id, d_muss_b.id) for e in kw1_to_4
+    ), "KW1-4 duerfen nur Muss-Abteilungen enthalten"
+
+    # KW5-6 (dritter Block) muss die Sollte-Abteilung sein
+    kw5_to_6 = [e for e in result.planned if e.kw in range(5, 7)]
+    assert all(
+        e.abteilung_id == d_sollte.id for e in kw5_to_6
+    ), "KW5-6 muss die Sollte-Abteilung enthalten"
+
+
+def test_tier_muss_vor_sollte_vor_kann(session: Session):
+    """(b) Je eine Abteilung pro Tier: Block-Reihenfolge ist Muss -> Sollte -> Kann."""
+    _make_year(session)
+    t = _make_trainee(session)
+    d_kann   = _make_dept(session, "KAN", multi=True)
+    d_sollte = _make_dept(session, "SOL", multi=True)
+    d_muss   = _make_dept(session, "MUS", multi=True)
+    # Wuensche bewusst in umgekehrter Reihenfolge anlegen, um sicherzustellen,
+    # dass die Sortierung die Tier-Reihenfolge herstellt (nicht die Einlesefolge).
+    _add_wish(session, t.id, d_kann.id,   prio=3)
+    _add_wish(session, t.id, d_sollte.id, prio=2)
+    _add_wish(session, t.id, d_muss.id,   prio=1)
+
+    result = plan_assignments(session, YEAR_ID, [t.id], block_length=2)
+
+    assert len(result.planned) == 8
+    dept_seq = [e.abteilung_id for e in sorted(result.planned, key=lambda e: e.kw)]
+
+    # Erster Block (KW1-2): Muss
+    assert dept_seq[0] == d_muss.id,   "KW1 muss Muss-Abteilung sein"
+    assert dept_seq[1] == d_muss.id,   "KW2 muss Muss-Abteilung sein"
+    # Zweiter Block (KW3-4): Sollte
+    assert dept_seq[2] == d_sollte.id, "KW3 muss Sollte-Abteilung sein"
+    assert dept_seq[3] == d_sollte.id, "KW4 muss Sollte-Abteilung sein"
+    # Dritter Block (KW5-6): Kann
+    assert dept_seq[4] == d_kann.id,   "KW5 muss Kann-Abteilung sein"
+    assert dept_seq[5] == d_kann.id,   "KW6 muss Kann-Abteilung sein"
+
+
+def test_tier_knappe_wochen_muss_gewinnt(session: Session):
+    """(c) Knappe freie Wochen: der einzige Block geht an die Muss-Abteilung.
+
+    Nur 1 Block Platz (block_length=4, 4 freie Wochen) + Muss+Sollte+Kann:
+    Der Block muss der Muss-Abteilung zugeteilt werden.
+    """
+    _make_year(session)
+    t = _make_trainee(session)
+    d_muss   = _make_dept(session, "MU2", multi=True)
+    d_sollte = _make_dept(session, "SO2", multi=True)
+    d_kann   = _make_dept(session, "KA2", multi=True)
+    _add_wish(session, t.id, d_muss.id,   prio=1)
+    _add_wish(session, t.id, d_sollte.id, prio=2)
+    _add_wish(session, t.id, d_kann.id,   prio=3)
+
+    # KW5-KW8 als belegt markieren -> nur KW1-KW4 frei (genau 1 Block)
+    for kw in range(5, 9):
+        _add_assignment(session, t.id, kw=kw, typ=AssignmentTyp.BERUFSSCHULE)
+
+    result = plan_assignments(session, YEAR_ID, [t.id], block_length=4)
+
+    assert len(result.planned) == 4, "Genau ein Block soll geplant werden"
+    assert all(
+        e.abteilung_id == d_muss.id for e in result.planned
+    ), "Der einzige Block muss der Muss-Abteilung gehoeren"
+
+
+def test_tier_kann_als_auffueller(session: Session):
+    """(d) Kann-Abteilung wird erst nach Muss & Sollte eingeplant.
+
+    3 Abteilungen (Muss, Sollte, Kann), block_length=2, 6 freie Wochen.
+    Erwartung: KW1-2=Muss, KW3-4=Sollte, KW5-6=Kann.
+    """
+    _make_year(session)
+    t = _make_trainee(session)
+    d_muss   = _make_dept(session, "MU3", multi=True)
+    d_sollte = _make_dept(session, "SO3", multi=True)
+    d_kann   = _make_dept(session, "KA3", multi=True)
+    _add_wish(session, t.id, d_muss.id,   prio=1)
+    _add_wish(session, t.id, d_sollte.id, prio=2)
+    _add_wish(session, t.id, d_kann.id,   prio=3)
+
+    # KW7-KW8 als belegt markieren -> 6 freie Wochen = 3 Bloecke
+    for kw in range(7, 9):
+        _add_assignment(session, t.id, kw=kw, typ=AssignmentTyp.BERUFSSCHULE)
+
+    result = plan_assignments(session, YEAR_ID, [t.id], block_length=2)
+
+    assert len(result.planned) == 6
+    by_kw = {e.kw: e.abteilung_id for e in result.planned}
+
+    assert by_kw[1] == d_muss.id,   "KW1 muss Muss sein"
+    assert by_kw[2] == d_muss.id,   "KW2 muss Muss sein"
+    assert by_kw[3] == d_sollte.id, "KW3 muss Sollte sein"
+    assert by_kw[4] == d_sollte.id, "KW4 muss Sollte sein"
+    assert by_kw[5] == d_kann.id,   "KW5 muss Kann sein"
+    assert by_kw[6] == d_kann.id,   "KW6 muss Kann sein"
+
+
+def test_prioritaet_label():
+    """(e) prioritaet_label() liefert die korrekten semantischen Stufen."""
+    from app.models.trainee_wish import prioritaet_label
+
+    assert prioritaet_label(1) == "Muss"
+    assert prioritaet_label(2) == "Sollte"
+    assert prioritaet_label(3) == "Kann"
