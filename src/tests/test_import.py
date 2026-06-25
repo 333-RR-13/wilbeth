@@ -16,6 +16,14 @@ Abgedeckte Faelle:
   (13) Vorschau-Endpunkt schreibt nichts in die DB
   (14) Typ-Kuerzel: BS→BERUFSSCHULE, HS→UNI
   (15) Einsatz-Import ohne Typ-Spalte: Default ABTEILUNG
+  (16) Matrix-Format: Jahreswechsel KW-Mapping korrekt
+  (17) Matrix-Format: Namensabgleich mit und ohne Komma, Klammerzusatz
+  (18) Matrix-Format: Code-Mapping Abteilung/BS/U/Uni/leer
+  (19) Matrix-Format: Legende/Leerzeile wird still uebersprungen
+  (20) Matrix-Format: unbekannter Code → ErrorRow
+  (21) Matrix-Format: unbekannter Name (Zeile mit Codes) → ErrorRow
+  (22) _looks_like_matrix / parse_assignments_auto: korrekte Erkennung
+  (23) apply_assignments schreibt Matrix-Ergebnisse mit source=IMPORT, ueberspringt Vorhandene
 """
 
 import pytest
@@ -40,7 +48,11 @@ from app.services.importer import (
     apply_assignments,
     apply_school_weeks,
     parse_assignments,
+    parse_assignments_auto,
+    parse_assignments_matrix,
     parse_school_weeks,
+    _looks_like_matrix,
+    _split_rows,
 )
 
 # ── Konstanten ────────────────────────────────────────────────────────────────
@@ -485,3 +497,252 @@ def test_einsaetze_import_apply_redirect(client, session: Session):
     ).first()
     assert a is not None
     assert a.source == AssignmentSource.IMPORT
+
+
+# ── Matrix-Import Fixtures ────────────────────────────────────────────────────
+
+# Lehrjahr KW36/2025 – KW35/2026 (deckt Jahreswechsel ab)
+SY_MATRIX = "2025-2026-matrix"
+
+
+def _make_matrix_year(session: Session) -> Schoolyear:
+    y = Schoolyear(id=SY_MATRIX, start_kw=36, start_year=2025, end_kw=35, end_year=2026)
+    session.add(y)
+    session.flush()
+    return y
+
+
+def _make_matrix_setup(session: Session) -> dict:
+    """Schuljahr + Departments AI/DWP/CS + Trainees Meier,Marvin und Mustermann,Max."""
+    _make_matrix_year(session)
+
+    dept_ai = Department(code="AI", name="AI Dept", kategorie=DepartmentKategorie.ITO)
+    dept_dwp = Department(code="DWP", name="DWP Dept", kategorie=DepartmentKategorie.ITO)
+    dept_cs = Department(code="CS", name="CS Dept", kategorie=DepartmentKategorie.ITO)
+    session.add_all([dept_ai, dept_dwp, dept_cs])
+    session.flush()
+
+    t1 = Trainee(vorname="Marvin", nachname="Meier", rolle=TraineeRolle.AZUBI)
+    t2 = Trainee(vorname="Max", nachname="Mustermann", rolle=TraineeRolle.AZUBI)
+    session.add_all([t1, t2])
+    session.commit()
+
+    return {
+        "dept_ai": dept_ai, "dept_dwp": dept_dwp, "dept_cs": dept_cs,
+        "t1": t1, "t2": t2,
+    }
+
+
+# ── 16: Jahreswechsel-KW-Mapping ─────────────────────────────────────────────
+
+def test_matrix_kw_jahreswechsel(session: Session):
+    """KW36/KW52 liegen in 2025, KW1 liegt in 2026 (Jahreswechsel korrekt)."""
+    _make_matrix_setup(session)
+
+    text = (
+        "Woche\t\tKW36\tKW37\tKW52\tKW1\n"
+        "Azubi / Studi\n"
+        "Meier, Marvin (2.LJ FISI)\t\tAI\tDWP\tAI\tCS\n"
+    )
+    result = parse_assignments_matrix(text, session, SY_MATRIX)
+
+    assert len(result.errors) == 0, [e.reason for e in result.errors]
+    assert len(result.valid) == 4
+
+    kw_jahr = {(pa.kw, pa.jahr) for pa in result.valid}
+    assert (36, 2025) in kw_jahr
+    assert (37, 2025) in kw_jahr
+    assert (52, 2025) in kw_jahr
+    assert (1, 2026) in kw_jahr
+
+
+# ── 17: Namensabgleich mit/ohne Komma, Klammerzusatz ─────────────────────────
+
+def test_matrix_name_matching_with_and_without_comma(session: Session):
+    """'Meier, Marvin (2.LJ FISI)' und 'Mustermann Max (2. LJ FISI)' matchen beide."""
+    _make_matrix_setup(session)
+
+    text = (
+        "Woche\t\tKW36\tKW37\n"
+        "Meier, Marvin (2.LJ FISI)\t\tAI\tDWP\n"
+        "Mustermann Max (2. LJ FISI)\t\tCS\tAI\n"
+    )
+    result = parse_assignments_matrix(text, session, SY_MATRIX)
+
+    assert len(result.errors) == 0, [e.reason for e in result.errors]
+    assert len(result.valid) == 4
+
+    names = {pa.trainee_name for pa in result.valid}
+    assert "Meier, Marvin" in names
+    assert "Mustermann, Max" in names
+
+
+# ── 18: Code-Mapping Abteilung/BS/U/Uni/leer ─────────────────────────────────
+
+def test_matrix_code_mapping(session: Session):
+    """DWP/AI/CS → ABTEILUNG+dept; BS → BERUFSSCHULE; U → URLAUB; Uni → UNI; leer → kein Eintrag."""
+    _make_matrix_setup(session)
+
+    # KW36=DWP, KW37=BS, KW38=U, KW39=Uni, KW40=leer, KW41=AI
+    text = (
+        "Woche\t\tKW36\tKW37\tKW38\tKW39\tKW40\tKW41\n"
+        "Meier, Marvin (2.LJ FISI)\t\tDWP\tBS\tU\tUni\t\tAI\n"
+    )
+    result = parse_assignments_matrix(text, session, SY_MATRIX)
+
+    assert len(result.errors) == 0, [e.reason for e in result.errors]
+    # KW40 ist leer -> kein Eintrag
+    assert len(result.valid) == 5
+
+    typ_map = {pa.kw: pa.typ for pa in result.valid}
+    assert typ_map[36] == AssignmentTyp.ABTEILUNG
+    assert typ_map[37] == AssignmentTyp.BERUFSSCHULE
+    assert typ_map[38] == AssignmentTyp.URLAUB
+    assert typ_map[39] == AssignmentTyp.UNI
+    assert typ_map[41] == AssignmentTyp.ABTEILUNG
+
+    dept_map_result = {pa.kw: pa.abteilung_code for pa in result.valid}
+    assert dept_map_result[36] == "DWP"
+    assert dept_map_result[41] == "AI"
+    # Nicht-Abteilung hat keine abteilung_id
+    assert next(pa.abteilung_id for pa in result.valid if pa.kw == 37) is None
+
+
+# ── 19: Legende/Leerzeile wird still uebersprungen ───────────────────────────
+
+def test_matrix_legend_rows_silently_skipped(session: Session):
+    """Zeile ohne KW-Werte (z.B. Legende 'Produkte ITO\tAnsprechpartner') erzeugt keine ErrorRow."""
+    _make_matrix_setup(session)
+
+    text = (
+        "Woche\t\tKW36\tKW37\n"
+        "Meier, Marvin (2.LJ FISI)\t\tAI\tDWP\n"
+        "Produkte ITO\tAnsprechpartner\t\t\n"
+        "Irgendwas\t\t\t\n"
+    )
+    result = parse_assignments_matrix(text, session, SY_MATRIX)
+
+    assert len(result.errors) == 0, [e.reason for e in result.errors]
+    assert len(result.valid) == 2  # nur Meier KW36+KW37
+
+
+# ── 20: unbekannter Code → ErrorRow ──────────────────────────────────────────
+
+def test_matrix_unknown_code_is_error(session: Session):
+    """Unbekannter Code (weder Typ noch Abteilung) → ErrorRow."""
+    _make_matrix_setup(session)
+
+    # KW36 unbekannter Code, KW37 gültiger Code (damit Kopfzeile ≥2 KW-Spalten hat)
+    text = (
+        "Woche\t\tKW36\tKW37\n"
+        "Meier, Marvin (2.LJ FISI)\t\tXXXUNBEKANNT\tAI\n"
+    )
+    result = parse_assignments_matrix(text, session, SY_MATRIX)
+
+    # KW37=AI ist gültig; KW36=XXXUNBEKANNT → ErrorRow
+    assert len(result.valid) == 1
+    assert len(result.errors) == 1
+    assert "XXXUNBEKANNT" in result.errors[0].reason
+
+
+# ── 21: unbekannter Name (Zeile mit Codes) → ErrorRow ────────────────────────
+
+def test_matrix_unknown_name_with_codes_is_error(session: Session):
+    """Zeile mit KW-Codes aber unbekanntem Namen → ErrorRow (kein stilles Ueberspringen)."""
+    _make_matrix_setup(session)
+
+    text = (
+        "Woche\t\tKW36\tKW37\n"
+        "Unbekannt Niemand (3.LJ)\t\tAI\tDWP\n"
+    )
+    result = parse_assignments_matrix(text, session, SY_MATRIX)
+
+    assert len(result.valid) == 0
+    assert len(result.errors) == 1
+    assert "nicht gefunden" in result.errors[0].reason
+
+
+# ── 22: _looks_like_matrix / parse_assignments_auto Erkennung ────────────────
+
+def test_looks_like_matrix_true_for_kw_header():
+    """_looks_like_matrix: True wenn ≥3 KW-Zellen in ersten 3 Zeilen."""
+    rows = _split_rows("Woche\t\tKW36\tKW37\tKW52\tKW1\nMeier\t\tAI\tBS\tU\tDWP")
+    assert _looks_like_matrix(rows) is True
+
+
+def test_looks_like_matrix_false_for_langformat():
+    """_looks_like_matrix: False fuer Langformat (Azubi|KW|Jahr|Abteilung)."""
+    rows = _split_rows("Azubi\tKW\tJahr\tAbteilung\nMuster, Anna\t10\t2026\tITO-SD")
+    assert _looks_like_matrix(rows) is False
+
+
+def test_parse_assignments_auto_dispatches_matrix(session: Session):
+    """parse_assignments_auto waehlt Matrix bei KW-Kopfzeile."""
+    _make_matrix_setup(session)
+
+    text = (
+        "Woche\t\tKW36\tKW37\n"
+        "Meier, Marvin (2.LJ FISI)\t\tAI\tDWP\n"
+    )
+    result = parse_assignments_auto(text, session, SY_MATRIX)
+    assert len(result.valid) == 2
+    assert len(result.errors) == 0
+
+
+def test_parse_assignments_auto_dispatches_langformat(session: Session):
+    """parse_assignments_auto waehlt Langformat bei Azubi|KW|Jahr|Abteilung."""
+    _make_year(session)
+    _make_trainee(session, "Muster", "Anna")
+    _make_dept(session, "ITO-SD")
+    session.commit()
+
+    text = "Muster, Anna\t10\t2026\tITO-SD"
+    result = parse_assignments_auto(text, session, SY)
+    assert len(result.valid) == 1
+    assert len(result.errors) == 0
+
+
+# ── 23: apply_assignments mit Matrix-Ergebnissen ─────────────────────────────
+
+def test_apply_assignments_matrix_source_import_skips_existing(session: Session):
+    """apply_assignments schreibt Matrix-Einsaetze mit source=IMPORT, ueberspringt Vorhandene."""
+    ids = _make_matrix_setup(session)
+    t1 = ids["t1"]
+    dept_ai = ids["dept_ai"]
+
+    # Einen Einsatz vorab anlegen (KW36)
+    session.add(Assignment(
+        trainee_id=t1.id,
+        schoolyear_id=SY_MATRIX,
+        kw=36,
+        jahr=2025,
+        typ=AssignmentTyp.ABTEILUNG,
+        abteilung_id=dept_ai.id,
+        source=AssignmentSource.MANUAL,
+    ))
+    session.commit()
+
+    text = (
+        "Woche\t\tKW36\tKW37\n"
+        "Meier, Marvin (2.LJ FISI)\t\tAI\tDWP\n"
+    )
+    parsed = parse_assignments_matrix(text, session, SY_MATRIX).valid
+    written, skipped = apply_assignments(session, SY_MATRIX, parsed)
+
+    # KW36 vorhanden → uebersprungen; KW37 neu
+    assert len(written) == 1
+    assert len(skipped) == 1
+
+    session.expire_all()
+    assignments = session.exec(
+        select(Assignment).where(Assignment.trainee_id == t1.id)
+    ).all()
+    # Nur 2 Eintraege: der manuelle KW36 + der neue KW37
+    assert len(assignments) == 2
+
+    kw37 = next(a for a in assignments if a.kw == 37)
+    assert kw37.source == AssignmentSource.IMPORT
+    assert kw37.typ == AssignmentTyp.ABTEILUNG
+
+    kw36 = next(a for a in assignments if a.kw == 36)
+    assert kw36.source == AssignmentSource.MANUAL  # unveraendert

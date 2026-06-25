@@ -22,6 +22,13 @@ Format orientiert an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 - **Über Wilbeth**: der Schicksalsfaden zeichnet jetzt auch bei aktiviertem
   „Animationen reduzieren" (reduced-motion, z. B. Firmen-Edge) scroll-gesteuert mit
   – vorher war er dort statisch. Echte Auto-Animationen bleiben unter reduced-motion aus.
+- **Jahreswechsel**: die Vorschau-Tabellen nutzen die volle Breite (`form-card-fluid`)
+  – vorher rechts abgeschnitten.
+- **Einsatz-Import**: erkennt jetzt zusätzlich das **Matrix-/Breitformat** (Excel-
+  Laufzettel: KW-Kopfzeile, je Azubi eine Zeile mit einem Code pro KW). Auto-Erkennung
+  (`parse_assignments_auto`); KW→Jahr wird aus dem gewählten Lehrjahr abgeleitet;
+  Abteilungs-Kürzel/`BS`/`Uni`/`U` werden gemappt; Namen mit/ohne Komma inkl.
+  Klammer-Zusatz; unbekannte Codes/Namen erscheinen als Fehlerzeilen in der Vorschau.
 
 ### Klassen-Mitgliedschaft pro Lehrjahr + Jahreswechsel
 

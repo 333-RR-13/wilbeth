@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import csv
 import io
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -32,6 +33,7 @@ from app.models import (
     Schoolyear,
     Trainee,
 )
+from app.utils.kw import iter_schoolyear_weeks
 
 
 # ── Typ-Kuerzel-Mapping ───────────────────────────────────────────────────────
@@ -341,6 +343,200 @@ def parse_assignments(text: str, db: Session, schoolyear_id: str) -> AssignmentP
         ))
 
     return result
+
+
+# ── Import B2: Matrix-/Breitformat ───────────────────────────────────────────
+
+# Muster für KW-Spaltenköpfe: "KW36", "KW 36", "36"
+_KW_HEADER_RE = re.compile(r"^(KW\s*)?(\d{1,2})$", re.IGNORECASE)
+
+
+def _kw_to_jahr(schoolyear: Schoolyear) -> dict[int, int]:
+    """Gibt ein Dict {kw: jahr} zurück, basierend auf iter_schoolyear_weeks.
+
+    Bei Jahreswechsel (z.B. KW52 2025, KW1 2026) wird die korrekte Jahr-
+    Zuordnung über die chronologische Reihenfolge ermittelt.
+    """
+    result: dict[int, int] = {}
+    for kw, jahr in iter_schoolyear_weeks(
+        schoolyear.start_kw, schoolyear.start_year,
+        schoolyear.end_kw, schoolyear.end_year,
+    ):
+        # Erste Zuordnung gewinnt (Jahreswechsel: KW1 gehört zum Folgejahr)
+        if kw not in result:
+            result[kw] = jahr
+    return result
+
+
+def _looks_like_matrix(rows: list[list[str]]) -> bool:
+    """True, wenn eine der ersten ~3 Zeilen ≥2 KW-Spaltenköpfe enthält.
+
+    KW-Spaltenköpfe haben die Form 'KW36', 'KW 36' oder '36' — sie treten
+    im Langformat nicht auf (dort stehen Zahlen als Werte, nicht als Header).
+    ≥2 ist ausreichend, um Langformat (Azubi|KW|Jahr|Abt) sicher abzugrenzen.
+    """
+    for row in rows[:3]:
+        kw_count = sum(1 for cell in row if _KW_HEADER_RE.match(cell))
+        if kw_count >= 2:
+            return True
+    return False
+
+
+def parse_assignments_matrix(
+    text: str,
+    db: Session,
+    schoolyear_id: str,
+) -> AssignmentParseResult:
+    """Parst Matrixformat (Breitformat aus Excel) zu Assignment-Daten.
+
+    Kopfzeile: Woche | (leer) | KW36 | KW37 | … (Spalte 0/1 ignoriert)
+    Datenzeilen: Azubi-Name (mit optionalem Klammerzusatz) | (leer) | Code …
+    """
+    result = AssignmentParseResult()
+    rows = _split_rows(text)
+    if not rows:
+        return result
+
+    # Schuljahr prüfen
+    schoolyear = db.get(Schoolyear, schoolyear_id)
+    if schoolyear is None:
+        for idx, row in enumerate(rows, start=1):
+            result.errors.append(ErrorRow(idx, "\t".join(row), f"Schuljahr '{schoolyear_id}' nicht gefunden"))
+        return result
+
+    kw_jahr_map = _kw_to_jahr(schoolyear)
+
+    # Kopfzeile finden: erste Zeile mit ≥2 KW-Zellen
+    header_row_idx: int | None = None
+    for i, row in enumerate(rows):
+        kw_count = sum(1 for cell in row if _KW_HEADER_RE.match(cell))
+        if kw_count >= 2:
+            header_row_idx = i
+            break
+
+    if header_row_idx is None:
+        result.errors.append(ErrorRow(0, "", "Keine KW-Kopfzeile gefunden (mind. 2 KW-Spalten erwartet)"))
+        return result
+
+    header_row = rows[header_row_idx]
+
+    # Spalten-Mapping aufbauen: j -> (kw, jahr)
+    # Bereits gemeldete fehlende KWs nicht doppelt melden
+    reported_missing_kw: set[int] = set()
+    kw_cols: list[tuple[int, int, int]] = []  # (spalten_index, kw, jahr)
+    for j, cell in enumerate(header_row):
+        m = _KW_HEADER_RE.match(cell)
+        if m:
+            kw = int(m.group(2))
+            jahr = kw_jahr_map.get(kw)
+            if jahr is None:
+                if kw not in reported_missing_kw:
+                    result.errors.append(ErrorRow(0, cell, f"KW {kw} nicht im Lehrjahr '{schoolyear_id}' – Spalte ignoriert"))
+                    reported_missing_kw.add(kw)
+            else:
+                kw_cols.append((j, kw, jahr))
+
+    if not kw_cols:
+        result.errors.append(ErrorRow(0, "", "Keine gültigen KW-Spalten im Lehrjahr gefunden"))
+        return result
+
+    # Lookup-Tabellen aufbauen
+    trainees_all = db.exec(select(Trainee)).all()
+    trainee_map: dict[str, Trainee] = {}
+    for t in trainees_all:
+        nn = t.nachname.lower()
+        vn = t.vorname.lower()
+        # Drei Schlüssel je Trainee (Leerzeichen normalisiert)
+        for key in (f"{nn}, {vn}", f"{nn} {vn}", f"{vn} {nn}"):
+            key_norm = re.sub(r"\s+", " ", key).strip()
+            trainee_map[key_norm] = t
+
+    depts_all = db.exec(select(Department)).all()
+    dept_map: dict[str, Department] = {d.code.lower(): d for d in depts_all}
+
+    # Datenzeilen verarbeiten (alles nach der Kopfzeile)
+    data_rows = rows[header_row_idx + 1:]
+    for idx, row in enumerate(data_rows, start=1):
+        # Zeile still überspringen wenn in keiner KW-Spalte ein Wert steht
+        has_value = any(
+            j < len(row) and row[j].strip()
+            for j, _kw, _jahr in kw_cols
+        )
+        if not has_value:
+            continue
+
+        name_raw = row[0] if row else ""
+        # Klammerzusatz entfernen, Leerzeichen normalisieren
+        name_clean = re.sub(r"\(.*?\)", "", name_raw).strip()
+        name_clean = re.sub(r"\s+", " ", name_clean).lower()
+
+        trainee = trainee_map.get(name_clean)
+        if trainee is None:
+            result.errors.append(ErrorRow(
+                idx, "\t".join(row),
+                f"Azubi '{name_raw.strip()}' nicht gefunden",
+            ))
+            continue
+
+        for j, kw, jahr in kw_cols:
+            if j >= len(row):
+                continue
+            code = row[j].strip()
+            if not code:
+                continue
+
+            code_upper = code.upper()
+            typ = _ASSIGNMENT_TYP_MAP.get(code_upper)
+
+            if typ is not None and typ != AssignmentTyp.ABTEILUNG:
+                # BS, Uni, Urlaub, Frei
+                result.valid.append(ParsedAssignment(
+                    trainee_id=trainee.id,
+                    trainee_name=f"{trainee.nachname}, {trainee.vorname}",
+                    kw=kw,
+                    jahr=jahr,
+                    typ=typ,
+                    abteilung_id=None,
+                    abteilung_code="",
+                    raw=f"{name_raw}\tKW{kw}\t{code}",
+                ))
+            else:
+                # Abteilungs-Kürzel
+                dept = dept_map.get(code.lower())
+                if dept is None:
+                    result.errors.append(ErrorRow(
+                        idx, "\t".join(row),
+                        f"Unbekannter Code '{code}' in KW {kw} – weder Sondertyp noch bekannte Abteilung",
+                    ))
+                else:
+                    result.valid.append(ParsedAssignment(
+                        trainee_id=trainee.id,
+                        trainee_name=f"{trainee.nachname}, {trainee.vorname}",
+                        kw=kw,
+                        jahr=jahr,
+                        typ=AssignmentTyp.ABTEILUNG,
+                        abteilung_id=dept.id,
+                        abteilung_code=dept.code,
+                        raw=f"{name_raw}\tKW{kw}\t{code}",
+                    ))
+
+    return result
+
+
+def parse_assignments_auto(
+    text: str,
+    db: Session,
+    schoolyear_id: str,
+) -> AssignmentParseResult:
+    """Auto-Dispatcher: Matrix- oder Langformat wird automatisch erkannt.
+
+    Wenn die Eingabe eine KW-Kopfzeile (≥3 KW-Spalten) enthält, wird das
+    Matrix-Format verwendet; andernfalls das bestehende Langformat.
+    """
+    rows = _split_rows(text)
+    if _looks_like_matrix(rows):
+        return parse_assignments_matrix(text, db, schoolyear_id)
+    return parse_assignments(text, db, schoolyear_id)
 
 
 def apply_assignments(

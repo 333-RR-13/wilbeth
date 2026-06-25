@@ -25,7 +25,7 @@ from app.models import SchoolPlan
 from app.services.importer import (
     apply_assignments,
     apply_school_weeks,
-    parse_assignments,
+    parse_assignments_auto,
     parse_school_weeks,
 )
 
@@ -147,7 +147,7 @@ async def einsaetze_import_preview(
     csv_file: UploadFile | None = None,
 ):
     text = await _read_text(raw_text, csv_file)
-    parse_result = parse_assignments(text, db, schoolyear_id)
+    parse_result = parse_assignments_auto(text, db, schoolyear_id)
     return templates.TemplateResponse(request, "imports/_preview.html", {
         "mode": "einsaetze",
         "schoolyear_id": schoolyear_id,
@@ -166,7 +166,7 @@ async def einsaetze_import_apply(
     csv_file: UploadFile | None = None,
 ):
     text = await _read_text(raw_text, csv_file)
-    parse_result = parse_assignments(text, db, schoolyear_id)
+    parse_result = parse_assignments_auto(text, db, schoolyear_id)
     written, skipped = apply_assignments(db, schoolyear_id, parse_result.valid)
 
     n = len(written)
