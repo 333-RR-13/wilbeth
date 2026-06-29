@@ -53,6 +53,10 @@ Format orientiert an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
   **kopieren** (angelegt als `MANUAL`, Quelle bleibt) – auch auf andere Azubis. Bei
   belegter Ziel-Zelle kommt eine Überschreiben-Rückfrage; Klick-zum-Bearbeiten bleibt
   erhalten. Neuer Endpoint `POST /einsaetze/copy`; Konflikte werden wie gewohnt markiert.
+- **Block-Auswahl & -Kopieren**: mit **Shift+Klick** einen waagerechten Wochen-Block
+  auswählen und per **Drag** oder **Strg+C / Strg+V** in eine beliebige Zeile (auch eines
+  anderen Azubis) ab einer Ziel-Woche kopieren – Jahreswechsel-sicher, als `MANUAL`,
+  mit Überschreiben-Rückfrage. Neuer Endpoint `POST /einsaetze/copy-block`.
 - **Abteilungskategorien sind jetzt verwaltbar**: aus dem festen Enum (ITO/Non-ITO/Extern)
   wurde eine DB-Tabelle (Migration `0003`). Neue Kategorien: **Platform Development,
   Customer Service, Grenke AG, Grenke Digital**. Unter „Abteilungen → Kategorien verwalten"

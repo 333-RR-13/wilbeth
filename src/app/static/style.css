@@ -1006,6 +1006,20 @@ td[draggable="true"]:active {
   transition: none;
 }
 
+/* ── Block-Auswahl ──────────────────────────────────────────────── */
+.mc-selected {
+  background: color-mix(in srgb, var(--accent) 18%, transparent) !important;
+  box-shadow: inset var(--accent) 0px 0px 0px 2px !important;
+  transition: none;
+}
+
+/* Clipboard-Markierung (Strg+C): gestrichelte Umrandung */
+.mc-clipboard {
+  box-shadow: inset 0 0 0 2px var(--accent) !important;
+  outline: 2px dashed var(--accent);
+  outline-offset: -3px;
+}
+
 /* ── Cell-edit dialog ───────────────────────────────────────────── */
 .cell-dialog {
   border: none;

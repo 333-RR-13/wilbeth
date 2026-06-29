@@ -21,7 +21,7 @@ from app.models import (
 from app.services.conflict_checker import ConflictKind, describe_conflict, find_conflicts
 from app.services.dept_history import visited_department_ids
 from app.utils.colors import department_color_map
-from app.utils.kw import iter_kw_range
+from app.utils.kw import iter_kw_range, iter_schoolyear_weeks
 
 router = APIRouter(prefix="/einsaetze", tags=["einsaetze"])
 templates = Jinja2Templates(directory=Path(__file__).resolve().parents[1] / "templates")
@@ -516,6 +516,204 @@ def copy_assignment(
     db.commit()
 
     return _render_cell_response(request, db, dst_trainee_id, schoolyear_id, dst_kw, dst_jahr)
+
+
+# ── Copy Block (Block-Auswahl Drag & Strg+C/V) ───────────────────────────────
+
+@router.post("/copy-block", response_class=HTMLResponse)
+def copy_block(
+    request: Request,
+    db: DB,
+    src_trainee_id: Annotated[int, Form()],
+    src_weeks: Annotated[str, Form()],          # "8:2026,9:2026,10:2026"
+    dst_trainee_id: Annotated[int, Form()],
+    dst_kw: Annotated[int, Form()],
+    dst_jahr: Annotated[int, Form()],
+    schoolyear_id: Annotated[str, Form()],
+):
+    """Kopiert einen Block von Wochen (src_trainee → dst_trainee) ab dem Anker (dst_kw, dst_jahr).
+
+    Vorgehen:
+    1. Schuljahr-Sequenz aufbauen → Position des Ankers bestimmen.
+    2. src_weeks parsen + nach Schuljahr-Position sortieren → Offsets 0..n.
+    3. Für jeden Offset: Quell-Assignment laden; leer → Ziel überspringen.
+       Sonst Ziel anlegen/überschreiben mit source=MANUAL.
+    4. Commit; HTML-Response mit allen geänderten Ziel-Zellen (hx-swap-oob)
+       + Konfliktzähler (hx-swap-oob).
+    """
+    # Schuljahr laden für iter_schoolyear_weeks
+    sy = db.get(Schoolyear, schoolyear_id)
+    if not sy:
+        from fastapi.responses import Response
+        return Response(status_code=400)
+
+    seq: list[tuple[int, int]] = list(
+        iter_schoolyear_weeks(sy.start_kw, sy.start_year, sy.end_kw, sy.end_year)
+    )
+    seq_index: dict[tuple[int, int], int] = {w: i for i, w in enumerate(seq)}
+
+    # Anker-Position prüfen
+    anchor_key = (dst_kw, dst_jahr)
+    if anchor_key not in seq_index:
+        from fastapi.responses import Response
+        return Response(status_code=400)
+    anchor_idx = seq_index[anchor_key]
+
+    # src_weeks parsen: "8:2026,9:2026" → [(8,2026), ...]
+    parsed_src: list[tuple[int, int]] = []
+    for token in src_weeks.split(","):
+        token = token.strip()
+        if not token:
+            continue
+        parts = token.split(":")
+        if len(parts) != 2:
+            continue
+        try:
+            parsed_src.append((int(parts[0]), int(parts[1])))
+        except ValueError:
+            continue
+
+    if not parsed_src:
+        from fastapi.responses import Response
+        return Response(status_code=400)
+
+    # Nach Position im Schuljahr sortieren
+    def _sort_key(w: tuple[int, int]) -> int:
+        return seq_index.get(w, -1)
+
+    parsed_src_sorted = sorted(parsed_src, key=_sort_key)
+
+    # Für jede Quell-Woche → Offset berechnen → Ziel bestimmen → Assignment kopieren
+    changed_cells: list[tuple[int, int]] = []   # (kw, jahr) der geänderten Ziel-Zellen
+
+    for offset, src_week in enumerate(parsed_src_sorted):
+        target_idx = anchor_idx + offset
+        if target_idx >= len(seq):
+            # Über Lehrjahr-Ende → überspringen
+            continue
+
+        dst_week = seq[target_idx]
+        dst_kw_i, dst_jahr_i = dst_week
+
+        # Quell-Assignment laden
+        src_a = db.exec(
+            select(Assignment).where(
+                Assignment.trainee_id == src_trainee_id,
+                Assignment.kw == src_week[0],
+                Assignment.jahr == src_week[1],
+                Assignment.schoolyear_id == schoolyear_id,
+            )
+        ).first()
+
+        if src_a is None:
+            # Leere Quell-Zelle → Ziel unverändert lassen
+            continue
+
+        # Ziel-Assignment anlegen oder überschreiben
+        dst_a = db.exec(
+            select(Assignment).where(
+                Assignment.trainee_id == dst_trainee_id,
+                Assignment.kw == dst_kw_i,
+                Assignment.jahr == dst_jahr_i,
+                Assignment.schoolyear_id == schoolyear_id,
+            )
+        ).first()
+
+        if dst_a:
+            dst_a.typ = src_a.typ
+            dst_a.abteilung_id = src_a.abteilung_id
+            dst_a.source = AssignmentSource.MANUAL
+            dst_a.notiz = ""
+        else:
+            db.add(Assignment(
+                trainee_id=dst_trainee_id,
+                schoolyear_id=schoolyear_id,
+                kw=dst_kw_i,
+                jahr=dst_jahr_i,
+                typ=src_a.typ,
+                abteilung_id=src_a.abteilung_id,
+                source=AssignmentSource.MANUAL,
+                notiz="",
+            ))
+
+        changed_cells.append((dst_kw_i, dst_jahr_i))
+
+    db.commit()
+
+    if not changed_cells:
+        # Nichts geändert – leere 200-Antwort
+        return HTMLResponse("")
+
+    # Konflikte + Zell-Farben einmal berechnen
+    raw_conflicts = find_conflicts(db, schoolyear_id)
+    conflict_set: set[tuple[int, int, int]] = set()
+    for c in raw_conflicts:
+        if c.trainee_id == dst_trainee_id:
+            conflict_set.add((dst_trainee_id, c.kw, c.jahr))
+        for tid in c.trainee_ids:
+            if tid == dst_trainee_id:
+                conflict_set.add((dst_trainee_id, c.kw, c.jahr))
+
+    conflict_count = len(raw_conflicts)
+    all_depts = db.exec(select(Department)).all()
+    dept_colors = department_color_map(all_depts)
+    depts = {d.id: d for d in all_depts}
+
+    # Schulwochen für dst_trainee ermitteln
+    dst_trainee_obj = db.get(Trainee, dst_trainee_id)
+    dst_klasse_id = dst_trainee_obj.klasse_id if dst_trainee_obj else None
+    dst_school_plan = None
+    if dst_klasse_id:
+        dst_school_plan = db.exec(
+            select(SchoolPlan).where(
+                SchoolPlan.klasse_id == dst_klasse_id,
+                SchoolPlan.schoolyear_id == schoolyear_id,
+            )
+        ).first()
+
+    school_weeks_set: set[tuple[int, int]] = set()
+    if dst_school_plan:
+        for spw in db.exec(
+            select(SchoolPlanWeek).where(SchoolPlanWeek.plan_id == dst_school_plan.id)
+        ).all():
+            school_weeks_set.add((spw.kw, spw.jahr))
+
+    # OOB-HTML für jede geänderte Ziel-Zelle + Konfliktzähler
+    parts: list[str] = []
+    cell_tpl = templates.get_template("_partials/cell.html")
+
+    for (kw_i, jahr_i) in changed_cells:
+        assignment = db.exec(
+            select(Assignment).where(
+                Assignment.trainee_id == dst_trainee_id,
+                Assignment.kw == kw_i,
+                Assignment.jahr == jahr_i,
+            )
+        ).first()
+        is_school = (kw_i, jahr_i) in school_weeks_set
+        is_conflict = (dst_trainee_id, kw_i, jahr_i) in conflict_set
+
+        cell_html = cell_tpl.render({
+            "trainee_id": dst_trainee_id,
+            "kw": kw_i,
+            "jahr": jahr_i,
+            "schoolyear_id": schoolyear_id,
+            "a": assignment,
+            "is_school": is_school,
+            "is_conflict": is_conflict,
+            "depts": depts,
+            "dept_colors": dept_colors,
+            "oob": True,
+        })
+        parts.append(cell_html)
+
+    counter_html = templates.get_template("_partials/conflict_counter.html").render({
+        "conflict_count": conflict_count,
+        "selected_year": schoolyear_id,
+    })
+    parts.append(counter_html)
+
+    return HTMLResponse("".join(parts))
 
 
 def _render_cell_response(
