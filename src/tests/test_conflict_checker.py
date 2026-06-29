@@ -5,7 +5,6 @@ from app.models import (
     Assignment,
     AssignmentTyp,
     Department,
-    DepartmentKategorie,
     SchoolHoliday,
     SchoolPlan,
     SchoolPlanWeek,
@@ -63,7 +62,7 @@ def test_abteilung_outside_school_week_no_conflict(session):
 
     # School week at KW 10, assignment at KW 11 → no conflict
     session.add(SchoolPlanWeek(plan_id=plan.id, kw=10, jahr=2026, typ=SchoolWeekTyp.BERUFSSCHULE))
-    dept = Department(code="IT", name="IT", kategorie=DepartmentKategorie.ITO)
+    dept = Department(code="IT", name="IT")
     session.add(dept)
     session.flush()
 
@@ -82,7 +81,7 @@ def test_schul_konflikt_abteilung_in_bs_week(session):
     year, klasse, trainee, plan = _setup_base(session)
 
     session.add(SchoolPlanWeek(plan_id=plan.id, kw=10, jahr=2026, typ=SchoolWeekTyp.BERUFSSCHULE))
-    dept = Department(code="IT", name="IT-Abt", kategorie=DepartmentKategorie.ITO)
+    dept = Department(code="IT", name="IT-Abt")
     session.add(dept)
     session.flush()
 
@@ -125,7 +124,7 @@ def test_no_schul_konflikt_for_trainee_without_class(session):
     session.add(SchoolPlanWeek(plan_id=plan.id, kw=10, jahr=2026, typ=SchoolWeekTyp.BERUFSSCHULE))
     session.flush()
 
-    dept = Department(code="HR", name="HR", kategorie=DepartmentKategorie.NON_ITO)
+    dept = Department(code="HR", name="HR")
     session.add(dept)
     session.flush()
 
@@ -217,7 +216,7 @@ def test_doppelbelegung_detected(session):
     year, klasse, trainee, plan = _setup_base(session)
     t2 = _make_second_trainee(session)
 
-    dept = Department(code="SEC", name="Security", kategorie=DepartmentKategorie.ITO, erlaubt_mehrfachbelegung=False)
+    dept = Department(code="SEC", name="Security", erlaubt_mehrfachbelegung=False)
     session.add(dept)
     session.flush()
 
@@ -234,7 +233,7 @@ def test_doppelbelegung_not_detected_when_allowed(session):
     year, klasse, trainee, plan = _setup_base(session)
     t2 = _make_second_trainee(session)
 
-    dept = Department(code="SVC", name="Service", kategorie=DepartmentKategorie.ITO, erlaubt_mehrfachbelegung=True)
+    dept = Department(code="SVC", name="Service", erlaubt_mehrfachbelegung=True)
     session.add(dept)
     session.flush()
 
@@ -249,7 +248,7 @@ def test_doppelbelegung_not_detected_when_allowed(session):
 def test_single_trainee_per_dept_no_doppelbelegung(session):
     year, klasse, trainee, plan = _setup_base(session)
 
-    dept = Department(code="NET", name="Netz", kategorie=DepartmentKategorie.ITO, erlaubt_mehrfachbelegung=False)
+    dept = Department(code="NET", name="Netz", erlaubt_mehrfachbelegung=False)
     session.add(dept)
     session.flush()
 

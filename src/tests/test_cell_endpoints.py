@@ -6,7 +6,6 @@ from app.models import (
     AssignmentSource,
     AssignmentTyp,
     Department,
-    DepartmentKategorie,
     SchoolPlan,
     SchoolPlanWeek,
     SchoolWeekTyp,
@@ -22,7 +21,7 @@ SY = "2025-2026"
 
 def _setup(session: Session) -> dict:
     session.add(Schoolyear(id=SY, start_kw=36, start_year=2025, end_kw=35, end_year=2026))
-    cp = Department(code="CP", name="Cloud Platform", kategorie=DepartmentKategorie.ITO)
+    cp = Department(code="CP", name="Cloud Platform")
     session.add(cp)
     t = Trainee(vorname="Jonas", nachname="Jäger", rolle=TraineeRolle.AZUBI)
     session.add(t)

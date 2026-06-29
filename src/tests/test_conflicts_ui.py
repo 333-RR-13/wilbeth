@@ -5,7 +5,6 @@ from app.models import (
     Assignment,
     AssignmentTyp,
     Department,
-    DepartmentKategorie,
     SchoolPlan,
     SchoolPlanWeek,
     SchoolWeekTyp,
@@ -41,7 +40,7 @@ def test_describe_ferien_konflikt():
 
 
 def test_describe_doppelbelegung():
-    dept = Department(id=7, code="CP", name="Cloud Platform", kategorie=DepartmentKategorie.ITO)
+    dept = Department(id=7, code="CP", name="Cloud Platform")
     c = Conflict(ConflictKind.DOPPELBELEGUNG, trainee_id=None, kw=15, jahr=2026,
                  message="x", dept_id=7, trainee_ids=(1, 2))
     d = describe_conflict(c, {1: "Mustermann, Max", 2: "Schmidt, Anna"}, {7: dept})
@@ -57,7 +56,7 @@ def test_describe_doppelbelegung():
 def _schul_konflikt(session: Session) -> dict:
     session.add(Schoolyear(id=SY, start_kw=36, start_year=2025, end_kw=35, end_year=2026))
     klasse = TraineeClass(name="FISI 2. LJ", berufsschule="JD", unterrichts_typ=UnterrichtsTyp.BLOCK_FEST)
-    cp = Department(code="CP", name="Cloud Platform", kategorie=DepartmentKategorie.ITO)
+    cp = Department(code="CP", name="Cloud Platform")
     session.add_all([klasse, cp])
     session.flush()
     plan = SchoolPlan(klasse_id=klasse.id, schoolyear_id=SY)
@@ -126,8 +125,7 @@ def test_cell_edit_no_conflict_no_box(client, session):
 
 def test_cell_edit_shows_doppelbelegung(client, session):
     session.add(Schoolyear(id=SY, start_kw=36, start_year=2025, end_kw=35, end_year=2026))
-    cp = Department(code="CP", name="Cloud Platform", kategorie=DepartmentKategorie.ITO,
-                    erlaubt_mehrfachbelegung=False)
+    cp = Department(code="CP", name="Cloud Platform", erlaubt_mehrfachbelegung=False)
     session.add(cp)
     t1 = Trainee(vorname="Max", nachname="Mustermann", rolle=TraineeRolle.AZUBI)
     t2 = Trainee(vorname="Anna", nachname="Schmidt", rolle=TraineeRolle.AZUBI)

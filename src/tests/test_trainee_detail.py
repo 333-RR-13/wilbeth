@@ -6,7 +6,6 @@ from app.models import (
     AssignmentSource,
     AssignmentTyp,
     Department,
-    DepartmentKategorie,
     SchoolPlan,
     SchoolPlanWeek,
     SchoolWeekTyp,
@@ -27,7 +26,7 @@ def _schoolyear(session: Session) -> None:
 
 def test_detail_with_assignments(client, session):
     _schoolyear(session)
-    cp = Department(code="CP", name="Cloud Platform", kategorie=DepartmentKategorie.ITO)
+    cp = Department(code="CP", name="Cloud Platform")
     session.add(cp)
     t = Trainee(vorname="Felix", nachname="Fischer", rolle=TraineeRolle.AZUBI)
     session.add(t)
@@ -58,7 +57,7 @@ def test_detail_empty_state(client, session):
 def test_detail_conflict_highlight(client, session):
     _schoolyear(session)
     klasse = TraineeClass(name="FIAE 2. LJ", berufsschule="HHS", unterrichts_typ=UnterrichtsTyp.BLOCK_FEST)
-    cp = Department(code="CP", name="Cloud Platform", kategorie=DepartmentKategorie.ITO)
+    cp = Department(code="CP", name="Cloud Platform")
     session.add_all([klasse, cp])
     session.flush()
 

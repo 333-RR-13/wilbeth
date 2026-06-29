@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Kategorien verwalten{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Kategorien verwalten</h1>
+    <p class="page-subtitle">{{ kategorien | length }} Kategorie{{ 'n' if kategorien | length != 1 else '' }}</p>
+  </div>
+  <a href="/abteilungen/" class="btn btn-secondary">← Zurück zu Abteilungen</a>
+</div>
+
+{% if request.query_params.get('err') == 'inuse' %}
+<div class="alert alert-danger" style="margin-bottom:1rem;padding:.75rem 1rem;border-radius:.5rem;background:var(--color-danger-bg,#fee2e2);color:var(--color-danger,#b91c1c);border:1px solid var(--color-danger-border,#fca5a5);">
+  Kategorie „{{ request.query_params.get('kat', '') }}" wird noch von Abteilungen verwendet und kann nicht gelöscht werden.
+</div>
+{% elif request.query_params.get('err') == 'notfound' %}
+<div class="alert alert-danger" style="margin-bottom:1rem;padding:.75rem 1rem;border-radius:.5rem;background:var(--color-danger-bg,#fee2e2);color:var(--color-danger,#b91c1c);border:1px solid var(--color-danger-border,#fca5a5);">
+  Kategorie nicht gefunden.
+</div>
+{% elif request.query_params.get('msg') %}
+<div class="alert alert-success" style="margin-bottom:1rem;padding:.75rem 1rem;border-radius:.5rem;background:var(--color-success-bg,#dcfce7);color:var(--color-success,#15803d);border:1px solid var(--color-success-border,#86efac);">
+  Änderung gespeichert.
+</div>
+{% endif %}
+
+<div class="table-wrapper" style="margin-bottom:2rem;">
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Umbenennen</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for k in kategorien %}
+      <tr>
+        <td><strong>{{ k.name }}</strong></td>
+        <td>
+          <form method="post" action="/abteilungen/kategorien/{{ k.id }}" style="display:flex;gap:.5rem;align-items:center;">
+            <input type="text" name="name" value="{{ k.name }}" required maxlength="64"
+                   style="flex:1;min-width:180px;">
+            <button type="submit" class="btn btn-ghost btn-sm">Umbenennen</button>
+          </form>
+        </td>
+        <td class="td-actions">
+          <form method="post" action="/abteilungen/kategorien/{{ k.id }}/loeschen"
+                onsubmit="return confirm('Kategorie \'{{ k.name }}\' wirklich löschen?');">
+            <button type="submit" class="btn btn-ghost-danger btn-sm">Löschen</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="3" class="empty-state">Noch keine Kategorien angelegt.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="form-card">
+  <h2 style="margin-bottom:1rem;font-size:1rem;font-weight:600;">Neue Kategorie anlegen</h2>
+  <form method="post" action="/abteilungen/kategorien" style="display:flex;gap:.75rem;align-items:flex-end;">
+    <div class="form-group" style="flex:1;margin-bottom:0;">
+      <label for="new-kat-name">Name</label>
+      <input type="text" id="new-kat-name" name="name" placeholder="z. B. Partner" maxlength="64" required>
+    </div>
+    <button type="submit" class="btn btn-primary">Anlegen</button>
+  </form>
+</div>
+{% endblock %}

@@ -34,7 +34,6 @@ from app.models import (
     AssignmentSource,
     AssignmentTyp,
     Department,
-    DepartmentKategorie,
     SchoolPlan,
     SchoolPlanWeek,
     SchoolWeekTyp,
@@ -96,7 +95,6 @@ def _make_dept(session: Session, code: str = "ITO-SD") -> Department:
     d = Department(
         code=code,
         name=f"Abt {code}",
-        kategorie=DepartmentKategorie.ITO,
     )
     session.add(d)
     session.flush()
@@ -516,9 +514,9 @@ def _make_matrix_setup(session: Session) -> dict:
     """Schuljahr + Departments AI/DWP/CS + Trainees Meier,Marvin und Mustermann,Max."""
     _make_matrix_year(session)
 
-    dept_ai = Department(code="AI", name="AI Dept", kategorie=DepartmentKategorie.ITO)
-    dept_dwp = Department(code="DWP", name="DWP Dept", kategorie=DepartmentKategorie.ITO)
-    dept_cs = Department(code="CS", name="CS Dept", kategorie=DepartmentKategorie.ITO)
+    dept_ai = Department(code="AI", name="AI Dept")
+    dept_dwp = Department(code="DWP", name="DWP Dept")
+    dept_cs = Department(code="CS", name="CS Dept")
     session.add_all([dept_ai, dept_dwp, dept_cs])
     session.flush()
 

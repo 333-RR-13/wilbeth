@@ -12,7 +12,6 @@ from app.models import (
     AssignmentSource,
     AssignmentTyp,
     Department,
-    DepartmentKategorie,
     Schoolyear,
     Trainee,
     TraineeClass,
@@ -59,7 +58,7 @@ def test_text_color_invalid_fallback():
 
 def test_department_farbe_default(session: Session):
     """Department.farbe defaults to #9CA3AF."""
-    d = Department(code="TEST", name="Test Dept", kategorie=DepartmentKategorie.ITO)
+    d = Department(code="TEST", name="Test Dept")
     session.add(d)
     session.flush()
     assert d.farbe == "#9CA3AF"
@@ -67,7 +66,7 @@ def test_department_farbe_default(session: Session):
 
 def test_department_farbe_persists(session: Session):
     """Custom farbe value is stored and retrieved."""
-    d = Department(code="COL1", name="Colored Dept", kategorie=DepartmentKategorie.ITO, farbe="#A855F7")
+    d = Department(code="COL1", name="Colored Dept", farbe="#A855F7")
     session.add(d)
     session.commit()
     fetched = session.get(Department, d.id)
@@ -78,7 +77,7 @@ def test_department_farbe_persists(session: Session):
 
 def test_department_color_map_structure(session: Session):
     """department_color_map returns correct bg/fg/code/name."""
-    d = Department(code="MAP1", name="Map Test", kategorie=DepartmentKategorie.ITO, farbe="#000000")
+    d = Department(code="MAP1", name="Map Test", farbe="#000000")
     session.add(d)
     session.flush()
     m = department_color_map([d])
@@ -97,7 +96,6 @@ def test_dept_form_create_with_farbe(client, session: Session):
     r = client.post("/abteilungen/", data={
         "code": "XYZ",
         "name": "Test XYZ",
-        "kategorie": "ITO",
         "farbe": "#FF0000",
     }, follow_redirects=False)
     assert r.status_code == 303
@@ -113,7 +111,6 @@ def test_dept_form_create_default_farbe(client, session: Session):
     r = client.post("/abteilungen/", data={
         "code": "DEF",
         "name": "Default Color",
-        "kategorie": "ITO",
     }, follow_redirects=False)
     assert r.status_code == 303
 
@@ -125,14 +122,13 @@ def test_dept_form_create_default_farbe(client, session: Session):
 
 def test_dept_form_update_with_farbe(client, session: Session):
     """POST /abteilungen/{id} with new farbe updates the color."""
-    d = Department(code="UPD", name="Update Test", kategorie=DepartmentKategorie.ITO, farbe="#111111")
+    d = Department(code="UPD", name="Update Test", farbe="#111111")
     session.add(d)
     session.commit()
 
     r = client.post(f"/abteilungen/{d.id}", data={
         "code": "UPD",
         "name": "Update Test",
-        "kategorie": "ITO",
         "farbe": "#222222",
     }, follow_redirects=False)
     assert r.status_code == 303
@@ -148,7 +144,7 @@ def _setup_overview(session: Session) -> dict:
     session.add(Schoolyear(id=SY, start_kw=36, start_year=2025, end_kw=35, end_year=2026))
     session.add(Schoolyear(id=SY2, start_kw=36, start_year=2024, end_kw=35, end_year=2025))
     klasse = TraineeClass(name="FISI 2. LJ", berufsschule="JD", unterrichts_typ=UnterrichtsTyp.BLOCK_FEST)
-    cp = Department(code="CP", name="Cloud Platform", kategorie=DepartmentKategorie.ITO, farbe="#9CA3AF")
+    cp = Department(code="CP", name="Cloud Platform", farbe="#9CA3AF")
     session.add_all([klasse, cp])
     session.flush()
     trainee = Trainee(vorname="Test", nachname="Trainee", rolle=TraineeRolle.AZUBI, klasse_id=klasse.id)

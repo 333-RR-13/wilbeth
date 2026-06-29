@@ -53,6 +53,12 @@ Format orientiert an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
   **kopieren** (angelegt als `MANUAL`, Quelle bleibt) – auch auf andere Azubis. Bei
   belegter Ziel-Zelle kommt eine Überschreiben-Rückfrage; Klick-zum-Bearbeiten bleibt
   erhalten. Neuer Endpoint `POST /einsaetze/copy`; Konflikte werden wie gewohnt markiert.
+- **Abteilungskategorien sind jetzt verwaltbar**: aus dem festen Enum (ITO/Non-ITO/Extern)
+  wurde eine DB-Tabelle (Migration `0003`). Neue Kategorien: **Platform Development,
+  Customer Service, Grenke AG, Grenke Digital**. Unter „Abteilungen → Kategorien verwalten"
+  anlegen/umbenennen/löschen (Löschen blockiert, wenn noch eine Abteilung sie nutzt);
+  Kategorie-Auswahl im Abteilungs-Formular. Bestehende Abteilungen werden beim Deploy
+  automatisch übernommen (ITO→Platform Development, Non-ITO→Grenke Digital, Extern→Grenke AG).
 
 ### Klassen-Mitgliedschaft pro Lehrjahr + Jahreswechsel
 

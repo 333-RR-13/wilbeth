@@ -6,7 +6,6 @@ from app.models import (
     AssignmentSource,
     AssignmentTyp,
     Department,
-    DepartmentKategorie,
     Schoolyear,
     Trainee,
     TraineeRolle,
@@ -23,9 +22,9 @@ def _setup(session: Session) -> dict:
     """Legt Grunddaten an: zwei Schuljahre, zwei Abteilungen, einen Trainee."""
     session.add(Schoolyear(id=SY, start_kw=36, start_year=2025, end_kw=35, end_year=2026))
     session.add(Schoolyear(id=SY2, start_kw=36, start_year=2024, end_kw=35, end_year=2025))
-    cp = Department(code="CP", name="Cloud Platform", kategorie=DepartmentKategorie.ITO)
-    dp = Department(code="DP", name="Data Platform", kategorie=DepartmentKategorie.ITO)
-    ba = Department(code="BA", name="Business Apps", kategorie=DepartmentKategorie.NON_ITO)
+    cp = Department(code="CP", name="Cloud Platform")
+    dp = Department(code="DP", name="Data Platform")
+    ba = Department(code="BA", name="Business Apps")
     session.add_all([cp, dp, ba])
     t = Trainee(vorname="Lena", nachname="Lehmann", rolle=TraineeRolle.AZUBI)
     session.add(t)

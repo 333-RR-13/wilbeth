@@ -6,7 +6,6 @@ from app.models import (
     AssignmentSource,
     AssignmentTyp,
     Department,
-    DepartmentKategorie,
     Schoolyear,
     Trainee,
     TraineeClass,
@@ -41,7 +40,7 @@ def _tage_fest_class(session: Session) -> dict:
     klasse = TraineeClass(name="Büro 1. LJ", berufsschule="KS Karlsruhe",
                           unterrichts_typ=UnterrichtsTyp.TAGE_FEST,
                           schul_wochentage="2,3", halbtag_wochentag=3)
-    hr = Department(code="HR", name="Human Resources", kategorie=DepartmentKategorie.NON_ITO)
+    hr = Department(code="HR", name="Human Resources")
     session.add_all([klasse, hr])
     session.flush()
     t = Trainee(vorname="Uwe", nachname="Ulmer", rolle=TraineeRolle.AZUBI, klasse_id=klasse.id)

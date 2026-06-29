@@ -6,7 +6,6 @@ from app.models import (
     AssignmentSource,
     AssignmentTyp,
     Department,
-    DepartmentKategorie,
     Schoolyear,
     Trainee,
     TraineeClass,
@@ -21,9 +20,8 @@ def _base(session: Session) -> dict:
     session.add(Schoolyear(id=SY, start_kw=36, start_year=2025, end_kw=35, end_year=2026))
     fisi = TraineeClass(name="FISI 2. LJ", berufsschule="JD", unterrichts_typ=UnterrichtsTyp.BLOCK_FEST)
     fiae = TraineeClass(name="FIAE 2. LJ", berufsschule="HHS", unterrichts_typ=UnterrichtsTyp.BLOCK_FEST)
-    cp = Department(code="CP", name="Cloud Platform", kategorie=DepartmentKategorie.ITO)
-    ba = Department(code="BA", name="Business Applications", kategorie=DepartmentKategorie.NON_ITO,
-                    erlaubt_mehrfachbelegung=True)
+    cp = Department(code="CP", name="Cloud Platform")
+    ba = Department(code="BA", name="Business Applications", erlaubt_mehrfachbelegung=True)
     session.add_all([fisi, fiae, cp, ba])
     session.flush()
 

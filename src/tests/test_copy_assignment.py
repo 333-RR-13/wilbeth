@@ -6,7 +6,6 @@ from app.models import (
     AssignmentSource,
     AssignmentTyp,
     Department,
-    DepartmentKategorie,
     Schoolyear,
     Trainee,
     TraineeRolle,
@@ -17,7 +16,7 @@ SY = "2025-2026"
 
 def _setup(session: Session) -> dict:
     session.add(Schoolyear(id=SY, start_kw=36, start_year=2025, end_kw=35, end_year=2026))
-    abt = Department(code="AI", name="Artificial Intelligence", kategorie=DepartmentKategorie.ITO)
+    abt = Department(code="AI", name="Artificial Intelligence")
     session.add(abt)
     src_t = Trainee(vorname="Anna", nachname="Quelle", rolle=TraineeRolle.AZUBI)
     dst_t = Trainee(vorname="Ben", nachname="Ziel", rolle=TraineeRolle.AZUBI)
@@ -92,7 +91,7 @@ def test_copy_source_unchanged(client, session):
 def test_copy_to_occupied_overwrites(client, session):
     """Wenn Ziel belegt ist, wird es überschrieben – weiterhin genau 1 Assignment."""
     ids = _setup(session)
-    abt2 = Department(code="HR", name="Human Resources", kategorie=DepartmentKategorie.ITO)
+    abt2 = Department(code="HR", name="Human Resources")
     session.add(abt2)
     session.flush()
 

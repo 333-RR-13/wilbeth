@@ -7,10 +7,13 @@
     <h1 class="page-title">Abteilungen</h1>
     <p class="page-subtitle">{{ departments | length }} Abteilung{{ 'en' if departments | length != 1 else '' }}</p>
   </div>
-  <a href="/abteilungen/neu" class="btn btn-primary">
-    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2Z"/></svg>
-    Abteilung anlegen
-  </a>
+  <div style="display:flex;gap:.5rem;align-items:center;">
+    <a href="/abteilungen/kategorien" class="btn btn-secondary">Kategorien verwalten</a>
+    <a href="/abteilungen/neu" class="btn btn-primary">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2Z"/></svg>
+      Abteilung anlegen
+    </a>
+  </div>
 </div>
 
 <div class="table-wrapper">
@@ -31,12 +34,10 @@
         <td><span class="mono">{{ d.code }}</span></td>
         <td>{{ d.name }}</td>
         <td>
-          {% if d.kategorie.value == 'ITO' %}
-            <span class="badge badge-blue">ITO</span>
-          {% elif d.kategorie.value == 'NON_ITO' %}
-            <span class="badge badge-gray">NON-ITO</span>
+          {% if d.kategorie %}
+            <span class="badge badge-gray">{{ d.kategorie.name }}</span>
           {% else %}
-            <span class="badge badge-orange">Extern</span>
+            <span class="text-muted">–</span>
           {% endif %}
         </td>
         <td class="td-muted">{{ d.ansprechpartner or '–' }}</td>

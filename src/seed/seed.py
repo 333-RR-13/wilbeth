@@ -139,30 +139,52 @@ def seed_classes(session: Session) -> dict[str, TraineeClass]:
 # ── Abteilungen ───────────────────────────────────────────────────
 
 def seed_departments(session: Session) -> dict[str, Department]:
+    # 1. Kategorien anlegen
+    kat_names = ["Platform Development", "Customer Service", "Grenke AG", "Grenke Digital"]
+    kats: dict[str, DepartmentKategorie] = {}
+    for name in kat_names:
+        k = DepartmentKategorie(name=name)
+        session.add(k)
+        kats[name] = k
+    session.flush()
+
+    PD = kats["Platform Development"]
+    CS = kats["Customer Service"]
+    GA = kats["Grenke AG"]
+    GD = kats["Grenke Digital"]
+
+    # 2. Abteilungen mit kategorie_id anlegen
     result: dict[str, Department] = {}
     for code, name, kat, multi, farbe in [
-        ("AI",   "AI Platform",             DepartmentKategorie.ITO,     False, "#A855F7"),
-        ("DP",   "Delivery Platform",       DepartmentKategorie.ITO,     False, "#7DD3FC"),
-        ("DWP",  "Digital Workplace",       DepartmentKategorie.ITO,     False, "#1E3A8A"),
-        ("OP",   "Observability Platform",  DepartmentKategorie.ITO,     False, "#EF4444"),
-        ("CP",   "Cloud Platform",          DepartmentKategorie.ITO,     False, "#9CA3AF"),
-        ("Sec",  "Security",                DepartmentKategorie.ITO,     False, "#FACC15"),
-        ("IAM",  "IAM Platform",            DepartmentKategorie.ITO,     False, "#FB923C"),
-        ("CISO", "CISO",                    DepartmentKategorie.ITO,     False, "#F0E6C8"),
-        ("BA",   "Business Applications",   DepartmentKategorie.NON_ITO, True,  "#22C55E"),
-        ("CS",   "Customer Service",        DepartmentKategorie.NON_ITO, False, "#F472B6"),
-        ("DDAS", "Data Driven Applications",DepartmentKategorie.NON_ITO, False, "#14B8A6"),
-        ("KGaA", "KGaA",                    DepartmentKategorie.NON_ITO, False, "#92400E"),
-        # Bürokaufleute / BWL (Sprint 6)
-        ("HR",   "Human Resources",         DepartmentKategorie.NON_ITO, False, "#E879F9"),
-        ("MK",   "Marketing",               DepartmentKategorie.NON_ITO, False, "#FB7185"),
-        ("FM",   "Facility Management",     DepartmentKategorie.NON_ITO, False, "#65A30D"),
-        ("VT",   "Vertrieb",                DepartmentKategorie.NON_ITO, False, "#0EA5E9"),
-        ("BANK", "Bank",                    DepartmentKategorie.NON_ITO, False, "#6366F1"),
-        ("POST", "Posteingang",             DepartmentKategorie.NON_ITO, False, "#D97706"),
-        ("EMP",  "Empfang",                 DepartmentKategorie.NON_ITO, False, "#84CC16"),
+        # Platform Development: AI, DP, DWP, OP, CP, IAM
+        ("AI",   "AI Platform",             PD,   False, "#A855F7"),
+        ("DP",   "Delivery Platform",       PD,   False, "#7DD3FC"),
+        ("DWP",  "Digital Workplace",       PD,   False, "#1E3A8A"),
+        ("OP",   "Observability Platform",  PD,   False, "#EF4444"),
+        ("CP",   "Cloud Platform",          PD,   False, "#9CA3AF"),
+        ("IAM",  "IAM Platform",            PD,   False, "#FB923C"),
+        # Customer Service: CS
+        ("CS",   "Customer Service",        CS,   False, "#F472B6"),
+        # Grenke Digital: Sec, CISO, BA, DDAS
+        ("Sec",  "Security",                GD,   False, "#FACC15"),
+        ("CISO", "CISO",                    GD,   False, "#F0E6C8"),
+        ("BA",   "Business Applications",   GD,   True,  "#22C55E"),
+        ("DDAS", "Data Driven Applications",GD,   False, "#14B8A6"),
+        # Grenke AG: KGaA, HR, MK, FM, VT, BANK, POST, EMP
+        ("KGaA", "KGaA",                    GA,   False, "#92400E"),
+        ("HR",   "Human Resources",         GA,   False, "#E879F9"),
+        ("MK",   "Marketing",               GA,   False, "#FB7185"),
+        ("FM",   "Facility Management",     GA,   False, "#65A30D"),
+        ("VT",   "Vertrieb",                GA,   False, "#0EA5E9"),
+        ("BANK", "Bank",                    GA,   False, "#6366F1"),
+        ("POST", "Posteingang",             GA,   False, "#D97706"),
+        ("EMP",  "Empfang",                 GA,   False, "#84CC16"),
     ]:
-        d = Department(code=code, name=name, kategorie=kat, erlaubt_mehrfachbelegung=multi, farbe=farbe)
+        d = Department(
+            code=code, name=name,
+            kategorie_id=kat.id,
+            erlaubt_mehrfachbelegung=multi, farbe=farbe,
+        )
         session.add(d)
         result[code] = d
     session.flush()

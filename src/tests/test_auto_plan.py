@@ -15,7 +15,6 @@ from app.models import (
     AssignmentSource,
     AssignmentTyp,
     Department,
-    DepartmentKategorie,
     SchoolPlan,
     SchoolPlanWeek,
     SchoolWeekTyp,
@@ -66,7 +65,6 @@ def _make_dept(
     d = Department(
         code=code,
         name=f"Abt {code}",
-        kategorie=DepartmentKategorie.ITO,
         erlaubt_mehrfachbelegung=multi,
     )
     session.add(d)

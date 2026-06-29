@@ -21,11 +21,12 @@
           <span class="form-hint">Kurzkürzel, wird automatisch großgeschrieben.</span>
         </div>
         <div class="form-group">
-          <label for="kategorie">Kategorie <span class="required">*</span></label>
-          <select id="kategorie" name="kategorie" required>
+          <label for="kategorie_id">Kategorie</label>
+          <select id="kategorie_id" name="kategorie_id">
+            <option value="">– keine –</option>
             {% for k in kategorien %}
-            <option value="{{ k.value }}" {{ 'selected' if department and department.kategorie == k else '' }}>
-              {{ k.value.replace('_', '-') }}
+            <option value="{{ k.id }}" {{ 'selected' if department and department.kategorie_id == k.id else '' }}>
+              {{ k.name }}
             </option>
             {% endfor %}
           </select>

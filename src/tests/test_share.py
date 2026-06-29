@@ -6,7 +6,6 @@ from app.models import (
     AssignmentSource,
     AssignmentTyp,
     Department,
-    DepartmentKategorie,
     SchoolPlan,
     SchoolPlanWeek,
     SchoolWeekTyp,
@@ -24,9 +23,8 @@ TOKEN = "test-token-1234"
 
 def _setup(session: Session, with_class: bool = False) -> dict:
     session.add(Schoolyear(id=SY, start_kw=36, start_year=2025, end_kw=35, end_year=2026))
-    cp = Department(code="CP", name="Cloud Platform", kategorie=DepartmentKategorie.ITO)
-    ba = Department(code="BA", name="Business Applications", kategorie=DepartmentKategorie.NON_ITO,
-                    erlaubt_mehrfachbelegung=True)
+    cp = Department(code="CP", name="Cloud Platform")
+    ba = Department(code="BA", name="Business Applications", erlaubt_mehrfachbelegung=True)
     session.add_all([cp, ba])
     klasse_id = None
     if with_class:

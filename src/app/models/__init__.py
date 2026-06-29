@@ -1,5 +1,5 @@
 from app.models.assignment import Assignment, AssignmentSource, AssignmentTyp
-from app.models.department import Department, DepartmentKategorie
+from app.models.department import Department, DepartmentKategorie  # DepartmentKategorie ist jetzt eine DB-Tabelle
 from app.models.school_holiday import SchoolHoliday
 from app.models.school_plan import SchoolPlan, SchoolPlanWeek, SchoolWeekTyp
 from app.models.schoolyear import Schoolyear

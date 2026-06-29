@@ -21,7 +21,6 @@ from app.models import (
     TraineeWish,
     UnterrichtsTyp,
     Department,
-    DepartmentKategorie,
 )
 
 SY_A = "2025-2026"
@@ -54,7 +53,7 @@ def _add_trainee(session: Session, name: str, klasse_id: int | None = None, akti
 
 
 def _add_dept(session: Session, name: str = "IT") -> Department:
-    d = Department(code=name[:3].upper(), name=name, kategorie=DepartmentKategorie.ITO)
+    d = Department(code=name[:3].upper(), name=name)
     session.add(d)
     session.flush()
     return d

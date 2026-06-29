@@ -12,7 +12,6 @@ from app.models import (
     AssignmentSource,
     AssignmentTyp,
     Department,
-    DepartmentKategorie,
     SchoolPlan,
     SchoolPlanWeek,
     SchoolWeekTyp,
@@ -33,7 +32,7 @@ SCHOOL_JAHR = 2025
 def _setup(session: Session, school_week_typ: SchoolWeekTyp = SchoolWeekTyp.BERUFSSCHULE) -> dict:
     """Lehrjahr + FISI-Klasse + Schulplan mit einer Schulwoche + Azubi ohne Einsaetze."""
     session.add(Schoolyear(id=SY, start_kw=36, start_year=2025, end_kw=35, end_year=2026))
-    cp = Department(code="CP", name="Cloud Platform", kategorie=DepartmentKategorie.ITO)
+    cp = Department(code="CP", name="Cloud Platform")
     session.add(cp)
 
     klasse = TraineeClass(name="FISI 2. LJ", berufsschule="JD", unterrichts_typ=UnterrichtsTyp.BLOCK_FEST)
