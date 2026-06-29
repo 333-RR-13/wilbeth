@@ -59,6 +59,23 @@ def upsert_membership(
     return membership
 
 
+def beruf_und_lehrjahr(name: str | None) -> tuple[str, int | None]:
+    """Leitet Beruf und Lehrjahr aus einem Klassennamen ab.
+
+    Beispiele:
+      "FISI 2. LJ"        -> ("FISI", 2)
+      "Büro 3. LJ"        -> ("Büro", 3)
+      "DHBW Cybersecurity" -> ("DHBW Cybersecurity", None)
+      None                 -> ("Ohne Klasse", None)
+    """
+    if not name:
+        return ("Ohne Klasse", None)
+    m = _LJ_RE.match(name)
+    if m:
+        return (m.group("beruf").strip(), int(m.group("lj")))
+    return (name, None)
+
+
 def next_class_for(
     klasse: TraineeClass,
     all_classes: list[TraineeClass],

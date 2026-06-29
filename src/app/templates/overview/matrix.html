@@ -80,60 +80,72 @@
       </tr>
     </thead>
     <tbody>
-      {% for t in trainees %}
-      {% set t_cells = cell_map.get(t.id, {}) %}
-      {% set klasse_id = trainee_klasse_map.get(t.id) %}
-      {% set t_school_weeks = (school_week_map.get(klasse_id) or {}) %}
-      <tr>
-        <td class="matrix-td-name">
-          <a href="/trainees/{{ t.id }}"
-             class="matrix-trainee-link">
-            {{ t.nachname }}, {{ t.vorname }}
-          </a>
-          {% if tage_fest_map.get(klasse_id) %}
-          <span class="school-days-badge" title="Schultage jede Woche: {{ tage_fest_map[klasse_id] }}">
-            &#128218; {{ tage_fest_map[klasse_id] }}
-          </span>
-          {% endif %}
-        </td>
-        {% for w in weeks %}
-        {% set cell_key = w.kw ~ "," ~ w.jahr %}
-        {% set conflict_key = t.id ~ "~" ~ w.kw ~ "~" ~ w.jahr %}
-        {% set a = t_cells.get(cell_key) %}
-        {% set is_conflict = conflict_key in conflict_cells %}
-        {% set is_school = t_school_weeks.get(cell_key) %}
-        <td id="cell-{{ t.id }}-{{ w.kw }}-{{ w.jahr }}"
-            class="matrix-cell cell-clickable{% if is_conflict %} mc-conflict{% endif %}{% if w.is_today %} mc-today{% endif %}"
-            data-trainee="{{ t.id }}"
-            data-kw="{{ w.kw }}"
-            data-jahr="{{ w.jahr }}"
-            data-occupied="{{ '1' if (a or is_school) else '0' }}"
-            {% if a %}draggable="true"{% endif %}
-            hx-get="/einsaetze/cell-edit?trainee_id={{ t.id }}&kw={{ w.kw }}&jahr={{ w.jahr }}&schoolyear_id={{ selected_year }}"
-            hx-target="#cell-dialog-body"
-            hx-swap="innerHTML">
-          {{ cell_content(a, dept_colors, t_school_weeks.get(cell_key)) }}
-        </td>
+      {% if grouped %}
+        {% for grp in grouped %}
+        <tr class="matrix-group-beruf">
+          <td colspan="{{ (weeks | length) + 2 }}">{{ grp.beruf }}</td>
+        </tr>
+        {% for kl in grp.klassen %}
+        <tr class="matrix-group-klasse">
+          <td colspan="{{ (weeks | length) + 2 }}">{{ kl.name or 'Ohne Klasse' }}</td>
+        </tr>
+        {% for t in kl.trainees %}
+        {% set t_cells = cell_map.get(t.id, {}) %}
+        {% set klasse_id = trainee_klasse_map.get(t.id) %}
+        {% set t_school_weeks = (school_week_map.get(klasse_id) or {}) %}
+        <tr>
+          <td class="matrix-td-name">
+            <a href="/trainees/{{ t.id }}"
+               class="matrix-trainee-link">
+              {{ t.nachname }}, {{ t.vorname }}
+            </a>
+            {% if tage_fest_map.get(klasse_id) %}
+            <span class="school-days-badge" title="Schultage jede Woche: {{ tage_fest_map[klasse_id] }}">
+              &#128218; {{ tage_fest_map[klasse_id] }}
+            </span>
+            {% endif %}
+          </td>
+          {% for w in weeks %}
+          {% set cell_key = w.kw ~ "," ~ w.jahr %}
+          {% set conflict_key = t.id ~ "~" ~ w.kw ~ "~" ~ w.jahr %}
+          {% set a = t_cells.get(cell_key) %}
+          {% set is_conflict = conflict_key in conflict_cells %}
+          {% set is_school = t_school_weeks.get(cell_key) %}
+          <td id="cell-{{ t.id }}-{{ w.kw }}-{{ w.jahr }}"
+              class="matrix-cell cell-clickable{% if is_conflict %} mc-conflict{% endif %}{% if w.is_today %} mc-today{% endif %}"
+              data-trainee="{{ t.id }}"
+              data-kw="{{ w.kw }}"
+              data-jahr="{{ w.jahr }}"
+              data-occupied="{{ '1' if (a or is_school) else '0' }}"
+              {% if a %}draggable="true"{% endif %}
+              hx-get="/einsaetze/cell-edit?trainee_id={{ t.id }}&kw={{ w.kw }}&jahr={{ w.jahr }}&schoolyear_id={{ selected_year }}"
+              hx-target="#cell-dialog-body"
+              hx-swap="innerHTML">
+            {{ cell_content(a, dept_colors, t_school_weeks.get(cell_key)) }}
+          </td>
+          {% endfor %}
+          <td class="matrix-td-visited">
+            {% set v_depts = visited_map.get(t.id, []) %}
+            {% if v_depts %}
+            <div class="visited-col-chips" title="War bereits in: {% for d in v_depts %}{{ d.name }}{% if not loop.last %}, {% endif %}{% endfor %}">
+              {% for d in v_depts %}
+                {%- set c = dept_colors.get(d.id) -%}
+                {% if c %}{{ dept_chip(c) }}{% else %}<span class="visited-col-chip" style="background:#f0f0f0;color:#808080">{{ d.code }}</span>{% endif %}
+              {% endfor %}
+            </div>
+            {% endif %}
+          </td>
+        </tr>
         {% endfor %}
-        <td class="matrix-td-visited">
-          {% set v_depts = visited_map.get(t.id, []) %}
-          {% if v_depts %}
-          <div class="visited-col-chips" title="War bereits in: {% for d in v_depts %}{{ d.name }}{% if not loop.last %}, {% endif %}{% endfor %}">
-            {% for d in v_depts %}
-              {%- set c = dept_colors.get(d.id) -%}
-              {% if c %}{{ dept_chip(c) }}{% else %}<span class="visited-col-chip" style="background:#f0f0f0;color:#808080">{{ d.code }}</span>{% endif %}
-            {% endfor %}
-          </div>
-          {% endif %}
-        </td>
-      </tr>
+        {% endfor %}
+        {% endfor %}
       {% else %}
       <tr>
         <td colspan="{{ (weeks | length) + 2 }}" class="empty-state">
           Keine Trainees gefunden. <a href="/trainees/">Trainees anlegen</a>
         </td>
       </tr>
-      {% endfor %}
+      {% endif %}
     </tbody>
   </table>
 </div>

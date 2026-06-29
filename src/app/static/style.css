@@ -699,6 +699,41 @@ tr.htmx-swapping td { opacity: 0; transition: opacity 0.15s; }
   color: var(--warning);
 }
 
+/* ── Zweistufige Gruppenüberschriften in der Matrix ──────────────────────── */
+.matrix-group-beruf > td,
+.matrix-group-klasse > td {
+  position: sticky;
+  left: 0;
+}
+
+.matrix-group-beruf > td {
+  background: var(--accent-light, #e8f0fe);
+  color: var(--accent, #1a56db);
+  font-weight: 700;
+  font-size: 13px;
+  padding: 7px 14px 5px;
+  border-top: 2px solid var(--accent, #1a56db);
+  border-bottom: 1px solid var(--border);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.matrix-group-klasse > td {
+  background: var(--surface-alt, #f4f6fb);
+  color: var(--text-muted, #6b7280);
+  font-weight: 600;
+  font-size: 12px;
+  padding: 5px 14px 4px 24px;
+  border-bottom: 1px solid var(--border);
+  font-style: italic;
+}
+
+/* Hover-Effekt auf Header-Zeilen unterdruecken */
+.matrix-table tbody tr.matrix-group-beruf:hover td,
+.matrix-table tbody tr.matrix-group-klasse:hover td {
+  background: inherit;
+}
+
 .matrix-td-name {
   padding: 6px 14px;
   border-bottom: 1px solid var(--border);

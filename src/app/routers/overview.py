@@ -20,7 +20,7 @@ from app.models import (
 )
 from app.models.trainee_class_membership import TraineeClassMembership
 from app.services.conflict_checker import describe_conflict, find_conflicts
-from app.services.membership_utils import klasse_fuer
+from app.services.membership_utils import beruf_und_lehrjahr, klasse_fuer
 from app.services.dept_history import visited_departments
 from app.utils.colors import department_color_map
 from app.utils.kw import format_weekdays, iter_schoolyear_weeks, kw_to_monday
@@ -77,7 +77,7 @@ def overview(request: Request, db: DB):
     if not year:
         dept_colors = department_color_map(all_depts)
         return templates.TemplateResponse(request, "overview/matrix.html", {
-            "trainees": [], "weeks": [], "cell_map": {}, "conflict_cells": set(),
+            "trainees": [], "grouped": [], "weeks": [], "cell_map": {}, "conflict_cells": set(),
             "conflict_count": 0, "years": years, "classes": classes,
             "depts": {}, "all_depts": all_depts, "school_week_map": {}, "trainee_klasse_map": {},
             "tage_fest_map": tage_fest_map,
@@ -131,16 +131,16 @@ def overview(request: Request, db: DB):
         ).all()
     }
 
-    # Filter trainees by class if requested
-    q = select(Trainee)
+    # Filter trainees by class if requested — IMMER nur aktive Azubis
+    q = select(Trainee).where(Trainee.aktiv == True)  # noqa: E712
     if klasse_id_str:
         klasse_id_int = int(klasse_id_str)
         # Trainees entweder per Membership oder per klasse_id (Fallback)
         membership_trainee_ids = [
             tid for tid, kid in memberships_for_year.items() if kid == klasse_id_int
         ]
-        # Auch Trainees ohne Membership aber mit passender klasse_id (Fallback)
-        all_trainees_for_q = db.exec(select(Trainee)).all()
+        # Auch aktive Trainees ohne Membership aber mit passender klasse_id (Fallback)
+        all_trainees_for_q = db.exec(select(Trainee).where(Trainee.aktiv == True)).all()  # noqa: E712
         fallback_ids = [
             t.id for t in all_trainees_for_q
             if t.id not in memberships_for_year and t.klasse_id == klasse_id_int
@@ -210,8 +210,62 @@ def overview(request: Request, db: DB):
     # visited_map[trainee_id] = list of departments this trainee has already been in
     visited_map: dict[int, list] = {t.id: visited_departments(db, t.id) for t in trainees}
 
+    # Klassen-Lookup fuer Gruppierung
+    classes_by_id: dict[int, TraineeClass] = {c.id: c for c in classes}
+
+    # Zweistufige Gruppierung: Beruf -> Klasse -> Trainees
+    # Intermediate: beruf -> klasse_key -> trainees
+    _grp: dict[str, dict[tuple[int | None, str | None], list]] = {}
+    for t in trainees:
+        klasse_id = trainee_klasse_map.get(t.id)
+        klasse = classes_by_id.get(klasse_id) if klasse_id is not None else None
+        klasse_name = klasse.name if klasse is not None else None
+        beruf, _lj = beruf_und_lehrjahr(klasse_name)
+        _grp.setdefault(beruf, {}).setdefault((klasse_id, klasse_name), []).append(t)
+
+    # Ohne-Klasse-Gruppe ans Ende: separate aus dem Dict entfernen und am Ende anfuegen
+    _ohne_key = "Ohne Klasse"
+    _ohne_grp = _grp.pop(_ohne_key, {})
+
+    def _klasse_sort_key(item: tuple[tuple[int | None, str | None], list]) -> tuple:
+        (kid, kname), _ = item
+        _, lj = beruf_und_lehrjahr(kname)
+        lj_sort = lj if lj is not None else 9999
+        return (lj_sort, kname or "")
+
+    grouped: list[dict] = []
+    for beruf in sorted(_grp.keys()):
+        klassen_items = sorted(_grp[beruf].items(), key=_klasse_sort_key)
+        grouped.append({
+            "beruf": beruf,
+            "klassen": [
+                {
+                    "name": kname,
+                    "klasse_id": kid,
+                    "trainees": sorted(ts, key=lambda t: (t.nachname, t.vorname)),
+                }
+                for (kid, kname), ts in klassen_items
+            ],
+        })
+
+    # Ohne-Klasse-Gruppe ganz ans Ende
+    if _ohne_grp:
+        klassen_items = sorted(_ohne_grp.items(), key=_klasse_sort_key)
+        grouped.append({
+            "beruf": _ohne_key,
+            "klassen": [
+                {
+                    "name": kname,
+                    "klasse_id": kid,
+                    "trainees": sorted(ts, key=lambda t: (t.nachname, t.vorname)),
+                }
+                for (kid, kname), ts in klassen_items
+            ],
+        })
+
     return templates.TemplateResponse(request, "overview/matrix.html", {
         "trainees": trainees,
+        "grouped": grouped,
         "weeks": weeks,
         "cell_map": cell_map,
         "conflict_cells": conflict_cells,

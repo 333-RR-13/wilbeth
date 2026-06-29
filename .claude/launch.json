@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "wilbeth-dev",
+      "runtimeExecutable": "C:\\Claude\\KIB3\\Wilbeth\\.venv\\Scripts\\uvicorn.exe",
+      "runtimeArgs": ["app.main:app", "--reload", "--port", "8000", "--app-dir", "src"],
+      "port": 8000
+    }
+  ]
+}

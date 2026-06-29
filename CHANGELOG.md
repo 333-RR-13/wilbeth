@@ -57,6 +57,10 @@ Format orientiert an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
   auswählen und per **Drag** oder **Strg+C / Strg+V** in eine beliebige Zeile (auch eines
   anderen Azubis) ab einer Ziel-Woche kopieren – Jahreswechsel-sicher, als `MANUAL`,
   mit Überschreiben-Rückfrage. Neuer Endpoint `POST /einsaetze/copy-block`.
+- **Übersicht: nur aktive Azubis + Gruppierung nach Beruf/Klasse**. Beim Jahreswechsel
+  archivierte (fertige) Azubis werden nicht mehr angezeigt (`aktiv == True`-Filter). Die
+  Tabelle ist automatisch zweistufig gruppiert – **Ausbildungsberuf → Klasse** – mit
+  Zwischenüberschriften, sortiert nach Beruf (alphabetisch) → Lehrjahr (1→2→3) → Name.
 - **Abteilungskategorien sind jetzt verwaltbar**: aus dem festen Enum (ITO/Non-ITO/Extern)
   wurde eine DB-Tabelle (Migration `0003`). Neue Kategorien: **Platform Development,
   Customer Service, Grenke AG, Grenke Digital**. Unter „Abteilungen → Kategorien verwalten"
