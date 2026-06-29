@@ -10,10 +10,6 @@
     data-jahr="{{ jahr }}"
     data-occupied="{{ '1' if (_has_assignment or _is_school) else '0' }}"
     {% if _has_assignment %}draggable="true"{% endif %}
-    {% if _oob %}hx-swap-oob="true"{% endif %}
-    hx-get="/einsaetze/cell-edit?trainee_id={{ trainee_id }}&kw={{ kw }}&jahr={{ jahr }}&schoolyear_id={{ schoolyear_id }}"
-    hx-target="#cell-dialog-body"
-    hx-trigger="click[!shiftKey&&!ctrlKey&&!metaKey]"
-    hx-swap="innerHTML">
+    {% if _oob %}hx-swap-oob="true"{% endif %}>
   {{ cell_content(a, dept_colors, is_school if is_school is defined else none) }}
 </td>

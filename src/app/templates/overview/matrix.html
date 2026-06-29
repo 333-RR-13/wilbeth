@@ -112,10 +112,7 @@
               data-kw="{{ w.kw }}"
               data-jahr="{{ w.jahr }}"
               data-occupied="{{ '1' if (a or is_school) else '0' }}"
-              {% if a %}draggable="true"{% endif %}
-              hx-get="/einsaetze/cell-edit?trainee_id={{ t.id }}&kw={{ w.kw }}&jahr={{ w.jahr }}&schoolyear_id={{ selected_year }}"
-              hx-target="#cell-dialog-body"
-              hx-swap="innerHTML">
+              {% if a %}draggable="true"{% endif %}>
             {{ cell_content(a, dept_colors, t_school_weeks.get(cell_key)) }}
           </td>
           {% endfor %}
@@ -311,26 +308,36 @@ document.getElementById('cell-edit-dialog').addEventListener('click', function (
     if (!td) return;
 
     if (evt.shiftKey) {
-      // Shift+Klick: Bereich selektieren
+      // Shift+Klick: Bereich selektieren (kein Dialog)
       evt.preventDefault();
       if (!selAnchor) {
-        // Erster Klick → Anchor setzen
-        selAnchor = {
-          traineeId: td.dataset.trainee,
-          kw:        td.dataset.kw,
-          jahr:      td.dataset.jahr,
-          td:        td,
-        };
+        selAnchor = { traineeId: td.dataset.trainee, kw: td.dataset.kw, jahr: td.dataset.jahr, td: td };
         selected.add(cellKey(td.dataset.trainee, td.dataset.kw, td.dataset.jahr));
         td.classList.add('mc-selected');
       } else {
         selectRange(selAnchor.td, td);
       }
-    } else if (!evt.ctrlKey && !evt.metaKey) {
-      // Normaler Klick: Auswahl leeren (HTMX-hx-trigger öffnet den Dialog)
+    } else if (evt.ctrlKey || evt.metaKey) {
+      // Strg/Cmd+Klick: einzelne Zelle dazu/weg (auf eine Zeile beschränkt, kein Dialog)
+      evt.preventDefault();
+      if (selAnchor && selAnchor.traineeId !== td.dataset.trainee) clearSelection();
+      var key = cellKey(td.dataset.trainee, td.dataset.kw, td.dataset.jahr);
+      if (selected.has(key)) {
+        selected.delete(key);
+        td.classList.remove('mc-selected');
+      } else {
+        selected.add(key);
+        td.classList.add('mc-selected');
+      }
+      selAnchor = { traineeId: td.dataset.trainee, kw: td.dataset.kw, jahr: td.dataset.jahr, td: td };
+    } else {
+      // Normaler Klick: Auswahl leeren + Bearbeiten-Dialog zentral öffnen
       clearSelection();
+      var url = '/einsaetze/cell-edit?trainee_id=' + td.dataset.trainee +
+                '&kw=' + td.dataset.kw + '&jahr=' + td.dataset.jahr +
+                '&schoolyear_id=' + encodeURIComponent(schoolyearId);
+      htmx.ajax('GET', url, { target: '#cell-dialog-body', swap: 'innerHTML' });
     }
-    // Strg+Klick: kein Selektion-Effekt, kein Dialog
   });
 
   // Escape → Auswahl leeren

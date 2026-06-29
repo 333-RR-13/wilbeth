@@ -53,8 +53,11 @@ Format orientiert an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
   **kopieren** (angelegt als `MANUAL`, Quelle bleibt) – auch auf andere Azubis. Bei
   belegter Ziel-Zelle kommt eine Überschreiben-Rückfrage; Klick-zum-Bearbeiten bleibt
   erhalten. Neuer Endpoint `POST /einsaetze/copy`; Konflikte werden wie gewohnt markiert.
-- **Block-Auswahl & -Kopieren**: mit **Shift+Klick** einen waagerechten Wochen-Block
-  auswählen und per **Drag** oder **Strg+C / Strg+V** in eine beliebige Zeile (auch eines
+- **Block-Auswahl & -Kopieren**: mit **Shift+Klick** (Bereich) oder **Strg/Cmd+Klick**
+  (einzelne Zellen) einen Wochen-Block auswählen und per **Drag** oder **Strg+C / Strg+V**
+  kopieren. Die Klick-Logik ist zentral: normaler Klick = bearbeiten, Modifier-Klicks
+  öffnen den Dialog nicht mehr (zuverlässig, ohne HTMX-Trigger-Filter). Kopieren in
+  eine beliebige Zeile (auch eines
   anderen Azubis) ab einer Ziel-Woche kopieren – Jahreswechsel-sicher, als `MANUAL`,
   mit Überschreiben-Rückfrage. Neuer Endpoint `POST /einsaetze/copy-block`.
 - **Übersicht: nur aktive Azubis + Gruppierung nach Beruf/Klasse**. Beim Jahreswechsel
