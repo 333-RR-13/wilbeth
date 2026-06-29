@@ -101,8 +101,14 @@
         {% set conflict_key = t.id ~ "~" ~ w.kw ~ "~" ~ w.jahr %}
         {% set a = t_cells.get(cell_key) %}
         {% set is_conflict = conflict_key in conflict_cells %}
+        {% set is_school = t_school_weeks.get(cell_key) %}
         <td id="cell-{{ t.id }}-{{ w.kw }}-{{ w.jahr }}"
             class="matrix-cell cell-clickable{% if is_conflict %} mc-conflict{% endif %}{% if w.is_today %} mc-today{% endif %}"
+            data-trainee="{{ t.id }}"
+            data-kw="{{ w.kw }}"
+            data-jahr="{{ w.jahr }}"
+            data-occupied="{{ '1' if (a or is_school) else '0' }}"
+            {% if a %}draggable="true"{% endif %}
             hx-get="/einsaetze/cell-edit?trainee_id={{ t.id }}&kw={{ w.kw }}&jahr={{ w.jahr }}&schoolyear_id={{ selected_year }}"
             hx-target="#cell-dialog-body"
             hx-swap="innerHTML">
@@ -158,6 +164,109 @@ document.addEventListener('htmx:afterSwap', function (evt) {
 document.getElementById('cell-edit-dialog').addEventListener('click', function (evt) {
   if (evt.target === this) { this.close(); }
 });
+
+/* ── Drag & Drop ────────────────────────────────────────────────── */
+(function () {
+  var schoolyearId = '{{ selected_year }}';
+  var dragSrc = null;   // { traineeId, kw, jahr }
+
+  var container = document.querySelector('.matrix-scroll');
+  if (!container) return;
+
+  container.addEventListener('dragstart', function (evt) {
+    var td = evt.target.closest('td[data-trainee][draggable="true"]');
+    if (!td) return;
+    dragSrc = {
+      traineeId: td.dataset.trainee,
+      kw:        td.dataset.kw,
+      jahr:      td.dataset.jahr,
+    };
+    evt.dataTransfer.effectAllowed = 'copy';
+    evt.dataTransfer.setData('text/plain', JSON.stringify(dragSrc));
+  });
+
+  container.addEventListener('dragend', function () {
+    // Highlight aller dragover-Zellen entfernen
+    container.querySelectorAll('.mc-drag-over').forEach(function (el) {
+      el.classList.remove('mc-drag-over');
+    });
+    dragSrc = null;
+  });
+
+  container.addEventListener('dragover', function (evt) {
+    var td = evt.target.closest('td[data-trainee]');
+    if (!td || !dragSrc) return;
+    evt.preventDefault();
+    evt.dataTransfer.dropEffect = 'copy';
+    // Highlight nur der aktuellen Ziel-Zelle
+    container.querySelectorAll('.mc-drag-over').forEach(function (el) {
+      el.classList.remove('mc-drag-over');
+    });
+    td.classList.add('mc-drag-over');
+  });
+
+  container.addEventListener('dragleave', function (evt) {
+    var td = evt.target.closest('td[data-trainee]');
+    if (td) td.classList.remove('mc-drag-over');
+  });
+
+  container.addEventListener('drop', function (evt) {
+    evt.preventDefault();
+    var td = evt.target.closest('td[data-trainee]');
+    if (!td) return;
+    td.classList.remove('mc-drag-over');
+
+    var src = dragSrc;
+    if (!src) return;
+
+    var dstTrainee = td.dataset.trainee;
+    var dstKw      = td.dataset.kw;
+    var dstJahr    = td.dataset.jahr;
+
+    // Gleiche Zelle → kein Effekt
+    if (src.traineeId === dstTrainee && src.kw === dstKw && src.jahr === dstJahr) return;
+
+    // Ziel belegt → confirm
+    if (td.dataset.occupied === '1') {
+      if (!confirm('Ziel-Zelle ist belegt – überschreiben?')) return;
+    }
+
+    // POST an /einsaetze/copy
+    var formData = new FormData();
+    formData.append('src_trainee_id', src.traineeId);
+    formData.append('src_kw',         src.kw);
+    formData.append('src_jahr',        src.jahr);
+    formData.append('dst_trainee_id', dstTrainee);
+    formData.append('dst_kw',         dstKw);
+    formData.append('dst_jahr',        dstJahr);
+    formData.append('schoolyear_id',  schoolyearId);
+
+    fetch('/einsaetze/copy', { method: 'POST', body: formData })
+      .then(function (resp) {
+        if (!resp.ok) return;
+        return resp.text();
+      })
+      .then(function (html) {
+        if (!html) return;
+        // Ziel-Zelle ersetzen (outerHTML)
+        var cellId = 'cell-' + dstTrainee + '-' + dstKw + '-' + dstJahr;
+        var target = document.getElementById(cellId);
+        if (target) {
+          target.outerHTML = html;
+          // HTMX muss die neue Zelle kennen
+          htmx.process(document.getElementById(cellId));
+        }
+        // OOB Konfliktzähler aktualisieren (kommt als zweites <div> im Response)
+        var tmp = document.createElement('div');
+        tmp.innerHTML = html;
+        var counter = tmp.querySelector('#conflict-counter');
+        if (counter) {
+          var existing = document.getElementById('conflict-counter');
+          if (existing) existing.outerHTML = counter.outerHTML;
+        }
+      });
+  });
+}());
 </script>
 
 {% endblock %}

@@ -49,6 +49,10 @@ Format orientiert an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
   nicht mehr die ~37 Spaltentrenner. Tab/CSV unverändert.
 - **Import-Dialog**: Höhe passt sich dem Inhalt an (kein leerer Block mehr) und es gibt
   eine **Lehrjahr-Auswahl** direkt im Dialog.
+- **Drag-&-Drop in der Übersicht**: Einsätze lassen sich per Maus von Zelle zu Zelle
+  **kopieren** (angelegt als `MANUAL`, Quelle bleibt) – auch auf andere Azubis. Bei
+  belegter Ziel-Zelle kommt eine Überschreiben-Rückfrage; Klick-zum-Bearbeiten bleibt
+  erhalten. Neuer Endpoint `POST /einsaetze/copy`; Konflikte werden wie gewohnt markiert.
 
 ### Klassen-Mitgliedschaft pro Lehrjahr + Jahreswechsel
 

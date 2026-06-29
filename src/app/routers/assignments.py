@@ -456,6 +456,68 @@ def cell_delete(
     return _render_cell_response(request, db, trainee_id, schoolyear_id, kw, jahr)
 
 
+# ── Copy (Drag & Drop) ────────────────────────────────────────────────────────
+
+@router.post("/copy", response_class=HTMLResponse)
+def copy_assignment(
+    request: Request,
+    db: DB,
+    src_trainee_id: Annotated[int, Form()],
+    src_kw: Annotated[int, Form()],
+    src_jahr: Annotated[int, Form()],
+    dst_trainee_id: Annotated[int, Form()],
+    dst_kw: Annotated[int, Form()],
+    dst_jahr: Annotated[int, Form()],
+    schoolyear_id: Annotated[str, Form()],
+):
+    # no-op wenn Quelle == Ziel
+    if (src_trainee_id == dst_trainee_id and src_kw == dst_kw and src_jahr == dst_jahr):
+        return _render_cell_response(request, db, dst_trainee_id, schoolyear_id, dst_kw, dst_jahr)
+
+    # Quelle laden
+    src = db.exec(
+        select(Assignment).where(
+            Assignment.trainee_id == src_trainee_id,
+            Assignment.kw == src_kw,
+            Assignment.jahr == src_jahr,
+            Assignment.schoolyear_id == schoolyear_id,
+        )
+    ).first()
+    if not src:
+        from fastapi.responses import Response
+        return Response(status_code=400)
+
+    # Ziel anlegen oder überschreiben
+    dst = db.exec(
+        select(Assignment).where(
+            Assignment.trainee_id == dst_trainee_id,
+            Assignment.kw == dst_kw,
+            Assignment.jahr == dst_jahr,
+            Assignment.schoolyear_id == schoolyear_id,
+        )
+    ).first()
+
+    if dst:
+        dst.typ = src.typ
+        dst.abteilung_id = src.abteilung_id
+        dst.source = AssignmentSource.MANUAL
+        dst.notiz = ""
+    else:
+        db.add(Assignment(
+            trainee_id=dst_trainee_id,
+            schoolyear_id=schoolyear_id,
+            kw=dst_kw,
+            jahr=dst_jahr,
+            typ=src.typ,
+            abteilung_id=src.abteilung_id,
+            source=AssignmentSource.MANUAL,
+            notiz="",
+        ))
+    db.commit()
+
+    return _render_cell_response(request, db, dst_trainee_id, schoolyear_id, dst_kw, dst_jahr)
+
+
 def _render_cell_response(
     request: Request,
     db: Session,

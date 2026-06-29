@@ -991,6 +991,21 @@ tr.htmx-swapping td { opacity: 0; transition: opacity 0.15s; }
   box-shadow: inset var(--accent) 0px 0px 0px 1px;
 }
 
+/* ── Drag & Drop ─────────────────────────────────────────────────── */
+td[draggable="true"] {
+  cursor: grab;
+}
+
+td[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.mc-drag-over {
+  background: var(--accent-light) !important;
+  box-shadow: inset var(--accent) 0px 0px 0px 2px !important;
+  transition: none;
+}
+
 /* ── Cell-edit dialog ───────────────────────────────────────────── */
 .cell-dialog {
   border: none;
