@@ -73,8 +73,8 @@ def test_aktiver_azubi_sichtbar(client, session):
 # (B) Gruppierung – Beruf- und Klassen-Header
 # ---------------------------------------------------------------------------
 
-def test_gruppierung_beruf_header(client, session):
-    """Zwei verschiedene Berufe erzeugen zwei Beruf-Header."""
+def test_gruppierung_reihenfolge_beruf_klasse(client, session):
+    """Ohne Header, aber die Azubi-Reihenfolge ist nach Beruf -> Lehrjahr gruppiert."""
     _make_year(session)
     fisi1 = _make_class(session, "FISI 1. LJ")
     fisi2 = _make_class(session, "FISI 2. LJ")
@@ -93,20 +93,18 @@ def test_gruppierung_beruf_header(client, session):
 
     r = client.get("/overview", params={"schoolyear_id": SY})
     assert r.status_code == 200
-    # Beruf-Header muessen vorhanden sein
-    assert "matrix-group-beruf" in r.text
-    assert "FISI" in r.text
-    assert "FIAE" in r.text
-    # Klassen-Header in Lehrjahr-Reihenfolge: 1. LJ vor 2. LJ
-    assert "FISI 1. LJ" in r.text
-    assert "FISI 2. LJ" in r.text
-    fisi1_pos = r.text.index("FISI 1. LJ")
-    fisi2_pos = r.text.index("FISI 2. LJ")
-    assert fisi1_pos < fisi2_pos, "FISI 1. LJ soll vor FISI 2. LJ erscheinen"
+    # Keine sichtbaren Gruppen-Ueberschriften mehr
+    assert "matrix-group-beruf" not in r.text
+    assert "matrix-group-klasse" not in r.text
+    # Reihenfolge: FIAE (Ceta) -> FISI 1. LJ (Alpha) -> FISI 2. LJ (Beta)
+    ceta_pos = r.text.index("Ceta")
+    alpha_pos = r.text.index("Alpha")
+    beta_pos = r.text.index("Beta")
+    assert ceta_pos < alpha_pos < beta_pos, "Reihenfolge FIAE -> FISI 1. LJ -> FISI 2. LJ"
 
 
-def test_gruppierung_klassen_header_vorhanden(client, session):
-    """matrix-group-klasse-Header erscheinen fuer jede Klasse."""
+def test_keine_gruppen_header(client, session):
+    """Es werden KEINE Beruf-/Klassen-Ueberschriften gerendert (nur die Azubis)."""
     _make_year(session)
     fisi2 = _make_class(session, "FISI 2. LJ")
 
@@ -118,13 +116,13 @@ def test_gruppierung_klassen_header_vorhanden(client, session):
 
     r = client.get("/overview", params={"schoolyear_id": SY})
     assert r.status_code == 200
-    assert "matrix-group-klasse" in r.text
-    assert "FISI 2. LJ" in r.text
-    assert "Dorf" in r.text
+    assert "matrix-group-beruf" not in r.text
+    assert "matrix-group-klasse" not in r.text
+    assert "Dorf" in r.text   # Azubi selbst erscheint weiterhin
 
 
-def test_trainee_ohne_klasse_unter_ohne_klasse(client, session):
-    """Trainee ohne Klassen-Membership erscheint unter 'Ohne Klasse'."""
+def test_trainee_ohne_klasse_wird_angezeigt(client, session):
+    """Trainee ohne Klassen-Membership erscheint trotzdem in der Uebersicht."""
     _make_year(session)
     t = Trainee(vorname="Emil", nachname="Einzel", rolle=TraineeRolle.AZUBI)
     session.add(t)
@@ -133,7 +131,6 @@ def test_trainee_ohne_klasse_unter_ohne_klasse(client, session):
     r = client.get("/overview", params={"schoolyear_id": SY})
     assert r.status_code == 200
     assert "Einzel" in r.text
-    assert "Ohne Klasse" in r.text
 
 
 def test_trainee_reihenfolge_innerhalb_klasse(client, session):

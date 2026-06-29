@@ -81,14 +81,9 @@
     </thead>
     <tbody>
       {% if grouped %}
+        {# Gruppierung nur fuer die Reihenfolge (Beruf -> Klasse -> Name), ohne sichtbare Ueberschriften #}
         {% for grp in grouped %}
-        <tr class="matrix-group-beruf">
-          <td colspan="{{ (weeks | length) + 2 }}">{{ grp.beruf }}</td>
-        </tr>
         {% for kl in grp.klassen %}
-        <tr class="matrix-group-klasse">
-          <td colspan="{{ (weeks | length) + 2 }}">{{ kl.name or 'Ohne Klasse' }}</td>
-        </tr>
         {% for t in kl.trainees %}
         {% set t_cells = cell_map.get(t.id, {}) %}
         {% set klasse_id = trainee_klasse_map.get(t.id) %}
