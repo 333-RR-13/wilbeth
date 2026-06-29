@@ -55,8 +55,8 @@ Format orientiert an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
   erhalten. Neuer Endpoint `POST /einsaetze/copy`; Konflikte werden wie gewohnt markiert.
 - **Block-Auswahl & -Kopieren**: mit **Shift+Klick** (Bereich) oder **Strg/Cmd+Klick**
   (einzelne Zellen) einen Wochen-Block auswählen und per **Drag** oder **Strg+C / Strg+V**
-  kopieren. Die Klick-Logik ist zentral: normaler Klick = bearbeiten, Modifier-Klicks
-  öffnen den Dialog nicht mehr (zuverlässig, ohne HTMX-Trigger-Filter). Kopieren in
+  kopieren. Bedienung: **Klick = Zelle auswählen, Doppelklick = bearbeiten**; Shift-/Strg-Klick
+  erweitern die Auswahl (Klick-Logik zentral, ohne HTMX-Trigger-Filter). Kopieren in
   eine beliebige Zeile (auch eines
   anderen Azubis) ab einer Ziel-Woche kopieren – Jahreswechsel-sicher, als `MANUAL`,
   mit Überschreiben-Rückfrage. Neuer Endpoint `POST /einsaetze/copy-block`.
@@ -64,6 +64,8 @@ Format orientiert an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
   archivierte (fertige) Azubis werden nicht mehr angezeigt (`aktiv == True`-Filter). Die
   Azubis sind automatisch nach **Ausbildungsberuf → Klasse** gruppiert (ohne sichtbare
   Überschriften, nur die Reihenfolge): Beruf (alphabetisch) → Lehrjahr (1→2→3) → Name.
+- **Roadmap-Seite** (`/roadmap`, Nav über „Über Wilbeth") – Live-Überblick Fertig/Geplant/
+  Blocker für die Ausbilderin. **Temporär**: vor dem produktiven Deploy wieder entfernen.
 - **Abteilungskategorien sind jetzt verwaltbar**: aus dem festen Enum (ITO/Non-ITO/Extern)
   wurde eine DB-Tabelle (Migration `0003`). Neue Kategorien: **Platform Development,
   Customer Service, Grenke AG, Grenke Digital**. Unter „Abteilungen → Kategorien verwalten"

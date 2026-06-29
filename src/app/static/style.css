@@ -768,6 +768,11 @@ tr.htmx-swapping td { opacity: 0; transition: opacity 0.15s; }
   vertical-align: middle;
   height: 32px;
   width: 36px;
+  user-select: none;           /* kein Text-Markieren beim Doppelklick */
+}
+
+.matrix-cell.mc-selected {
+  box-shadow: inset 0 0 0 2px var(--accent);
 }
 
 .matrix-cell.mc-conflict {

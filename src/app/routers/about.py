@@ -12,3 +12,11 @@ def about_wilbeth(request: Request):
     return templates.TemplateResponse(request, "about/wilbeth.html", {
         "active_nav": "about",
     })
+
+
+@router.get("/roadmap", response_class=HTMLResponse)
+def roadmap(request: Request):
+    # Temporaere Seite fuer die Aufbauphase – vor dem produktiven Deploy entfernen.
+    return templates.TemplateResponse(request, "roadmap.html", {
+        "active_nav": "roadmap",
+    })

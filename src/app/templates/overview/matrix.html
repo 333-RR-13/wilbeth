@@ -331,13 +331,23 @@ document.getElementById('cell-edit-dialog').addEventListener('click', function (
       }
       selAnchor = { traineeId: td.dataset.trainee, kw: td.dataset.kw, jahr: td.dataset.jahr, td: td };
     } else {
-      // Normaler Klick: Auswahl leeren + Bearbeiten-Dialog zentral öffnen
+      // Normaler Klick: nur diese eine Zelle auswählen (Anker setzen) – NICHT bearbeiten
       clearSelection();
-      var url = '/einsaetze/cell-edit?trainee_id=' + td.dataset.trainee +
-                '&kw=' + td.dataset.kw + '&jahr=' + td.dataset.jahr +
-                '&schoolyear_id=' + encodeURIComponent(schoolyearId);
-      htmx.ajax('GET', url, { target: '#cell-dialog-body', swap: 'innerHTML' });
+      selAnchor = { traineeId: td.dataset.trainee, kw: td.dataset.kw, jahr: td.dataset.jahr, td: td };
+      selected.add(cellKey(td.dataset.trainee, td.dataset.kw, td.dataset.jahr));
+      td.classList.add('mc-selected');
     }
+  });
+
+  // Doppelklick öffnet den Bearbeiten-Dialog
+  container.addEventListener('dblclick', function (evt) {
+    var td = evt.target.closest('td[data-trainee]');
+    if (!td) return;
+    evt.preventDefault();
+    var url = '/einsaetze/cell-edit?trainee_id=' + td.dataset.trainee +
+              '&kw=' + td.dataset.kw + '&jahr=' + td.dataset.jahr +
+              '&schoolyear_id=' + encodeURIComponent(schoolyearId);
+    htmx.ajax('GET', url, { target: '#cell-dialog-body', swap: 'innerHTML' });
   });
 
   // Escape → Auswahl leeren
