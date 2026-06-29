@@ -231,40 +231,23 @@ document.getElementById('cell-edit-dialog').addEventListener('click', function (
       if (!confirm('Ziel-Zelle ist belegt – überschreiben?')) return;
     }
 
-    // POST an /einsaetze/copy
-    var formData = new FormData();
-    formData.append('src_trainee_id', src.traineeId);
-    formData.append('src_kw',         src.kw);
-    formData.append('src_jahr',        src.jahr);
-    formData.append('dst_trainee_id', dstTrainee);
-    formData.append('dst_kw',         dstKw);
-    formData.append('dst_jahr',        dstJahr);
-    formData.append('schoolyear_id',  schoolyearId);
-
-    fetch('/einsaetze/copy', { method: 'POST', body: formData })
-      .then(function (resp) {
-        if (!resp.ok) return;
-        return resp.text();
-      })
-      .then(function (html) {
-        if (!html) return;
-        // Ziel-Zelle ersetzen (outerHTML)
-        var cellId = 'cell-' + dstTrainee + '-' + dstKw + '-' + dstJahr;
-        var target = document.getElementById(cellId);
-        if (target) {
-          target.outerHTML = html;
-          // HTMX muss die neue Zelle kennen
-          htmx.process(document.getElementById(cellId));
-        }
-        // OOB Konfliktzähler aktualisieren (kommt als zweites <div> im Response)
-        var tmp = document.createElement('div');
-        tmp.innerHTML = html;
-        var counter = tmp.querySelector('#conflict-counter');
-        if (counter) {
-          var existing = document.getElementById('conflict-counter');
-          if (existing) existing.outerHTML = counter.outerHTML;
-        }
-      });
+    // POST an /einsaetze/copy via HTMX: die Ziel-Zelle wird in #cell-... geswappt,
+    // der Konfliktzähler kommt als hx-swap-oob und landet automatisch im oberen
+    // #conflict-counter – NICHT in der Zelle (sonst stand dort z. B. "Keine Konflikte").
+    var cellId = 'cell-' + dstTrainee + '-' + dstKw + '-' + dstJahr;
+    htmx.ajax('POST', '/einsaetze/copy', {
+      target: '#' + cellId,
+      swap: 'outerHTML',
+      values: {
+        src_trainee_id: src.traineeId,
+        src_kw:         src.kw,
+        src_jahr:       src.jahr,
+        dst_trainee_id: dstTrainee,
+        dst_kw:         dstKw,
+        dst_jahr:       dstJahr,
+        schoolyear_id:  schoolyearId,
+      },
+    });
   });
 }());
 </script>
