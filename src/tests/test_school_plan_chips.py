@@ -60,7 +60,7 @@ def _setup(session: Session, school_week_typ: SchoolWeekTyp = SchoolWeekTyp.BERU
 def test_overview_shows_bs_chip_without_assignment(client, session):
     """Schulplanwoche (BERUFSSCHULE) ohne Einsatz → solider BS-Chip (Klassenplan) in der Matrix."""
     _setup(session, SchoolWeekTyp.BERUFSSCHULE)
-    r = client.get("/overview", params={"schoolyear_id": SY})
+    r = client.get("/overview", params={"schoolyear_id": SY, "halbjahr": ""})
     assert r.status_code == 200
     assert 'title="laut Klassen-Schulplan"' in r.text
     assert ">BS<" in r.text
@@ -69,7 +69,7 @@ def test_overview_shows_bs_chip_without_assignment(client, session):
 def test_overview_shows_uni_chip_without_assignment(client, session):
     """Schulplanwoche (UNI) ohne Einsatz → solider HS-Chip (Klassenplan) in der Matrix."""
     _setup(session, SchoolWeekTyp.UNI)
-    r = client.get("/overview", params={"schoolyear_id": SY})
+    r = client.get("/overview", params={"schoolyear_id": SY, "halbjahr": ""})
     assert r.status_code == 200
     assert 'title="laut Klassen-Schulplan"' in r.text
     assert ">HS<" in r.text
@@ -85,7 +85,7 @@ def test_overview_explicit_assignment_wins(client, session):
         typ=AssignmentTyp.BERUFSSCHULE, source=AssignmentSource.MANUAL,
     ))
     session.commit()
-    r = client.get("/overview", params={"schoolyear_id": SY})
+    r = client.get("/overview", params={"schoolyear_id": SY, "halbjahr": ""})
     assert r.status_code == 200
     # Echter Chip (cell-school) vorhanden
     assert "cell-school" in r.text

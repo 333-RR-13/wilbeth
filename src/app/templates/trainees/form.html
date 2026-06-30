@@ -80,6 +80,12 @@
       {% endif %}
 
       <div class="form-group">
+        <label for="ausbildungsbeginn">Ausbildungsbeginn</label>
+        <input type="date" id="ausbildungsbeginn" name="ausbildungsbeginn"
+               value="{{ trainee.ausbildungsbeginn.isoformat() if trainee and trainee.ausbildungsbeginn else '' }}">
+      </div>
+
+      <div class="form-group">
         <label for="steckbrief">Steckbrief</label>
         <textarea id="steckbrief" name="steckbrief" rows="4"
                   placeholder="Kurzer Steckbrief, z. B. Interessen, Schwerpunkte, Hintergrund">{{ trainee.steckbrief if trainee else '' }}</textarea>

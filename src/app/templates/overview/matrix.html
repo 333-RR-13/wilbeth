@@ -71,6 +71,11 @@
     <option value="{{ n }}" {{ 'selected' if selected_wochen == (n | string) else '' }}>{{ n }} Wochen</option>
     {% endfor %}
   </select>
+  <select name="halbjahr" onchange="this.form.submit()">
+    <option value="" {{ 'selected' if selected_halbjahr == '' else '' }}>Ganzes Jahr</option>
+    <option value="1" {{ 'selected' if selected_halbjahr == '1' else '' }}>1. Halbjahr (KW 36-10)</option>
+    <option value="2" {{ 'selected' if selected_halbjahr == '2' else '' }}>2. Halbjahr (KW 11-35)</option>
+  </select>
   <button type="submit" class="btn btn-secondary">Anwenden</button>
 </form>
 
@@ -85,7 +90,7 @@
   <span class="legend-item"><span class="matrix-today-sample"></span> Aktuelle KW</span>
 </div>
 
-<div class="matrix-scroll"{% if n_wochen and n_wochen > 0 %} style="max-width: calc(180px + {{ n_wochen }} * 38px)"{% endif %}>
+<div class="matrix-scroll"{% if n_wochen and n_wochen > 0 %} style="max-width: calc(180px + 132px + {{ n_wochen }} * 44px)"{% endif %}>
   <table class="matrix-table">
     <thead>
       <tr>

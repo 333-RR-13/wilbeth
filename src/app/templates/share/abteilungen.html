@@ -1,0 +1,100 @@
+{% extends "share/_base.html" %}
+{% block title %}Abteilungen{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Abteilungen</h1>
+    <p class="page-subtitle">Übersicht aller Einsatzabteilungen</p>
+  </div>
+</div>
+
+{% if all_depts %}
+<div class="dept-list">
+  {% for d in all_depts %}
+  <div class="dept-card">
+    <div class="dept-card-header">
+      <span class="dept-color-dot" style="background:{{ d.farbe }};"></span>
+      <span class="dept-code">{{ d.code }}</span>
+      <span class="dept-name">{{ d.name }}</span>
+    </div>
+    <dl class="dept-meta">
+      <div class="dept-meta-row">
+        <dt>Kategorie</dt>
+        <dd>{{ d.kategorie.name if d.kategorie else '–' }}</dd>
+      </div>
+      <div class="dept-meta-row">
+        <dt>Ansprechpartner</dt>
+        <dd>{{ d.ansprechpartner if d.ansprechpartner else '–' }}</dd>
+      </div>
+      <div class="dept-meta-row">
+        <dt>Info</dt>
+        <dd>{{ d.info_text if d.info_text else '–' }}</dd>
+      </div>
+    </dl>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card card-body" style="text-align:center; color:var(--text-muted)">
+  Noch keine Abteilungen angelegt.
+</div>
+{% endif %}
+
+<style>
+.dept-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+.dept-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 8px);
+  padding: 0.9rem 1rem;
+}
+.dept-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+.dept-color-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dept-code {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+.dept-name {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+.dept-meta {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.dept-meta-row {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+}
+.dept-meta-row dt {
+  color: var(--text-muted);
+  min-width: 110px;
+  flex-shrink: 0;
+}
+.dept-meta-row dd {
+  margin: 0;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+</style>
+{% endblock %}

@@ -12,6 +12,7 @@ from app.models import (
     Schoolyear,
     Trainee,
     TraineeClass,
+    TraineeClassMembership,
     TraineeRolle,
     UnterrichtsTyp,
 )
@@ -27,8 +28,10 @@ def _schoolyear(session: Session) -> None:
 def test_detail_with_assignments(client, session):
     _schoolyear(session)
     cp = Department(code="CP", name="Cloud Platform")
-    session.add(cp)
-    t = Trainee(vorname="Felix", nachname="Fischer", rolle=TraineeRolle.AZUBI)
+    klasse = TraineeClass(name="FISI 2. LJ", berufsschule="HHS", unterrichts_typ=UnterrichtsTyp.BLOCK_FEST)
+    session.add_all([cp, klasse])
+    session.flush()
+    t = Trainee(vorname="Felix", nachname="Fischer", rolle=TraineeRolle.AZUBI, klasse_id=klasse.id)
     session.add(t)
     session.flush()
     session.add(Assignment(trainee_id=t.id, schoolyear_id=SY, kw=40, jahr=2025,
@@ -39,7 +42,9 @@ def test_detail_with_assignments(client, session):
     assert r.status_code == 200
     assert "Fischer" in r.text
     assert "Felix" in r.text
-    assert "Ausbildungsjahr 2025-2026" in r.text
+    # Ausbildungsjahr-Zeile entfernt; stattdessen Klasse und ausgeschriebener Beruf
+    assert "FISI 2. LJ" in r.text
+    assert "Fachinformatiker" in r.text
     assert "CP" in r.text
 
 

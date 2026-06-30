@@ -21,7 +21,7 @@ from app.models import (
 )
 from app.models.trainee_wish import prioritaet_label
 from app.services.conflict_checker import find_conflicts
-from app.services.membership_utils import beruf_und_lehrjahr, upsert_membership
+from app.services.membership_utils import beruf_langname, beruf_und_lehrjahr, klasse_fuer, upsert_membership
 from app.services.school_sync import sync_trainee
 from app.utils.colors import department_color_map
 
@@ -78,8 +78,16 @@ def create_trainee(
     notizen: Annotated[str, Form()] = "",
     steckbrief: Annotated[str, Form()] = "",
     aktiv: Annotated[str, Form()] = "",
+    ausbildungsbeginn: Annotated[str, Form()] = "",
 ):
     klasse_id_int = int(klasse_id) if klasse_id else None
+    from datetime import date as _date
+    ausbildungsbeginn_parsed: _date | None = None
+    if ausbildungsbeginn:
+        try:
+            ausbildungsbeginn_parsed = _date.fromisoformat(ausbildungsbeginn)
+        except ValueError:
+            ausbildungsbeginn_parsed = None
     t = Trainee(
         vorname=vorname,
         nachname=nachname,
@@ -88,6 +96,7 @@ def create_trainee(
         notizen=notizen,
         steckbrief=steckbrief,
         aktiv=bool(aktiv),
+        ausbildungsbeginn=ausbildungsbeginn_parsed,
     )
     db.add(t)
     db.commit()
@@ -100,14 +109,14 @@ def create_trainee(
         db.add(t)
         db.commit()
     sync_trainee(db, t.id)
-    return RedirectResponse("/trainees/?msg=created", status_code=303)
+    return RedirectResponse(f"/trainees/{t.id}?msg=created", status_code=303)
 
 
 @router.get("/{trainee_id:int}", response_class=HTMLResponse)
 def trainee_detail(request: Request, trainee_id: int, db: DB):
     trainee = db.get(Trainee, trainee_id)
-    klasse = db.get(TraineeClass, trainee.klasse_id) if trainee.klasse_id else None
-    years = {y.id: y for y in db.exec(select(Schoolyear).order_by(Schoolyear.start_year.desc())).all()}
+    years_list = db.exec(select(Schoolyear).order_by(Schoolyear.start_year.desc())).all()
+    years = {y.id: y for y in years_list}
     all_depts = db.exec(select(Department)).all()
     depts = {d.id: d for d in all_depts}
     dept_colors = department_color_map(all_depts)
@@ -134,10 +143,13 @@ def trainee_detail(request: Request, trainee_id: int, db: DB):
     ).all()
 
     # ── Visitenkarte ────────────────────────────────────────────────
-    # Ausbildungsjahr: neuestes Schuljahr (years ist bereits start_year desc sortiert)
-    ausbildungsjahr = next(iter(years), None)
-    # Ausbildungsberuf + Lehrjahr aus dem Klassennamen ableiten
-    beruf, lehrjahr = beruf_und_lehrjahr(klasse.name if klasse else None)
+    # Klasse ueber klasse_fuer ermitteln (neuestes Schuljahr)
+    schoolyear_id = years_list[0].id if years_list else None
+    klasse_id = klasse_fuer(db, trainee, schoolyear_id) if schoolyear_id else trainee.klasse_id
+    klasse = db.get(TraineeClass, klasse_id) if klasse_id else None
+    # Ausbildungsberuf ausgeschrieben
+    beruf_token, lehrjahr = beruf_und_lehrjahr(klasse.name if klasse else None)
+    beruf_lang = beruf_langname(beruf_token)
 
     return templates.TemplateResponse(request, "trainees/detail.html", {
         "trainee": trainee,
@@ -149,9 +161,8 @@ def trainee_detail(request: Request, trainee_id: int, db: DB):
         "conflict_cells": conflict_cells,
         "today_key": today_key,
         "wishes": wishes,
-        "ausbildungsjahr": ausbildungsjahr,
-        "beruf": beruf,
-        "lehrjahr": lehrjahr,
+        "beruf_lang": beruf_lang,
+        "ausbildungsbeginn": trainee.ausbildungsbeginn,
         "active_nav": "trainees",
     })
 
@@ -190,6 +201,10 @@ def edit_trainee(request: Request, trainee_id: int, db: DB):
     # Default Lehrjahr: neuestes Jahr oder erstes mit Membership
     default_year_id = years[0].id if years else ""
     selected_year_id = request.query_params.get("year_id", default_year_id)
+    # Bug A: wenn fuer selected_year_id keine Membership, aber trainee.klasse_id gesetzt ->
+    # Klasse als Default vorwaehlen
+    if selected_year_id and selected_year_id not in memberships and trainee.klasse_id:
+        memberships[selected_year_id] = trainee.klasse_id
     return templates.TemplateResponse(request, "trainees/form.html", {
         "trainee": trainee,
         "classes": classes,
@@ -213,7 +228,9 @@ def update_trainee(
     notizen: Annotated[str, Form()] = "",
     steckbrief: Annotated[str, Form()] = "",
     aktiv: Annotated[str, Form()] = "",
+    ausbildungsbeginn: Annotated[str, Form()] = "",
 ):
+    from datetime import date as _date
     t = db.get(Trainee, trainee_id)
     t.vorname = vorname
     t.nachname = nachname
@@ -221,19 +238,23 @@ def update_trainee(
     t.notizen = notizen
     t.steckbrief = steckbrief
     t.aktiv = bool(aktiv)
+    if ausbildungsbeginn:
+        try:
+            t.ausbildungsbeginn = _date.fromisoformat(ausbildungsbeginn)
+        except ValueError:
+            t.ausbildungsbeginn = None
+    else:
+        t.ausbildungsbeginn = None
     # Membership fuer gewaehltes Lehrjahr setzen
-    mem_klasse_int = int(membership_klasse_id) if membership_klasse_id else (int(klasse_id) if klasse_id else None)
+    mem_klasse_int = int(membership_klasse_id) if membership_klasse_id else None
     if membership_year_id and mem_klasse_int:
         upsert_membership(db, trainee_id, membership_year_id, mem_klasse_int)
         t.klasse_id = mem_klasse_int
-    elif klasse_id:
-        t.klasse_id = int(klasse_id)
-    else:
-        t.klasse_id = None
+    # sonst Klasse unveraendert lassen (kein else-Zweig)
     db.add(t)
     db.commit()
     sync_trainee(db, trainee_id)
-    return RedirectResponse("/trainees/?msg=updated", status_code=303)
+    return RedirectResponse(f"/trainees/{trainee_id}?msg=updated", status_code=303)
 
 
 @router.post("/{trainee_id:int}/reaktivieren", response_class=RedirectResponse)

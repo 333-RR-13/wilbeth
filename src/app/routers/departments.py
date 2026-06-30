@@ -99,6 +99,7 @@ def create_department(
     name: Annotated[str, Form()],
     kategorie_id: Annotated[int | None, Form()] = None,
     ansprechpartner: Annotated[str, Form()] = "",
+    info_text: Annotated[str, Form()] = "",
     erlaubt_mehrfachbelegung: Annotated[str, Form()] = "",
     farbe: Annotated[str, Form()] = "#9CA3AF",
 ):
@@ -107,6 +108,7 @@ def create_department(
         name=name,
         kategorie_id=kategorie_id,
         ansprechpartner=ansprechpartner,
+        info_text=info_text,
         erlaubt_mehrfachbelegung=bool(erlaubt_mehrfachbelegung),
         farbe=farbe,
     ))
@@ -129,6 +131,7 @@ def update_department(
     name: Annotated[str, Form()],
     kategorie_id: Annotated[int | None, Form()] = None,
     ansprechpartner: Annotated[str, Form()] = "",
+    info_text: Annotated[str, Form()] = "",
     erlaubt_mehrfachbelegung: Annotated[str, Form()] = "",
     farbe: Annotated[str, Form()] = "#9CA3AF",
 ):
@@ -137,6 +140,7 @@ def update_department(
     dept.name = name
     dept.kategorie_id = kategorie_id
     dept.ansprechpartner = ansprechpartner
+    dept.info_text = info_text
     dept.erlaubt_mehrfachbelegung = bool(erlaubt_mehrfachbelegung)
     dept.farbe = farbe
     db.commit()

@@ -8,6 +8,9 @@ Abgedeckte Faelle:
   - Abteilung mit kategorie_id anlegen (POST /abteilungen/)
   - Abteilung kategorie_id aendern (POST /abteilungen/{id})
   - Listenseite zeigt Kategorien-Namen statt Enum
+  - info_text wird beim Anlegen gespeichert (POST /abteilungen/)
+  - info_text wird beim Bearbeiten gespeichert (POST /abteilungen/{id})
+  - Listenseite zeigt info_text gekuerzt an
 """
 from sqlmodel import Session, select
 
@@ -201,3 +204,62 @@ def test_kategorien_page_lists_existing(client, session: Session):
     r = client.get("/abteilungen/kategorien")
     assert r.status_code == 200
     assert "Sichtbare Kat" in r.text
+
+
+# ── info_text speichern und anzeigen ─────────────────────────────────────────
+
+def test_create_department_saves_info_text(client, session: Session):
+    """POST /abteilungen/ speichert info_text korrekt in der Datenbank."""
+    r = client.post("/abteilungen/", data={
+        "code": "INF",
+        "name": "Info Dept",
+        "info_text": "Dies ist eine Beschreibung der Abteilung.",
+    }, follow_redirects=False)
+    assert r.status_code == 303
+
+    dept = session.exec(select(Department).where(Department.code == "INF")).first()
+    assert dept is not None
+    assert dept.info_text == "Dies ist eine Beschreibung der Abteilung."
+
+
+def test_update_department_saves_info_text(client, session: Session):
+    """POST /abteilungen/{id} aktualisiert info_text korrekt."""
+    dept = Department(code="UPD", name="Update Info Dept", info_text="Alt")
+    session.add(dept)
+    session.commit()
+
+    r = client.post(f"/abteilungen/{dept.id}", data={
+        "code": "UPD",
+        "name": "Update Info Dept",
+        "info_text": "Neuer Beschreibungstext",
+    }, follow_redirects=False)
+    assert r.status_code == 303
+
+    session.refresh(dept)
+    assert dept.info_text == "Neuer Beschreibungstext"
+
+
+def test_list_shows_info_text_truncated(client, session: Session):
+    """GET /abteilungen/ zeigt info_text (ggf. gekuerzt) in der Liste an."""
+    langer_text = "A" * 80  # laenger als 60 Zeichen => wird abgeschnitten
+    dept = Department(code="LNG", name="Long Text Dept", info_text=langer_text)
+    session.add(dept)
+    session.commit()
+
+    r = client.get("/abteilungen/")
+    assert r.status_code == 200
+    # Die ersten 60 Zeichen muessen im HTML erscheinen
+    assert "A" * 60 in r.text
+    # Das Kuerzel-Zeichen fuer Abschneiden muss erscheinen
+    assert "…" in r.text
+
+
+def test_list_shows_dash_when_info_text_empty(client, session: Session):
+    """GET /abteilungen/ zeigt '–' wenn kein info_text gesetzt."""
+    dept = Department(code="NIT", name="No Info Text Dept", info_text="")
+    session.add(dept)
+    session.commit()
+
+    r = client.get("/abteilungen/")
+    assert r.status_code == 200
+    assert "NIT" in r.text

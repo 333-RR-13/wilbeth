@@ -659,7 +659,9 @@ tr.htmx-swapping td { opacity: 0; transition: opacity 0.15s; }
   position: sticky;
   left: 0;
   z-index: 2;
-  min-width: 160px;
+  width: 180px;
+  min-width: 180px;
+  box-sizing: border-box;
 }
 
 .matrix-th-kw {
@@ -670,8 +672,9 @@ tr.htmx-swapping td { opacity: 0; transition: opacity 0.15s; }
   color: var(--text-muted);
   border-bottom: 1px solid var(--border);
   border-left: 1px solid var(--border);
-  min-width: 42px;
-  width: 42px;
+  width: 44px;
+  min-width: 44px;
+  box-sizing: border-box;
 }
 
 .matrix-th-kw .th-kw-num {
@@ -742,7 +745,9 @@ tr.htmx-swapping td { opacity: 0; transition: opacity 0.15s; }
   left: 0;
   background: var(--surface);
   z-index: 1;
-  min-width: 160px;
+  width: 180px;
+  min-width: 180px;
+  box-sizing: border-box;
 }
 
 .matrix-table tbody tr:hover .matrix-td-name {
@@ -767,7 +772,9 @@ tr.htmx-swapping td { opacity: 0; transition: opacity 0.15s; }
   border-left: 1px solid var(--border);
   vertical-align: middle;
   height: 32px;
-  width: 36px;
+  width: 44px;
+  min-width: 44px;
+  box-sizing: border-box;
   user-select: none;           /* kein Text-Markieren beim Doppelklick */
 }
 
@@ -1536,8 +1543,11 @@ td[draggable="true"]:active {
   position: sticky;
   right: 0;
   z-index: 2;
-  min-width: 120px;
-  white-space: nowrap;
+  width: 132px;
+  min-width: 132px;
+  box-sizing: border-box;
+  white-space: normal;
+  line-height: 1.2;
 }
 
 .matrix-td-visited {
@@ -1548,7 +1558,9 @@ td[draggable="true"]:active {
   right: 0;
   background: var(--surface);
   z-index: 1;
-  min-width: 120px;
+  width: 132px;
+  min-width: 132px;
+  box-sizing: border-box;
 }
 
 .matrix-table tbody tr:hover .matrix-td-visited {
@@ -1557,7 +1569,7 @@ td[draggable="true"]:active {
 
 .visited-col-chips {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 2px;
 }
 

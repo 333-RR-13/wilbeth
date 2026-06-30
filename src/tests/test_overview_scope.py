@@ -67,10 +67,10 @@ def _setup_year_with_class(session: Session) -> int:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def test_alle_wochen_werden_gerendert(client, session):
-    """Ohne wochen-Filter werden exakt alle Wochen des Lehrjahrs gerendert."""
+    """Ohne wochen-Filter und ohne Halbjahr-Filter werden alle Wochen des Lehrjahrs gerendert."""
     _setup_year(session)
     expected = sum(1 for _ in iter_schoolyear_weeks(START_KW, START_YEAR, END_KW, END_YEAR))
-    r = client.get("/overview", params={"schoolyear_id": SY})
+    r = client.get("/overview", params={"schoolyear_id": SY, "halbjahr": ""})
     assert r.status_code == 200
     kw_headers = r.text.count("th-kw-num")
     assert kw_headers == expected, (
@@ -81,16 +81,16 @@ def test_alle_wochen_werden_gerendert(client, session):
 def test_wochen_filter_rendert_trotzdem_alle_wochen(client, session):
     """wochen=4 schraenkt nicht mehr die Anzahl gerenderter Spalten ein.
 
-    Kein Slicing mehr: alle Wochen des Lehrjahrs werden gerendert,
+    Kein Slicing mehr: alle Wochen des Lehrjahrs werden gerendert (wenn halbjahr=''),
     die sichtbare Breite wird nur per CSS max-width begrenzt.
     """
     _setup_year(session)
     expected = sum(1 for _ in iter_schoolyear_weeks(START_KW, START_YEAR, END_KW, END_YEAR))
-    r = client.get("/overview", params={"schoolyear_id": SY, "wochen": "4"})
+    r = client.get("/overview", params={"schoolyear_id": SY, "wochen": "4", "halbjahr": ""})
     assert r.status_code == 200
     kw_headers = r.text.count("th-kw-num")
     assert kw_headers == expected, (
-        f"Erwartet alle {expected} KW-Header auch bei wochen=4, gefunden: {kw_headers}"
+        f"Erwartet alle {expected} KW-Header auch bei wochen=4 (halbjahr leer), gefunden: {kw_headers}"
     )
 
 
@@ -99,8 +99,8 @@ def test_viewport_max_width_bei_wochen_4(client, session):
     _setup_year(session)
     r = client.get("/overview", params={"schoolyear_id": SY, "wochen": "4"})
     assert r.status_code == 200
-    assert "calc(180px + 4 * 38px)" in r.text, (
-        "Viewport-Begrenzungsformel 'calc(180px + 4 * 38px)' muss im HTML stehen"
+    assert "calc(180px + 132px + 4 * 44px)" in r.text, (
+        "Viewport-Begrenzungsformel 'calc(180px + 132px + 4 * 44px)' muss im HTML stehen"
     )
     assert "max-width" in r.text
 
@@ -108,10 +108,10 @@ def test_viewport_max_width_bei_wochen_4(client, session):
 def test_kein_viewport_max_width_ohne_wochen(client, session):
     """Ohne wochen-Parameter erscheint keine max-width fuer den Viewport-Container."""
     _setup_year(session)
-    r = client.get("/overview", params={"schoolyear_id": SY})
+    r = client.get("/overview", params={"schoolyear_id": SY, "wochen": "", "halbjahr": ""})
     assert r.status_code == 200
-    # Kein calc(180px + ... * 38px) – der Container hat kein Limit
-    assert "calc(180px +" not in r.text
+    # Kein calc(...) fuer den Container – kein Viewport-Limit
+    assert "calc(180px + 132px +" not in r.text
 
 
 def test_sticky_name_spalte_im_html(client, session):
@@ -197,8 +197,8 @@ def test_wochen_cookie_persistenz(client, session):
     # Folgender Request ohne wochen: Cookie-Wert soll angewendet werden
     r2 = client.get("/overview", params={"schoolyear_id": SY})
     assert r2.status_code == 200
-    # Viewport-max-width fuer n=8 muss erscheinen
-    assert "calc(180px + 8 * 38px)" in r2.text, (
+    # Viewport-max-width fuer n=8 muss erscheinen (neue Formel)
+    assert "calc(180px + 132px + 8 * 44px)" in r2.text, (
         "Viewport fuer wochen=8 aus Cookie soll im HTML erscheinen"
     )
 
@@ -207,3 +207,102 @@ def test_wochen_cookie_persistenz(client, session):
     assert cookie_raw is not None
     data = _decode_cookie(cookie_raw)
     assert data["wochen"] == "8"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# (C) Halbjahr-Filter
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_halbjahr_h1_rendert_nur_kw36_bis_10(client, session):
+    """halbjahr=1 rendert nur Wochen mit KW >= 36 oder KW <= 10."""
+    _setup_year(session)
+    r = client.get("/overview", params={"schoolyear_id": SY, "halbjahr": "1"})
+    assert r.status_code == 200
+    # KW 11-35 duerfen NICHT vorkommen (als th-kw-num-Eintrag mit fuehrender Null
+    # oder ohne, aber eingebettet im span)
+    # Einfacher Check: KW 20 und KW 30 sollen nicht als KW-Header erscheinen.
+    # Da der Text "20" auch anderswo vorkommt, pruefen wir auf das spezifische Muster.
+    text = r.text
+    # Alle KW aus dem Halbjahr 2 (11-35) sollen nicht als KW-Header erscheinen
+    # Wir pruefen stellvertretend KW 20 und KW 30
+    import re
+    kw_headers = re.findall(r'class="th-kw-num">(\d+)<', text)
+    kw_values = [int(k) for k in kw_headers]
+    h2_kws = [k for k in kw_values if 11 <= k <= 35]
+    assert len(h2_kws) == 0, (
+        f"H1-Filter: KW 11-35 duerfen nicht gerendert werden, gefunden: {h2_kws}"
+    )
+    h1_kws = [k for k in kw_values if k >= 36 or k <= 10]
+    assert len(h1_kws) > 0, "H1-Filter: mindestens eine KW >= 36 oder <= 10 muss gerendert sein"
+
+
+def test_halbjahr_h2_rendert_nur_kw11_bis_35(client, session):
+    """halbjahr=2 rendert nur Wochen mit KW 11 bis 35."""
+    _setup_year(session)
+    r = client.get("/overview", params={"schoolyear_id": SY, "halbjahr": "2"})
+    assert r.status_code == 200
+    import re
+    kw_headers = re.findall(r'class="th-kw-num">(\d+)<', r.text)
+    kw_values = [int(k) for k in kw_headers]
+    h1_kws = [k for k in kw_values if k >= 36 or k <= 10]
+    assert len(h1_kws) == 0, (
+        f"H2-Filter: KW >= 36 oder <= 10 duerfen nicht gerendert werden, gefunden: {h1_kws}"
+    )
+    h2_kws = [k for k in kw_values if 11 <= k <= 35]
+    assert len(h2_kws) > 0, "H2-Filter: mindestens eine KW 11-35 muss gerendert sein"
+
+
+def test_halbjahr_ganzes_jahr_rendert_alle_wochen(client, session):
+    """halbjahr='' (Ganzes Jahr) rendert alle Wochen des Lehrjahrs."""
+    _setup_year(session)
+    expected = sum(1 for _ in iter_schoolyear_weeks(START_KW, START_YEAR, END_KW, END_YEAR))
+    r = client.get("/overview", params={"schoolyear_id": SY, "halbjahr": "", "wochen": ""})
+    assert r.status_code == 200
+    kw_headers = r.text.count("th-kw-num")
+    assert kw_headers == expected, (
+        f"Ganzes Jahr: erwartet {expected} KW-Header, gefunden: {kw_headers}"
+    )
+
+
+def test_halbjahr_cookie_persistenz(client, session):
+    """halbjahr=2 wird via Cookie gespeichert und beim naechsten Request genutzt."""
+    _setup_year(session)
+
+    r1 = client.get("/overview", params={"schoolyear_id": SY, "halbjahr": "2"})
+    assert r1.status_code == 200
+
+    r2 = client.get("/overview", params={"schoolyear_id": SY})
+    assert r2.status_code == 200
+
+    cookie_raw = client.cookies.get("ov_filters")
+    assert cookie_raw is not None
+    data = _decode_cookie(cookie_raw)
+    assert data["halbjahr"] == "2", (
+        f"Cookie soll halbjahr='2' speichern, hat: {data.get('halbjahr')}"
+    )
+
+    import re
+    kw_headers = re.findall(r'class="th-kw-num">(\d+)<', r2.text)
+    kw_values = [int(k) for k in kw_headers]
+    h1_kws = [k for k in kw_values if k >= 36 or k <= 10]
+    assert len(h1_kws) == 0, "H2 aus Cookie: KW 36+ oder <=10 duerfen nicht erscheinen"
+
+
+def test_halbjahr_default_ist_aktuelles_halbjahr(client, session):
+    """Ohne Cookie und ohne halbjahr-Param wird das aktuelle Halbjahr als Default gesetzt."""
+    from datetime import date as _date
+    _setup_year(session)
+
+    # Aktuelles Halbjahr berechnen (gleiche Logik wie _default_halbjahr)
+    today_kw = _date.today().isocalendar().week
+    expected_hj = "2" if 11 <= today_kw <= 35 else "1"
+
+    r = client.get("/overview", params={"schoolyear_id": SY})
+    assert r.status_code == 200
+
+    cookie_raw = client.cookies.get("ov_filters")
+    assert cookie_raw is not None
+    data = _decode_cookie(cookie_raw)
+    assert data.get("halbjahr") == expected_hj, (
+        f"Default-Halbjahr soll '{expected_hj}' sein (KW={today_kw}), ist: {data.get('halbjahr')}"
+    )

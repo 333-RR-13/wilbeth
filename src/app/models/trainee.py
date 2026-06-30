@@ -1,3 +1,4 @@
+from datetime import date
 from enum import Enum
 
 from sqlmodel import Field, SQLModel
@@ -31,3 +32,5 @@ class Trainee(SQLModel, table=True):
     share_token: str | None = Field(default=None, max_length=36, unique=True, index=True)
     # Freitext-Wuensche des Azubis (inkl. Zeitwuensche) -- beratend fuer die Planerin
     wunsch_notiz: str = Field(default="")
+    # Beginn der Ausbildung/des Studiums
+    ausbildungsbeginn: date | None = Field(default=None)

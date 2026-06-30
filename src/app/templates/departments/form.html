@@ -41,10 +41,15 @@
       </div>
 
       <div class="form-group">
-        <label for="ansprechpartner">Ansprechpartner</label>
-        <input type="text" id="ansprechpartner" name="ansprechpartner"
-               value="{{ department.ansprechpartner if department else '' }}"
-               placeholder="Name oder E-Mail">
+        <label for="ansprechpartner">Zustaendige Mitarbeiter</label>
+        <textarea id="ansprechpartner" name="ansprechpartner" rows="2"
+                  placeholder="Name oder E-Mail, mehrere Eintraege zeilenweise">{{ department.ansprechpartner if department else '' }}</textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="info_text">Abteilungs-Beschreibung</label>
+        <textarea id="info_text" name="info_text" rows="4"
+                  placeholder="Informationen zur Abteilung (Aufgaben, Hinweise fuer Azubis …)">{{ department.info_text if department else '' }}</textarea>
       </div>
 
       <div class="form-group">

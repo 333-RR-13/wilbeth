@@ -51,11 +51,10 @@ def test_detail_zeigt_steckbrief(client, session: Session):
     r = client.get(f"/trainees/{t.id}")
     assert r.status_code == 200
     assert "Begeistert sich fuer Cloud und Automatisierung." in r.text
-    # Visitenkarten-Fakten: Ausbildungsjahr + Ausbildungsberuf
-    assert "Ausbildungsjahr" in r.text
+    # Visitenkarten-Fakten (neu): ausgeschriebener Beruf + Klasse, KEIN Ausbildungsjahr mehr
     assert "Ausbildungsberuf" in r.text
-    assert SY_A in r.text
-    assert "FISI" in r.text
+    assert "Fachinformatiker" in r.text and "Systemintegration" in r.text
+    assert "FISI 2. LJ" in r.text  # Klasse
 
 
 def test_detail_steckbrief_leer_zeigt_platzhalter(client, session: Session):

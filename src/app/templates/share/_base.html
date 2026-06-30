@@ -50,6 +50,20 @@
         </svg>
         Wünsche
       </a>
+      <a href="/mein-plan/{{ token }}/uebersicht"
+         class="nav-link {% if active == 'uebersicht' %}active{% endif %}">
+        <svg viewBox="0 0 16 16" fill="currentColor">
+          <path d="M1 1h6v6H1zm8 0h6v6H9zM1 9h6v6H1zm8 0h6v6H9z"/>
+        </svg>
+        Übersicht
+      </a>
+      <a href="/mein-plan/{{ token }}/abteilungen"
+         class="nav-link {% if active == 'abteilungen' %}active{% endif %}">
+        <svg viewBox="0 0 16 16" fill="currentColor">
+          <path d="M2 2h5v5H2zm7 0h5v5H9zM2 9h5v5H2zm7 0h5v5H9z"/>
+        </svg>
+        Abteilungen
+      </a>
       <a href="/mein-plan/{{ token }}/calendar.ics"
          class="nav-link {% if active == 'ics' %}active{% endif %}">
         <svg viewBox="0 0 16 16" fill="currentColor">

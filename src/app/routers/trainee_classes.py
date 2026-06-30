@@ -9,7 +9,7 @@ from sqlmodel import Session, select
 from app.database import get_session
 from app.models import Schoolyear, Trainee, TraineeClass, UnterrichtsTyp
 from app.models.trainee_class_membership import TraineeClassMembership
-from app.services.membership_utils import beruf_und_lehrjahr, upsert_membership
+from app.services.membership_utils import beruf_langname, beruf_und_lehrjahr, upsert_membership
 from app.services.school_sync import sync_trainee
 from app.utils.kw import WEEKDAY_LABELS, format_weekdays, parse_weekdays
 
@@ -50,7 +50,7 @@ def _group_by_beruf(
     result = []
     for beruf in sorted(buckets.keys()):
         sorted_classes = sorted(buckets[beruf], key=_lj_sort_key)
-        result.append((beruf, sorted_classes))
+        result.append((beruf_langname(beruf), sorted_classes))
     return result
 
 

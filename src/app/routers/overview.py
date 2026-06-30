@@ -69,6 +69,7 @@ def _set_filter_cookie(
     klasse_id: str,
     abteilung_id: str,
     wochen: str,
+    halbjahr: str,
 ) -> None:
     """Schreibt die aktuellen Filter-Werte als JSON-Cookie (SameSite=Lax, kein HttpOnly).
 
@@ -82,6 +83,7 @@ def _set_filter_cookie(
         "klasse_id": klasse_id,
         "abteilung_id": abteilung_id,
         "wochen": wochen,
+        "halbjahr": halbjahr,
     }, separators=(",", ":")))
     response.set_cookie(
         key=_FILTER_COOKIE,
@@ -90,6 +92,33 @@ def _set_filter_cookie(
         httponly=False,
         max_age=60 * 60 * 24 * 30,  # 30 Tage
     )
+
+
+def _default_halbjahr() -> str:
+    """Berechnet das aktuelle Halbjahr anhand der heutigen ISO-KW.
+
+    H2 = KW 11-35, H1 = KW 36-10 (ueberjaehrlich).
+    """
+    today_kw = date.today().isocalendar().week
+    if 11 <= today_kw <= 35:
+        return "2"
+    return "1"
+
+
+def _filter_weeks_by_halbjahr(weeks: list[dict], halbjahr: str) -> list[dict]:
+    """Filtert die Wochen-Liste auf das gewaehlte Halbjahr.
+
+    H1 (halbjahr='1'): KW >= 36 oder KW <= 10
+    H2 (halbjahr='2'): KW 11 bis 35
+    Leerer String: alle Wochen (kein Filter).
+    """
+    if not halbjahr:
+        return weeks
+    if halbjahr == "1":
+        return [w for w in weeks if w["kw"] >= 36 or w["kw"] <= 10]
+    if halbjahr == "2":
+        return [w for w in weeks if 11 <= w["kw"] <= 35]
+    return weeks
 
 
 @router.get("/", response_class=RedirectResponse)
@@ -122,6 +151,13 @@ def overview(request: Request, db: DB):
     klasse_id_str = _resolve_param(qp, "klasse_id", _cookie)
     abteilung_id_str = _resolve_param(qp, "abteilung_id", _cookie)
     wochen_str = _resolve_param(qp, "wochen", _cookie)
+    # halbjahr: Default beim ersten Aufruf (kein Cookie, kein Param) = aktuelles Halbjahr
+    if "halbjahr" in qp:
+        halbjahr_str = qp["halbjahr"]
+    elif "halbjahr" in _cookie:
+        halbjahr_str = _cookie["halbjahr"]
+    else:
+        halbjahr_str = _default_halbjahr()
 
     years = db.exec(select(Schoolyear).order_by(Schoolyear.start_year.desc())).all()
     classes = db.exec(select(TraineeClass).order_by(TraineeClass.name)).all()
@@ -152,10 +188,11 @@ def overview(request: Request, db: DB):
             "selected_year": schoolyear_id, "selected_klasse": klasse_id_str,
             "selected_abteilung": abteilung_id_str,
             "selected_wochen": wochen_str,
+            "selected_halbjahr": halbjahr_str,
             "wochen_options": WOCHEN_OPTIONS,
             "active_nav": "overview",
         })
-        _set_filter_cookie(resp, schoolyear_id, klasse_id_str, abteilung_id_str, wochen_str)
+        _set_filter_cookie(resp, schoolyear_id, klasse_id_str, abteilung_id_str, wochen_str, halbjahr_str)
         return resp
 
     _today = date.today().isocalendar()
@@ -173,14 +210,14 @@ def overview(request: Request, db: DB):
         )
     ]
 
-    # Alle Wochen des Lehrjahres immer rendern (kein Slicing).
-    # n_wochen steuert nur die sichtbare Viewport-Breite via max-width im Template.
+    # Halbjahr-Filter: auf die Wochen des Halbjahres einschraenken (nur Anzeige).
+    # n_wochen steuert die sichtbare Viewport-Breite via max-width im Template.
     try:
         n_wochen = int(wochen_str) if wochen_str else 0
     except (ValueError, TypeError):
         n_wochen = 0
 
-    weeks = all_weeks
+    weeks = _filter_weeks_by_halbjahr(all_weeks, halbjahr_str)
 
     # Membership-Map fuer das gewaehlte Lehrjahr (trainee_id -> klasse_id)
     memberships_for_year: dict[int, int] = {
@@ -345,8 +382,9 @@ def overview(request: Request, db: DB):
         "selected_klasse": klasse_id_str,
         "selected_abteilung": abteilung_id_str,
         "selected_wochen": wochen_str,
+        "selected_halbjahr": halbjahr_str,
         "wochen_options": WOCHEN_OPTIONS,
         "active_nav": "overview",
     })
-    _set_filter_cookie(resp, schoolyear_id, klasse_id_str, abteilung_id_str, wochen_str)
+    _set_filter_cookie(resp, schoolyear_id, klasse_id_str, abteilung_id_str, wochen_str, halbjahr_str)
     return resp

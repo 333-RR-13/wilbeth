@@ -420,6 +420,37 @@ def test_next_class_for_override(session: Session):
     assert next_class_for(a, [a, b]).id == b.id
 
 
+def test_update_without_class_selection_preserves_klasse(client, session: Session):
+    """Speichern OHNE Klassenwahl soll die bestehende Klasse NICHT loeschen (Bug A)."""
+    _add_year(session, SY_A, 2025)
+    klasse = _add_class(session, "FISI 1. LJ")
+    trainee = _add_trainee(session, "Preserve", klasse_id=klasse.id)
+    session.commit()
+
+    # POST ohne membership_klasse_id (leere Auswahl)
+    r = client.post(
+        f"/trainees/{trainee.id}",
+        data={
+            "vorname": "Preserve",
+            "nachname": "Test",
+            "rolle": "AZUBI",
+            "klasse_id": "",
+            "membership_year_id": SY_A,
+            "membership_klasse_id": "",  # keine Klasse gewaehlt
+            "notizen": "",
+            "steckbrief": "",
+            "aktiv": "1",
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+
+    session.expire_all()
+    t = session.get(Trainee, trainee.id)
+    # klasse_id muss unveraendert bleiben
+    assert t.klasse_id == klasse.id
+
+
 def test_jahreswechsel_by_name_without_next_class_id(client, session: Session):
     """Jahreswechsel funktioniert OHNE gesetztes next_class_id (Namens-Ableitung)."""
     _add_year(session, SY_A, 2025)

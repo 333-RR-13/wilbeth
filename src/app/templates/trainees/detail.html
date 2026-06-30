@@ -75,12 +75,14 @@
       {% else %}<span class="badge badge-gray">Umschüler</span>{% endif %}
     </div>
     <dl class="visitenkarte-facts">
-      <dt>Ausbildungsjahr</dt>
-      <dd>{{ ausbildungsjahr if ausbildungsjahr else '–' }}</dd>
       <dt>Ausbildungsberuf</dt>
-      <dd>{{ beruf }}{% if lehrjahr %} ({{ lehrjahr }}. LJ){% endif %}</dd>
+      <dd>{{ beruf_lang if beruf_lang else '–' }}</dd>
       <dt>Klasse</dt>
       <dd>{% if klasse %}{{ klasse.name }}{% else %}–{% endif %}</dd>
+      {% if ausbildungsbeginn %}
+      <dt>Beginn</dt>
+      <dd>{{ ausbildungsbeginn.strftime('%d.%m.%Y') }}</dd>
+      {% endif %}
     </dl>
   </div>
   <div class="visitenkarte-steckbrief">

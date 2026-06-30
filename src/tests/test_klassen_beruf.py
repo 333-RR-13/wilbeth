@@ -120,3 +120,32 @@ def test_empty_state_no_classes(client, session):
     r = client.get("/klassen/")
     assert r.status_code == 200
     assert "Noch keine Klassen angelegt" in r.text
+
+
+# ── Langname-Anzeige ─────────────────────────────────────────────────────────
+
+def test_beruf_heading_shows_langname_fisi(client, session):
+    """Beruf-Ueberschrift zeigt den ausgeschriebenen Namen, nicht das Token."""
+    _add_class(session, "FISI 1. LJ")
+
+    r = client.get("/klassen/")
+    assert r.status_code == 200
+    assert "Fachinformatiker für Systemintegration" in r.text
+
+
+def test_beruf_heading_shows_langname_fiae(client, session):
+    """Beruf-Ueberschrift zeigt den ausgeschriebenen Namen fuer FIAE."""
+    _add_class(session, "FIAE 2. LJ")
+
+    r = client.get("/klassen/")
+    assert r.status_code == 200
+    assert "Fachinformatiker für Anwendungsentwicklung" in r.text
+
+
+def test_beruf_heading_unknown_token_unchanged(client, session):
+    """Unbekannte Token (z. B. DHBW Cybersecurity) werden unveraendert angezeigt."""
+    _add_class(session, "DHBW Cybersecurity")
+
+    r = client.get("/klassen/")
+    assert r.status_code == 200
+    assert "DHBW Cybersecurity" in r.text

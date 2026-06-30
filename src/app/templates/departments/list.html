@@ -23,7 +23,8 @@
         <th>Code</th>
         <th>Name</th>
         <th>Kategorie</th>
-        <th>Ansprechpartner</th>
+        <th>Zustaendige Mitarbeiter</th>
+        <th>Beschreibung</th>
         <th>Mehrfach</th>
         <th></th>
       </tr>
@@ -41,6 +42,13 @@
           {% endif %}
         </td>
         <td class="td-muted">{{ d.ansprechpartner or '–' }}</td>
+        <td class="td-muted" title="{{ d.info_text }}">
+          {% if d.info_text %}
+            {{ d.info_text[:60] }}{% if d.info_text | length > 60 %}…{% endif %}
+          {% else %}
+            <span class="text-muted">–</span>
+          {% endif %}
+        </td>
         <td>
           {% if d.erlaubt_mehrfachbelegung %}
             <span class="badge badge-green">Ja</span>
@@ -60,7 +68,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="6" class="empty-state">Noch keine Abteilungen angelegt.</td></tr>
+      <tr><td colspan="7" class="empty-state">Noch keine Abteilungen angelegt.</td></tr>
       {% endfor %}
     </tbody>
   </table>

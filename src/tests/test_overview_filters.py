@@ -87,14 +87,15 @@ def test_wochen_filter_viewport_in_html(client, session):
     die sichtbare Breite wird per CSS max-width gesteuert, nicht per Slicing.
     """
     _base(session)
-    r = client.get("/overview", params={"schoolyear_id": SY, "wochen": "4"})
+    # halbjahr="" -> ganzes Jahr (sonst greift der Default-Halbjahr-Filter)
+    r = client.get("/overview", params={"schoolyear_id": SY, "wochen": "4", "halbjahr": ""})
     assert r.status_code == 200
     # Alle ~52 Wochen des Lehrjahres sind im HTML (kein Slicing mehr)
     kw_headers = r.text.count("th-kw-num")
     assert kw_headers > 4, f"Erwartet alle KW-Spalten, gefunden: {kw_headers}"
     # Viewport-Begrenzung via max-width im matrix-scroll-Container
     assert "max-width" in r.text, "max-width muss im HTML stehen wenn wochen=4"
-    assert "calc(180px + 4 * 38px)" in r.text, "Viewport-Formel fuer n_wochen=4 erwartet"
+    assert "calc(180px + 132px + 4 * 44px)" in r.text, "Viewport-Formel fuer n_wochen=4 erwartet"
     # Dropdown muss mit '4' als selected gerendert sein
     assert 'value="4" selected' in r.text or "value=\"4\"  selected" in r.text or ">4 Wochen<" in r.text
 

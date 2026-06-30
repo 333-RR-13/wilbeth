@@ -21,6 +21,7 @@ class Department(SQLModel, table=True):
     name: str = Field(max_length=128)
     kategorie_id: int | None = Field(default=None, foreign_key="department_kategorie.id", index=True)
     ansprechpartner: str = Field(default="")
+    info_text: str = Field(default="")
     erlaubt_mehrfachbelegung: bool = Field(default=False)
     farbe: str = Field(default="#9CA3AF")
 

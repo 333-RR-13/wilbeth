@@ -31,6 +31,7 @@ from app.models import (
 )
 from app.models.trainee_wish import prioritaet_label
 from app.routers.assignments import _apply_assignments, _resolve_range
+from app.services.membership_utils import beruf_und_lehrjahr
 from app.utils.colors import department_color_map
 from app.utils.kw import format_weekdays, iter_schoolyear_weeks, iter_kw_range, kw_to_monday
 
@@ -409,3 +410,146 @@ def calendar_ics(token: str, db: DB):
         media_type="text/calendar; charset=utf-8",
         headers={"Content-Disposition": 'inline; filename="einsatzplan.ics"'},
     )
+
+
+# ── Gesamtuebersicht (read-only, alle aktiven Trainees) ─────────────────────
+
+@router.get("/{token}/uebersicht", response_class=HTMLResponse)
+def uebersicht_page(request: Request, token: str, db: DB):
+    """Read-only Gesamtuebersicht aller aktiven Trainees, gruppiert nach Beruf/Klasse."""
+    trainee = _trainee_by_token(db, token)
+
+    years = db.exec(select(Schoolyear).order_by(Schoolyear.start_year.desc())).all()
+    selected_param = request.query_params.get("schoolyear_id", "")
+    sy = db.get(Schoolyear, selected_param) if selected_param else None
+    if sy is None:
+        _t = date.today().isocalendar()
+        sy = _schoolyear_for_week(db, _t.week, _t.year)
+    if sy is None and years:
+        sy = years[0]
+
+    all_trainees = db.exec(
+        select(Trainee)
+        .where(Trainee.aktiv == True)  # noqa: E712
+        .order_by(Trainee.nachname, Trainee.vorname)
+    ).all()
+
+    all_depts = db.exec(select(Department)).all()
+    depts = {d.id: d for d in all_depts}
+    dept_colors = department_color_map(all_depts)
+
+    weeks = []
+    cell_map: dict[int, dict[str, Assignment]] = {}
+    school_week_map: dict[int, dict[str, str]] = {}
+
+    if sy:
+        _today = date.today().isocalendar()
+        today_key = (_today.week, _today.year)
+        trainee_ids = [t.id for t in all_trainees]
+        if trainee_ids:
+            assignments = db.exec(
+                select(Assignment).where(
+                    Assignment.schoolyear_id == sy.id,
+                    Assignment.trainee_id.in_(trainee_ids),
+                )
+            ).all()
+            for a in assignments:
+                cell_map.setdefault(a.trainee_id, {})[f"{a.kw},{a.jahr}"] = a
+
+        for kw, jahr in iter_schoolyear_weeks(sy.start_kw, sy.start_year, sy.end_kw, sy.end_year):
+            weeks.append({
+                "kw": kw,
+                "jahr": jahr,
+                "monday": kw_to_monday(kw, jahr),
+                "is_today": (kw, jahr) == today_key,
+            })
+
+        # Schulwochen-Map je Klasse fuer dieses Lehrjahr
+        for plan in db.exec(
+            select(SchoolPlan).where(SchoolPlan.schoolyear_id == sy.id)
+        ).all():
+            sw: dict[str, str] = {}
+            for w in db.exec(
+                select(SchoolPlanWeek).where(SchoolPlanWeek.plan_id == plan.id)
+            ).all():
+                sw[f"{w.kw},{w.jahr}"] = w.typ.value
+            school_week_map[plan.klasse_id] = sw
+
+    all_classes = db.exec(select(TraineeClass)).all()
+    classes_by_id: dict[int, TraineeClass] = {c.id: c for c in all_classes}
+
+    # Zweistufige Gruppierung: Beruf -> Klasse -> Trainees (analog overview.py)
+    _grp: dict[str, dict[tuple[int | None, str | None], list]] = {}
+    for t in all_trainees:
+        klasse = classes_by_id.get(t.klasse_id) if t.klasse_id is not None else None
+        klasse_name = klasse.name if klasse is not None else None
+        beruf, _lj = beruf_und_lehrjahr(klasse_name)
+        _grp.setdefault(beruf, {}).setdefault((t.klasse_id, klasse_name), []).append(t)
+
+    _ohne_key = "Ohne Klasse"
+    _ohne_grp = _grp.pop(_ohne_key, {})
+
+    def _klasse_sort_key(item: tuple) -> tuple:
+        (kid, kname), _ = item
+        _, lj = beruf_und_lehrjahr(kname)
+        return (lj if lj is not None else 9999, kname or "")
+
+    grouped: list[dict] = []
+    for beruf in sorted(_grp.keys()):
+        klassen_items = sorted(_grp[beruf].items(), key=_klasse_sort_key)
+        grouped.append({
+            "beruf": beruf,
+            "klassen": [
+                {
+                    "name": kname,
+                    "klasse_id": kid,
+                    "trainees": sorted(ts, key=lambda t: (t.nachname, t.vorname)),
+                    "school_weeks": school_week_map.get(kid, {}),
+                }
+                for (kid, kname), ts in klassen_items
+            ],
+        })
+    if _ohne_grp:
+        klassen_items = sorted(_ohne_grp.items(), key=_klasse_sort_key)
+        grouped.append({
+            "beruf": _ohne_key,
+            "klassen": [
+                {
+                    "name": kname,
+                    "klasse_id": kid,
+                    "trainees": sorted(ts, key=lambda t: (t.nachname, t.vorname)),
+                    "school_weeks": school_week_map.get(kid, {}),
+                }
+                for (kid, kname), ts in klassen_items
+            ],
+        })
+
+    return templates.TemplateResponse(request, "share/uebersicht.html", {
+        "trainee": trainee,
+        "token": token,
+        "active": "uebersicht",
+        "grouped": grouped,
+        "weeks": weeks,
+        "cell_map": cell_map,
+        "depts": depts,
+        "dept_colors": dept_colors,
+        "highlight_id": trainee.id,
+        "selected_year": sy.id if sy else "",
+        "years": years,
+    })
+
+
+# ── Abteilungsliste (read-only) ──────────────────────────────────────────────
+
+@router.get("/{token}/abteilungen", response_class=HTMLResponse)
+def abteilungen_page(request: Request, token: str, db: DB):
+    """Read-only Liste aller Abteilungen."""
+    trainee = _trainee_by_token(db, token)
+    all_depts = db.exec(select(Department).order_by(Department.code)).all()
+
+    return templates.TemplateResponse(request, "share/abteilungen.html", {
+        "trainee": trainee,
+        "token": token,
+        "active": "abteilungen",
+        "all_depts": all_depts,
+    })

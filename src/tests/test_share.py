@@ -217,3 +217,42 @@ def test_token_revoke(client, session):
     session.expire_all()
     assert session.get(Trainee, ids["trainee"]).share_token is None
     assert client.get(f"/mein-plan/{TOKEN}").status_code == 404
+
+
+# ── Gesamtuebersicht ─────────────────────────────────────────────
+
+def test_uebersicht_page_renders(client, session):
+    """Uebersicht-Seite zeigt alle aktiven Trainees; eigener Name ist hervorgehoben."""
+    ids = _setup(session, with_class=True)
+    # Zweiten aktiven Trainee anlegen, damit die Gruppierung nicht trivial leer ist
+    t2 = Trainee(vorname="Berta", nachname="Buehler", rolle=TraineeRolle.AZUBI, share_token="other-token")
+    session.add(t2)
+    session.commit()
+
+    r = client.get(f"/mein-plan/{TOKEN}/uebersicht")
+    assert r.status_code == 200
+    # Eigener Name taucht auf (highlight)
+    assert "Altmann" in r.text
+    # Zweiter Trainee ebenfalls sichtbar
+    assert "Buehler" in r.text
+    # Nav-Link aktiv
+    assert "Übersicht" in r.text
+    # Matrix-Kopfzeile vorhanden (KW-Header)
+    assert "th-kw-num" in r.text
+
+
+# ── Abteilungsliste ──────────────────────────────────────────────
+
+def test_abteilungen_page_renders(client, session):
+    """Abteilungs-Seite listet Code, Name und Fallback fuer fehlende Felder."""
+    ids = _setup(session)
+    # Abteilung mit leerem ansprechpartner + info_text -> Fallback "-" erwartet
+    r = client.get(f"/mein-plan/{TOKEN}/abteilungen")
+    assert r.status_code == 200
+    # Abteilungs-Codes aus _setup muessen erscheinen
+    assert "CP" in r.text
+    assert "BA" in r.text
+    # Leere Felder zeigen "-"
+    assert "–" in r.text
+    # Seitenheader
+    assert "Abteilungen" in r.text

@@ -1,0 +1,82 @@
+{% extends "share/_base.html" %}
+{% block title %}Gesamtübersicht{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Gesamtübersicht</h1>
+    <p class="page-subtitle">Alle aktiven Auszubildenden und Studierenden</p>
+  </div>
+</div>
+
+{% if years | length > 1 %}
+<div class="share-year-links">
+  {% for y in years %}
+  <a href="/mein-plan/{{ token }}/uebersicht?schoolyear_id={{ y.id }}"
+     class="share-year-link {{ 'active' if y.id == selected_year else '' }}">{{ y.id }}</a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if weeks %}
+<div class="matrix-legend">
+  <span class="legend-item"><span class="cell-chip" style="background:#A855F7;color:#fff">ABT</span> Abteilung (eigene Farbe)</span>
+  <span class="legend-item"><span class="cell-chip cell-school">BS</span> Berufsschule</span>
+  <span class="legend-item"><span class="cell-chip cell-school">HS</span> Hochschule/Uni</span>
+  <span class="legend-item"><span class="cell-chip cell-blocker">U</span> Urlaub</span>
+  <span class="legend-item"><span class="matrix-school-sample"></span> Schulwoche</span>
+  <span class="legend-item"><span class="matrix-today-sample"></span> Aktuelle KW</span>
+  <span class="legend-item"><span class="self-tag">du</span> Du</span>
+</div>
+
+{% for gruppe in grouped %}
+<section class="overview-beruf-section">
+  <h2 class="overview-beruf-heading">{{ gruppe.beruf }}</h2>
+  {% for klasse in gruppe.klassen %}
+  <div class="overview-klasse-block">
+    {% if klasse.name %}
+    <h3 class="overview-klasse-heading">{{ klasse.name }}</h3>
+    {% endif %}
+    {% set trainees = klasse.trainees %}
+    {% set school_weeks = klasse.school_weeks %}
+    {% include "_partials/week_matrix_group.html" %}
+  </div>
+  {% endfor %}
+</section>
+{% else %}
+<div class="card card-body" style="text-align:center; color:var(--text-muted)">
+  Keine aktiven Auszubildenden vorhanden.
+</div>
+{% endfor %}
+
+{% else %}
+<div class="card card-body" style="text-align:center; color:var(--text-muted)">
+  Kein Schuljahr ausgewählt oder keine Daten vorhanden.
+</div>
+{% endif %}
+
+<style>
+.overview-beruf-section {
+  margin-bottom: 2rem;
+}
+.overview-beruf-heading {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 0.75rem 0;
+  padding-bottom: 0.25rem;
+  border-bottom: 2px solid var(--border);
+}
+.overview-klasse-block {
+  margin-bottom: 1.25rem;
+}
+.overview-klasse-heading {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin: 0 0 0.4rem 0;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+</style>
+{% endblock %}

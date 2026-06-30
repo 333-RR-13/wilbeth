@@ -11,6 +11,23 @@ from app.models.trainee_class_membership import TraineeClassMembership
 # Klassennamen folgen der Konvention "<Beruf> <n>. LJ" (z. B. "FISI 2. LJ").
 _LJ_RE = re.compile(r"^(?P<beruf>.+?)\s*(?P<lj>\d)\.\s*LJ\s*$")
 
+# Mapping bekannter Berufstoken auf den offiziellen Langnamen (case-insensitive Lookup).
+BERUF_LANGNAMEN: dict[str, str] = {
+    "FISI": "Fachinformatiker für Systemintegration",
+    "FIAE": "Fachinformatiker für Anwendungsentwicklung",
+}
+
+
+def beruf_langname(token: str) -> str:
+    """Gibt den Langnamen eines Berufstoken zurueck.
+
+    Beispiele:
+      "FISI"  -> "Fachinformatiker für Systemintegration"
+      "fisi"  -> "Fachinformatiker für Systemintegration"
+      "BWL"   -> "BWL"  (unbekannte Token unveraendert)
+    """
+    return BERUF_LANGNAMEN.get(token.strip().upper(), token.strip())
+
 
 def klasse_fuer(db: Session, trainee: Trainee, schoolyear_id: str) -> int | None:
     """Gibt die Klasse des Trainees fuer das angegebene Lehrjahr zurueck.
