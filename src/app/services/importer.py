@@ -27,6 +27,7 @@ from app.models import (
     AssignmentSource,
     AssignmentTyp,
     Department,
+    SchoolHoliday,
     SchoolPlan,
     SchoolPlanWeek,
     SchoolWeekTyp,
@@ -640,6 +641,134 @@ def parse_assignments_auto(
     if _looks_like_matrix(rows):
         return parse_assignments_matrix(text, db, schoolyear_id, start_kw=start_kw)
     return parse_assignments(text, db, schoolyear_id)
+
+
+# ── Import C: Schulferien ─────────────────────────────────────────────────────
+
+# Kopfzeilen-Keywords, die bei Schulferien vorkommen können
+_HOLIDAY_HEADER_KEYWORDS = frozenset({"name", "bezeichnung", "ferien", "kw", "woche", "jahr", "year", "start", "end", "ende"})
+
+
+@dataclass
+class ParsedHoliday:
+    name: str
+    start_kw: int
+    start_year: int
+    end_kw: int
+    end_year: int
+    raw: str = ""
+
+
+@dataclass
+class HolidayParseResult:
+    valid: list[ParsedHoliday] = field(default_factory=list)
+    errors: list[ErrorRow] = field(default_factory=list)
+
+
+def _is_holiday_header(row: list[str]) -> bool:
+    """True wenn die Zeile aussieht wie eine Kopfzeile fuer Schulferien."""
+    return any(cell.lower() in _HOLIDAY_HEADER_KEYWORDS for cell in row)
+
+
+def parse_holidays(text: str) -> HolidayParseResult:
+    """Parst Rohtext zu SchoolHoliday-Daten (ohne DB-Zugriff).
+
+    Erwartete Spalten: Name, Start-KW, Start-Jahr, End-KW, End-Jahr
+    Kopfzeile wird erkannt und uebersprungen.
+    Delimiter: Tab, Semikolon, Komma oder Mehrfach-Whitespace (via _split_rows).
+    KW/Jahr werden wie in _parse_kw_jahr validiert.
+    """
+    result = HolidayParseResult()
+    rows = _split_rows(text)
+    if not rows:
+        return result
+
+    # Headerzeile ueberpruefen
+    data_rows = rows[1:] if (_is_header(rows[0]) or _is_holiday_header(rows[0])) else rows
+
+    for idx, row in enumerate(data_rows, start=1):
+        raw = "\t".join(row)
+        if len(row) < 5:
+            result.errors.append(ErrorRow(
+                idx, raw,
+                f"Zu wenige Spalten ({len(row)}, erwartet: 5: Name, Start-KW, Start-Jahr, End-KW, End-Jahr)",
+            ))
+            continue
+
+        name_raw = row[0].strip()
+        start_kw_raw, start_year_raw = row[1], row[2]
+        end_kw_raw, end_year_raw = row[3], row[4]
+
+        if not name_raw:
+            result.errors.append(ErrorRow(idx, raw, "Name darf nicht leer sein"))
+            continue
+
+        start_kw_jahr = _parse_kw_jahr(start_kw_raw, start_year_raw)
+        if isinstance(start_kw_jahr, str):
+            result.errors.append(ErrorRow(idx, raw, f"Start: {start_kw_jahr}"))
+            continue
+        start_kw, start_year = start_kw_jahr
+
+        end_kw_jahr = _parse_kw_jahr(end_kw_raw, end_year_raw)
+        if isinstance(end_kw_jahr, str):
+            result.errors.append(ErrorRow(idx, raw, f"Ende: {end_kw_jahr}"))
+            continue
+        end_kw, end_year = end_kw_jahr
+
+        result.valid.append(ParsedHoliday(
+            name=name_raw,
+            start_kw=start_kw,
+            start_year=start_year,
+            end_kw=end_kw,
+            end_year=end_year,
+            raw=raw,
+        ))
+
+    return result
+
+
+def apply_holidays(
+    db: Session,
+    schoolyear_id: str,
+    parsed: list[ParsedHoliday],
+) -> tuple[list[ParsedHoliday], list[ErrorRow]]:
+    """Schreibt gueltige Schulferien in die DB.
+
+    Bereits vorhandene (schoolyear_id, name, start_kw, start_year) werden
+    uebersprungen und gemeldet.
+    Gibt (geschriebene, uebersprungene) zurueck.
+    """
+    written: list[ParsedHoliday] = []
+    skipped: list[ErrorRow] = []
+
+    for i, ph in enumerate(parsed, start=1):
+        existing = db.exec(
+            select(SchoolHoliday).where(
+                SchoolHoliday.schoolyear_id == schoolyear_id,
+                SchoolHoliday.name == ph.name,
+                SchoolHoliday.start_kw == ph.start_kw,
+                SchoolHoliday.start_year == ph.start_year,
+            )
+        ).first()
+        if existing:
+            skipped.append(ErrorRow(
+                i, ph.raw,
+                f"'{ph.name}' KW {ph.start_kw}/{ph.start_year} bereits vorhanden – uebersprungen",
+            ))
+            continue
+
+        db.add(SchoolHoliday(
+            schoolyear_id=schoolyear_id,
+            name=ph.name,
+            start_kw=ph.start_kw,
+            start_year=ph.start_year,
+            end_kw=ph.end_kw,
+            end_year=ph.end_year,
+        ))
+        written.append(ph)
+
+    db.commit()
+    return written, skipped
 
 
 def apply_assignments(

@@ -13,7 +13,7 @@
     <strong>Langformat:</strong> Spalten <code>Azubi &nbsp;|&nbsp; KW &nbsp;|&nbsp; Jahr &nbsp;|&nbsp; Abteilung &nbsp;[|&nbsp; Typ]</code><br>
     Azubi: <code>Nachname, Vorname</code> &nbsp;|&nbsp;
     Typ (optional): <code>ABTEILUNG</code> (Standard), <code>BS</code>, <code>HS</code>, <code>URLAUB</code>, <code>FREI</code><br>
-    <strong>Excel-Matrix wird automatisch erkannt:</strong> Kopfzeile mit KW-Spalten (<code>KW36</code>, <code>KW37</code>&nbsp;…), je Azubi eine Zeile mit einem Code pro KW (Abteilungs-Kürzel, <code>BS</code>, <code>Uni</code>, <code>U</code>). Das Jahr ergibt sich aus dem gewählten Lehrjahr.
+    <strong>Excel-Matrix wird automatisch erkannt:</strong> Kopfzeile mit KW-Spalten (<code>KW36</code>, <code>KW37</code>&nbsp;…), je Azubi eine Zeile mit einem Code pro KW (Abteilungs-Kürzel, <code>BS</code>, <code>Uni</code>, <code>U</code>). Das Jahr ergibt sich aus dem gewählten Ausbildungsjahr.
   </p>
   {% endif %}
 
@@ -44,7 +44,7 @@
           hx-swap="innerHTML"
           enctype="multipart/form-data">
       <div class="form-group" style="margin-bottom:.5rem">
-        <label style="font-size:.85rem;font-weight:600">Lehrjahr:</label>
+        <label style="font-size:.85rem;font-weight:600">Ausbildungsjahr:</label>
         <select name="schoolyear_id" style="width:12rem">
           {% for y in years %}
           <option value="{{ y.id }}" {{ 'selected' if y.id == schoolyear_id else '' }}>{{ y.id }}</option>
@@ -97,7 +97,7 @@ Musterfrau, Anna	11	2026	ITO-NW	ABTEILUNG{% endif %}"></textarea>
           hx-swap="innerHTML"
           hx-encoding="multipart/form-data">
       <div class="form-group" style="margin-bottom:.5rem">
-        <label style="font-size:.85rem;font-weight:600">Lehrjahr:</label>
+        <label style="font-size:.85rem;font-weight:600">Ausbildungsjahr:</label>
         <select name="schoolyear_id" style="width:12rem">
           {% for y in years %}
           <option value="{{ y.id }}" {{ 'selected' if y.id == schoolyear_id else '' }}>{{ y.id }}</option>

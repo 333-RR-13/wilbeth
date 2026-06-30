@@ -1,0 +1,95 @@
+<style>
+.hi-inner { padding:1.5rem; min-width:400px; }
+.hi-title { font-size:1.1rem; font-weight:700; margin:0 0 .75rem; }
+.hi-preview-table { width:100%; font-size:.82rem; border-collapse:collapse; }
+.hi-preview-table th { padding:.3rem .5rem; text-align:left; background:var(--bg-subtle,#f8f9fa); }
+.hi-preview-table td { padding:.3rem .5rem; border-top:1px solid var(--border-color,#e5e7eb); }
+.hi-scroll { max-height:260px; overflow-y:auto; margin-bottom:.5rem; }
+.hi-err-scroll { max-height:180px; overflow-y:auto; margin-bottom:.5rem; }
+.hi-section-title { font-size:.9rem; font-weight:600; margin:.75rem 0 .4rem; }
+.hi-section-title--error { color:var(--danger,#dc2626); }
+.hi-err-list { margin:0; padding-left:1.2rem; font-size:.82rem; line-height:1.7; }
+.hi-actions { display:flex; gap:.5rem; margin-top:1.25rem; justify-content:flex-end; }
+</style>
+
+<div class="hi-inner">
+  <h2 class="hi-title">Vorschau – Schulferien</h2>
+
+  {% if not valid and not errors %}
+  <p style="color:var(--text-muted,#6b7280);margin:1rem 0">
+    Keine Daten erkannt. Bitte Text einfügen oder Datei hochladen.
+  </p>
+
+  {% else %}
+
+  {% if valid %}
+  <p class="hi-section-title">Gültige Einträge ({{ valid | length }})</p>
+  <div class="hi-scroll">
+    <table class="hi-preview-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Start-KW</th>
+          <th>Start-Jahr</th>
+          <th>End-KW</th>
+          <th>End-Jahr</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in valid %}
+        <tr>
+          <td><strong>{{ row.name }}</strong></td>
+          <td>KW&nbsp;{{ row.start_kw }}</td>
+          <td>{{ row.start_year }}</td>
+          <td>KW&nbsp;{{ row.end_kw }}</td>
+          <td>{{ row.end_year }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  {% if errors %}
+  <p class="hi-section-title hi-section-title--error">
+    Fehler / Übersprungen ({{ errors | length }})
+  </p>
+  <div class="hi-err-scroll">
+    <ul class="hi-err-list">
+      {% for err in errors %}
+      <li>
+        <span style="color:var(--danger,#dc2626)">Zeile {{ err.row_index }}:</span>
+        {{ err.reason }}
+        {% if err.raw %}<br><code style="font-size:.75rem;color:var(--text-muted)">{{ err.raw }}</code>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {% endif %}
+
+  <div class="hi-actions">
+    <button type="button" class="btn btn-ghost btn-sm" onclick="hiCloseDialog()">
+      Abbrechen
+    </button>
+
+    {% if valid %}
+    <form method="post" action="/schulferien/import/apply" style="display:inline">
+      <input type="hidden" name="schoolyear_id" value="{{ schoolyear_id | e }}">
+      <input type="hidden" name="raw_text" value="{{ raw_text | e }}">
+      <button type="submit" class="btn btn-primary btn-sm">
+        {{ valid | length }} Eintrag{{ 'e' if (valid | length) != 1 else '' }} übernehmen
+        (Ausbildungsjahr {{ schoolyear_id }})
+      </button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+function hiCloseDialog() {
+  var d = document.getElementById('holiday-import-dialog');
+  if (d) d.close();
+}
+</script>

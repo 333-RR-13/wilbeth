@@ -85,14 +85,14 @@
       <h2 class="form-section-title">Mitglieder</h2>
 
       <div class="form-group">
-        <label for="membership_year_id">Lehrjahr</label>
+        <label for="membership_year_id">Ausbildungsjahr</label>
         <select id="membership_year_id" name="membership_year_id" onchange="reloadMemberships(this)">
-          <option value="">– kein Lehrjahr –</option>
+          <option value="">– kein Ausbildungsjahr –</option>
           {% for y in years %}
           <option value="{{ y.id }}" {{ 'selected' if y.id == selected_year_id else '' }}>{{ y.id }}</option>
           {% endfor %}
         </select>
-        <span class="form-hint">Mitglieder werden pro Lehrjahr verwaltet.</span>
+        <span class="form-hint">Mitglieder werden pro Ausbildungsjahr verwaltet.</span>
       </div>
 
       {% if trainees %}

@@ -17,7 +17,7 @@
   <div class="card-body">
     <form id="auto-plan-form">
       <div class="form-group">
-        <label class="form-label" for="ap-schoolyear">Lehrjahr</label>
+        <label class="form-label" for="ap-schoolyear">Ausbildungsjahr</label>
         <select id="ap-schoolyear" name="schoolyear_id" class="form-control">
           {% for y in years %}
           <option value="{{ y.id }}" {{ 'selected' if y.id == selected_year else '' }}>{{ y.id }}</option>

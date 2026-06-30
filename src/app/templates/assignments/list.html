@@ -53,7 +53,7 @@
 
 <form class="filter-bar" method="get" action="/einsaetze/">
   <select name="schoolyear_id">
-    <option value="">Alle Lehrjahre</option>
+    <option value="">Alle Ausbildungsjahre</option>
     {% for y in years %}
     <option value="{{ y.id }}" {{ 'selected' if y.id == selected_year else '' }}>{{ y.id }}</option>
     {% endfor %}

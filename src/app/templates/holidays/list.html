@@ -2,16 +2,80 @@
 {% block title %}Schulferien{% endblock %}
 
 {% block content %}
+<style>
+.holiday-import-dialog {
+  border: none;
+  border-radius: .5rem;
+  padding: 0;
+  box-shadow: 0 8px 32px rgba(0,0,0,.18);
+  max-width: 660px;
+  width: 100%;
+}
+.holiday-import-dialog::backdrop {
+  background: rgba(0,0,0,.4);
+}
+.hi-inner {
+  padding: 1.5rem;
+  min-width: 400px;
+}
+.hi-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 0 0 .25rem;
+}
+.hi-hint {
+  font-size: .82rem;
+  color: var(--text-muted, #6b7280);
+  margin-bottom: .9rem;
+}
+.hi-tabs {
+  display: flex;
+  gap: .5rem;
+  margin-bottom: .75rem;
+}
+.hi-form-group {
+  margin-bottom: .6rem;
+}
+.hi-label {
+  font-size: .85rem;
+  font-weight: 600;
+  display: block;
+  margin-bottom: .2rem;
+}
+.hi-actions {
+  display: flex;
+  gap: .5rem;
+  justify-content: flex-end;
+  margin-top: .75rem;
+}
+</style>
+
 <div class="page-header">
   <div>
     <h1 class="page-title">Schulferien</h1>
     <p class="page-subtitle">Ferienzeiträume pro Lehrjahr (Baden-Württemberg)</p>
   </div>
-  <a href="/schulferien/neu" class="btn btn-primary">
-    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2Z"/></svg>
-    Ferien anlegen
-  </a>
+  <div style="display:flex;gap:.5rem;align-items:center">
+    <button type="button" class="btn btn-secondary"
+            hx-get="/schulferien/import/dialog"
+            hx-target="#holiday-import-dialog-body"
+            hx-swap="innerHTML"
+            onclick="document.getElementById('holiday-import-dialog').showModal()">
+      <svg viewBox="0 0 16 16" fill="currentColor" style="width:1em;height:1em"><path d="M8 2a.75.75 0 0 1 .75.75v6.19l1.97-1.97a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 8.03a.75.75 0 0 1 1.06-1.06L7.25 8.94V2.75A.75.75 0 0 1 8 2ZM2.75 13a.75.75 0 0 0 0 1.5h10.5a.75.75 0 0 0 0-1.5H2.75Z"/></svg>
+      Importieren
+    </button>
+    <a href="/schulferien/neu" class="btn btn-primary">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2Z"/></svg>
+      Ferien anlegen
+    </a>
+  </div>
 </div>
+
+{% if request.query_params.get('msg') %}
+<div class="alert alert-success" style="margin-bottom:1rem">
+  {{ request.query_params.get('msg') }}
+</div>
+{% endif %}
 
 <div class="table-wrapper">
   <table>
@@ -54,4 +118,20 @@
     </tbody>
   </table>
 </div>
+
+<!-- ── Import-Dialog ──────────────────────────────────────────────── -->
+<dialog id="holiday-import-dialog" class="holiday-import-dialog">
+  <div id="holiday-import-dialog-body"></div>
+</dialog>
+
+<script>
+document.addEventListener('htmx:afterSettle', function(evt) {
+  if (evt.target.id === 'holiday-import-dialog-body') {
+    document.getElementById('holiday-import-dialog').showModal();
+  }
+});
+document.getElementById('holiday-import-dialog').addEventListener('click', function(evt) {
+  if (evt.target === this) { this.close(); }
+});
+</script>
 {% endblock %}

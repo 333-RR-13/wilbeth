@@ -39,7 +39,7 @@ def test_detail_with_assignments(client, session):
     assert r.status_code == 200
     assert "Fischer" in r.text
     assert "Felix" in r.text
-    assert "Lehrjahr 2025-2026" in r.text
+    assert "Ausbildungsjahr 2025-2026" in r.text
     assert "CP" in r.text
 
 

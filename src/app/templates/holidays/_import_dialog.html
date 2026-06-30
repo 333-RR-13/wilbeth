@@ -1,0 +1,104 @@
+<style>
+.holiday-import-dialog { border:none; border-radius:.5rem; padding:0; box-shadow:0 8px 32px rgba(0,0,0,.18); max-width:660px; width:100%; }
+.holiday-import-dialog::backdrop { background:rgba(0,0,0,.4); }
+.hi-inner { padding:1.5rem; min-width:400px; }
+.hi-title { font-size:1.1rem; font-weight:700; margin:0 0 .25rem; }
+.hi-hint { font-size:.82rem; color:var(--text-muted,#6b7280); margin-bottom:.9rem; line-height:1.5; }
+.hi-tabs { display:flex; gap:.5rem; margin-bottom:.75rem; }
+.hi-form-group { margin-bottom:.6rem; }
+.hi-label { font-size:.85rem; font-weight:600; display:block; margin-bottom:.2rem; }
+.hi-actions { display:flex; gap:.5rem; justify-content:flex-end; margin-top:.75rem; }
+</style>
+
+<div class="hi-inner">
+  <h2 class="hi-title">Schulferien importieren</h2>
+  <p class="hi-hint">
+    Erwartete Spalten:
+    <strong>Name &nbsp;|&nbsp; Start-KW &nbsp;|&nbsp; Start-Jahr &nbsp;|&nbsp; End-KW &nbsp;|&nbsp; End-Jahr</strong><br>
+    Trennzeichen: Tab (Excel-Einfügen), Semikolon oder Komma.<br>
+    Eine Kopfzeile wird automatisch erkannt und übersprungen.<br>
+    Bereits vorhandene Einträge (gleicher Name + Start-KW/Jahr je Ausbildungsjahr) werden übersprungen.
+  </p>
+
+  <!-- Tab-Umschalter -->
+  <div class="hi-tabs">
+    <button type="button" id="hi-tab-paste-btn" class="btn btn-secondary btn-sm"
+            onclick="hiSwitchTab('paste')">Einfügen</button>
+    <button type="button" id="hi-tab-upload-btn" class="btn btn-ghost btn-sm"
+            onclick="hiSwitchTab('upload')">CSV-Datei hochladen</button>
+  </div>
+
+  <!-- Tab: Einfügen -->
+  <div id="hi-tab-paste">
+    <form hx-post="/schulferien/import/preview"
+          hx-target="#holiday-import-dialog-body"
+          hx-swap="innerHTML"
+          enctype="multipart/form-data">
+
+      <div class="hi-form-group">
+        <label class="hi-label" for="hi-sy-paste">Ausbildungsjahr</label>
+        <select id="hi-sy-paste" name="schoolyear_id" style="width:12rem">
+          {% for y in years %}
+          <option value="{{ y.id }}">{{ y.id }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="hi-form-group">
+        <label class="hi-label">Daten aus Excel einfügen (Tab-getrennt):</label>
+        <textarea name="raw_text" rows="10"
+                  style="width:100%;font-family:monospace;font-size:.8rem;resize:vertical"
+                  placeholder="Herbstferien	42	2025	43	2025
+Weihnachtsferien	52	2025	2	2026
+Osterferien	14	2026	17	2026"></textarea>
+      </div>
+
+      <div class="hi-actions">
+        <button type="button" class="btn btn-ghost btn-sm" onclick="hiCloseDialog()">Abbrechen</button>
+        <button type="submit" class="btn btn-primary btn-sm">Vorschau</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Tab: CSV-Upload -->
+  <div id="hi-tab-upload" style="display:none">
+    <form hx-post="/schulferien/import/preview"
+          hx-target="#holiday-import-dialog-body"
+          hx-swap="innerHTML"
+          hx-encoding="multipart/form-data">
+
+      <div class="hi-form-group">
+        <label class="hi-label" for="hi-sy-upload">Ausbildungsjahr</label>
+        <select id="hi-sy-upload" name="schoolyear_id" style="width:12rem">
+          {% for y in years %}
+          <option value="{{ y.id }}">{{ y.id }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="hi-form-group">
+        <label class="hi-label">CSV-Datei auswählen:</label>
+        <input type="file" name="csv_file" accept=".csv,.txt"
+               style="display:block;margin-top:.35rem">
+      </div>
+
+      <div class="hi-actions">
+        <button type="button" class="btn btn-ghost btn-sm" onclick="hiCloseDialog()">Abbrechen</button>
+        <button type="submit" class="btn btn-primary btn-sm">Vorschau</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function hiSwitchTab(tab) {
+  document.getElementById('hi-tab-paste').style.display = tab === 'paste' ? '' : 'none';
+  document.getElementById('hi-tab-upload').style.display = tab === 'upload' ? '' : 'none';
+  document.getElementById('hi-tab-paste-btn').className = tab === 'paste' ? 'btn btn-secondary btn-sm' : 'btn btn-ghost btn-sm';
+  document.getElementById('hi-tab-upload-btn').className = tab === 'upload' ? 'btn btn-secondary btn-sm' : 'btn btn-ghost btn-sm';
+}
+function hiCloseDialog() {
+  var d = document.getElementById('holiday-import-dialog');
+  if (d) d.close();
+}
+</script>

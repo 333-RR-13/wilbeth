@@ -40,14 +40,14 @@
       </div>
 
       <div class="form-group">
-        <label for="membership_year_id">Lehrjahr für Klassenzuweisung</label>
+        <label for="membership_year_id">Ausbildungsjahr für Klassenzuweisung</label>
         <select id="membership_year_id" name="membership_year_id">
-          <option value="">– kein Lehrjahr –</option>
+          <option value="">– kein Ausbildungsjahr –</option>
           {% for y in years %}
           <option value="{{ y.id }}" {{ 'selected' if y.id == selected_year_id else '' }}>{{ y.id }}</option>
           {% endfor %}
         </select>
-        <span class="form-hint">Wähle das Lehrjahr, für das die Klassenzuordnung gelten soll.</span>
+        <span class="form-hint">Wähle das Ausbildungsjahr, für das die Klassenzuordnung gelten soll.</span>
       </div>
 
       <div class="form-group">
@@ -63,7 +63,7 @@
           </option>
           {% endfor %}
         </select>
-        <span class="form-hint">Klasse für das gewählte Lehrjahr. Praktikanten und Umschüler können ohne Klasse bleiben.</span>
+        <span class="form-hint">Klasse für das gewählte Ausbildungsjahr. Praktikanten und Umschüler können ohne Klasse bleiben.</span>
       </div>
 
       {% if trainee and memberships %}

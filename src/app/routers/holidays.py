@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 
 from app.database import get_session
 from app.models import SchoolHoliday, Schoolyear
+from app.services.importer import apply_holidays, parse_holidays
 
 router = APIRouter(prefix="/schulferien", tags=["schulferien"])
 templates = Jinja2Templates(directory=Path(__file__).resolve().parents[1] / "templates")
@@ -89,3 +90,68 @@ def delete_holiday(holiday_id: int, db: DB):
     db.delete(h)
     db.commit()
     return HTMLResponse("")
+
+
+# ── Schulferien-Import ────────────────────────────────────────────────────────
+
+async def _read_text(raw_text: str | None, csv_file: UploadFile | None) -> str:
+    """Gibt den Import-Text zurueck. Prioritaet: Datei > Textarea."""
+    if csv_file and csv_file.filename:
+        raw_bytes = await csv_file.read()
+        try:
+            return raw_bytes.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            return raw_bytes.decode("latin-1", errors="replace")
+    return raw_text or ""
+
+
+@router.get("/import/dialog", response_class=HTMLResponse)
+def holiday_import_dialog(request: Request, db: DB):
+    years = db.exec(select(Schoolyear).order_by(Schoolyear.start_year.desc())).all()
+    return templates.TemplateResponse(request, "holidays/_import_dialog.html", {
+        "years": years,
+    })
+
+
+@router.post("/import/preview", response_class=HTMLResponse)
+async def holiday_import_preview(
+    request: Request,
+    db: DB,
+    schoolyear_id: Annotated[str, Form()],
+    raw_text: Annotated[str | None, Form()] = None,
+    csv_file: UploadFile | None = None,
+):
+    text = await _read_text(raw_text, csv_file)
+    parse_result = parse_holidays(text)
+    years = db.exec(select(Schoolyear).order_by(Schoolyear.start_year.desc())).all()
+    return templates.TemplateResponse(request, "holidays/_import_preview.html", {
+        "valid": parse_result.valid,
+        "errors": parse_result.errors,
+        "raw_text": text,
+        "schoolyear_id": schoolyear_id,
+        "years": years,
+    })
+
+
+@router.post("/import/apply", response_class=RedirectResponse)
+async def holiday_import_apply(
+    request: Request,
+    db: DB,
+    schoolyear_id: Annotated[str, Form()],
+    raw_text: Annotated[str | None, Form()] = None,
+    csv_file: UploadFile | None = None,
+):
+    text = await _read_text(raw_text, csv_file)
+    parse_result = parse_holidays(text)
+    written, skipped = apply_holidays(db, schoolyear_id, parse_result.valid)
+
+    n = len(written)
+    s = len(skipped)
+    parts = []
+    if n:
+        parts.append(f"{n} Ferien{'eintrag' if n == 1 else 'eintraege'} importiert")
+    if s:
+        parts.append(f"{s} uebersprungen")
+    msg = ", ".join(parts) if parts else "Keine neuen Eintraege"
+
+    return RedirectResponse(f"/schulferien/?msg={msg}", status_code=303)
