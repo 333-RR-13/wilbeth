@@ -2,6 +2,44 @@
 {% block title %}Einsätze{% endblock %}
 
 {% block content %}
+<style>
+  .bulk-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+  .bulk-bar .btn-danger-outline {
+    background: transparent;
+    border: 1px solid var(--color-danger, #dc2626);
+    color: var(--color-danger, #dc2626);
+    padding: 0.35rem 0.85rem;
+    border-radius: var(--radius, 0.375rem);
+    font-size: 0.875rem;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .bulk-bar .btn-danger-outline:hover {
+    background: var(--color-danger, #dc2626);
+    color: #fff;
+  }
+  .bulk-bar .bulk-count {
+    font-size: 0.875rem;
+    color: var(--text-muted, #6b7280);
+  }
+  .cb-cell {
+    width: 2.5rem;
+    text-align: center;
+  }
+  input[type="checkbox"].row-cb,
+  input[type="checkbox"]#cb-all {
+    accent-color: var(--color-primary, #2563eb);
+    width: 1rem;
+    height: 1rem;
+    cursor: pointer;
+  }
+</style>
+
 <div class="page-header">
   <div>
     <h1 class="page-title">Einsätze</h1>
@@ -31,68 +69,136 @@
   <button type="submit" class="btn btn-secondary">Filtern</button>
 </form>
 
-<div class="table-wrapper">
-  <table>
-    <thead>
-      <tr>
-        <th>Trainee</th>
-        <th>KW</th>
-        <th>Jahr</th>
-        <th>Typ</th>
-        <th>Abteilung</th>
-        <th>Quelle</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for a in assignments %}
-      {% set t = trainee_map.get(a.trainee_id) %}
-      <tr id="row-a-{{ a.id }}" data-href="/einsaetze/{{ a.id }}/bearbeiten">
-        <td>{{ t.nachname ~ ', ' ~ t.vorname if t else '–' }}</td>
-        <td><strong>KW {{ a.kw }}</strong></td>
-        <td class="td-muted">{{ a.jahr }}</td>
-        <td>
-          {% if a.typ.value == 'ABTEILUNG' %}
-            <span class="badge badge-green">Abteilung</span>
-          {% elif a.typ.value == 'BERUFSSCHULE' %}
-            <span class="badge badge-blue">Berufsschule</span>
-          {% elif a.typ.value == 'UNI' %}
-            <span class="badge badge-orange">Uni</span>
-          {% elif a.typ.value == 'URLAUB' %}
-            <span class="badge badge-yellow">Urlaub</span>
-          {% else %}
-            <span class="badge badge-gray">Frei</span>
-          {% endif %}
-        </td>
-        <td class="td-muted">
-          {% if a.abteilung_id and a.abteilung_id in depts %}
-            <span class="mono">{{ depts[a.abteilung_id].code }}</span>
-          {% else %}
-            <span class="text-muted">–</span>
-          {% endif %}
-        </td>
-        <td class="td-muted">
-          {% if a.source.value == 'AUTO' %}
-            <span class="badge badge-gray">Auto</span>
-          {% else %}
-            <span class="badge badge-gray">Manuell</span>
-          {% endif %}
-        </td>
-        <td class="td-actions">
-          <a href="/einsaetze/{{ a.id }}/bearbeiten" class="btn btn-ghost btn-sm">Bearbeiten</a>
-          <button class="btn btn-ghost-danger btn-sm"
-                  hx-delete="/einsaetze/{{ a.id }}"
-                  hx-target="#row-a-{{ a.id }}"
-                  hx-swap="outerHTML swap:0.15s"
-                  hx-confirm="Einsatz KW {{ a.kw }}/{{ a.jahr }} wirklich löschen?">
-            Löschen
-          </button>
-        </td>
-      </tr>
-      {% else %}
-      <tr><td colspan="7" class="empty-state">Keine Einträge gefunden.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
+{# Bulk-Delete-Formular umschließt Tabelle und Aktionsleiste #}
+<form id="bulk-form"
+      method="post"
+      action="/einsaetze/bulk-delete{% if selected_year or selected_trainee %}?{% if selected_year %}schoolyear_id={{ selected_year }}{% endif %}{% if selected_year and selected_trainee %}&{% endif %}{% if selected_trainee %}trainee_id={{ selected_trainee }}{% endif %}{% endif %}">
+
+  <div class="bulk-bar">
+    <button type="button" id="btn-bulk-delete"
+            class="btn-danger-outline"
+            onclick="bulkDeleteConfirm()">
+      Ausgewählte löschen
+    </button>
+    <span class="bulk-count" id="bulk-count"></span>
+  </div>
+
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th class="cb-cell">
+            <input type="checkbox" id="cb-all" title="Alle auswählen">
+          </th>
+          <th>Trainee</th>
+          <th>KW</th>
+          <th>Jahr</th>
+          <th>Typ</th>
+          <th>Abteilung</th>
+          <th>Quelle</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in assignments %}
+        {% set t = trainee_map.get(a.trainee_id) %}
+        <tr id="row-a-{{ a.id }}" data-href="/einsaetze/{{ a.id }}/bearbeiten">
+          <td class="cb-cell">
+            <input type="checkbox" class="row-cb" name="ids" value="{{ a.id }}">
+          </td>
+          <td>{{ t.nachname ~ ', ' ~ t.vorname if t else '–' }}</td>
+          <td><strong>KW {{ a.kw }}</strong></td>
+          <td class="td-muted">{{ a.jahr }}</td>
+          <td>
+            {% if a.typ.value == 'ABTEILUNG' %}
+              <span class="badge badge-green">Abteilung</span>
+            {% elif a.typ.value == 'BERUFSSCHULE' %}
+              <span class="badge badge-blue">Berufsschule</span>
+            {% elif a.typ.value == 'UNI' %}
+              <span class="badge badge-orange">Uni</span>
+            {% elif a.typ.value == 'URLAUB' %}
+              <span class="badge badge-yellow">Urlaub</span>
+            {% else %}
+              <span class="badge badge-gray">Frei</span>
+            {% endif %}
+          </td>
+          <td class="td-muted">
+            {% if a.abteilung_id and a.abteilung_id in depts %}
+              <span class="mono">{{ depts[a.abteilung_id].code }}</span>
+            {% else %}
+              <span class="text-muted">–</span>
+            {% endif %}
+          </td>
+          <td class="td-muted">
+            {% if a.source.value == 'AUTO' %}
+              <span class="badge badge-gray">Auto</span>
+            {% else %}
+              <span class="badge badge-gray">Manuell</span>
+            {% endif %}
+          </td>
+          <td class="td-actions">
+            <a href="/einsaetze/{{ a.id }}/bearbeiten" class="btn btn-ghost btn-sm">Bearbeiten</a>
+            <button class="btn btn-ghost-danger btn-sm"
+                    hx-delete="/einsaetze/{{ a.id }}"
+                    hx-target="#row-a-{{ a.id }}"
+                    hx-swap="outerHTML swap:0.15s"
+                    hx-confirm="Einsatz KW {{ a.kw }}/{{ a.jahr }} wirklich löschen?">
+              Löschen
+            </button>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="empty-state">Keine Einträge gefunden.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</form>
+
+<script>
+(function () {
+  const cbAll = document.getElementById('cb-all');
+  const form  = document.getElementById('bulk-form');
+  const countEl = document.getElementById('bulk-count');
+
+  function getRowCbs() {
+    return Array.from(form.querySelectorAll('input.row-cb'));
+  }
+
+  function updateCount() {
+    const checked = getRowCbs().filter(cb => cb.checked).length;
+    countEl.textContent = checked > 0 ? checked + ' ausgewählt' : '';
+  }
+
+  // „Alle auswählen" toggled alle Zeilen-Checkboxen
+  cbAll.addEventListener('change', function () {
+    getRowCbs().forEach(cb => { cb.checked = cbAll.checked; });
+    updateCount();
+  });
+
+  // Einzelne Checkbox → „alle"-Checkbox-Zustand aktualisieren
+  form.addEventListener('change', function (e) {
+    if (e.target.classList.contains('row-cb')) {
+      const cbs = getRowCbs();
+      cbAll.checked = cbs.length > 0 && cbs.every(cb => cb.checked);
+      cbAll.indeterminate = cbs.some(cb => cb.checked) && !cbs.every(cb => cb.checked);
+      updateCount();
+    }
+  });
+
+  // Bulk-Delete mit Bestätigung
+  window.bulkDeleteConfirm = function () {
+    const checked = getRowCbs().filter(cb => cb.checked);
+    if (checked.length === 0) {
+      return; // nichts ausgewählt – kein Submit
+    }
+    const msg = checked.length === 1
+      ? '1 Einsatz wirklich löschen?'
+      : checked.length + ' Einsätze wirklich löschen?';
+    if (confirm(msg)) {
+      form.submit();
+    }
+  };
+})();
+</script>
 {% endblock %}

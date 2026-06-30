@@ -3,21 +3,93 @@
 {% block title %}{{ trainee.nachname }}, {{ trainee.vorname }}{% endblock %}
 
 {% block content %}
+<style>
+  .visitenkarte {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 20px 32px;
+    margin-bottom: 24px;
+  }
+  .visitenkarte-main { flex: 1 1 260px; min-width: 240px; }
+  .visitenkarte-name {
+    font-size: 22px;
+    font-weight: 700;
+    margin: 0 0 6px;
+    color: var(--text-primary);
+  }
+  .visitenkarte-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .visitenkarte-facts {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 16px;
+    font-size: 14px;
+  }
+  .visitenkarte-facts dt { color: var(--text-muted); font-weight: 500; }
+  .visitenkarte-facts dd { margin: 0; color: var(--text-primary); }
+  .visitenkarte-steckbrief {
+    flex: 1 1 280px;
+    min-width: 240px;
+    border-left: 1px solid var(--border, #e5e7eb);
+    padding-left: 24px;
+  }
+  .visitenkarte-steckbrief-title {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    margin: 0 0 6px;
+  }
+  .visitenkarte-steckbrief-text {
+    margin: 0;
+    font-size: 14px;
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+    line-height: 1.5;
+  }
+  .visitenkarte-steckbrief-empty { color: var(--text-muted); font-style: italic; }
+  @media (max-width: 640px) {
+    .visitenkarte-steckbrief { border-left: 0; padding-left: 0; border-top: 1px solid var(--border, #e5e7eb); padding-top: 16px; }
+  }
+</style>
+
 <div class="page-header">
   <div>
     <h1 class="page-title">{{ trainee.nachname }}, {{ trainee.vorname }}</h1>
-    <p class="page-subtitle">
+  </div>
+  <div class="btn-group">
+    <a href="/einsaetze/neu?trainee_id={{ trainee.id }}" class="btn btn-primary">Einsatz anlegen</a>
+    <a href="/trainees/{{ trainee.id }}/bearbeiten" class="btn btn-secondary">Bearbeiten</a>
+  </div>
+</div>
+
+{# ── Visitenkarte ─────────────────────────────────────────────────── #}
+<div class="card card-body visitenkarte">
+  <div class="visitenkarte-main">
+    <p class="visitenkarte-name">{{ trainee.vorname }} {{ trainee.nachname }}</p>
+    <div class="visitenkarte-badges">
       {% if trainee.aktiv %}<span class="badge badge-green">Aktiv</span>{% else %}<span class="badge badge-gray">Inaktiv</span>{% endif %}
       {% if trainee.rolle.value == 'AZUBI' %}<span class="badge badge-blue">Azubi</span>
       {% elif trainee.rolle.value == 'DH_STUDENT' %}<span class="badge badge-orange">DH-Student</span>
       {% elif trainee.rolle.value == 'PRAKTIKANT' %}<span class="badge badge-gray">Praktikant</span>
       {% else %}<span class="badge badge-gray">Umschüler</span>{% endif %}
-      {% if klasse %}<span class="badge badge-gray">{{ klasse.name }}</span>{% endif %}
-    </p>
+    </div>
+    <dl class="visitenkarte-facts">
+      <dt>Ausbildungsjahr</dt>
+      <dd>{{ ausbildungsjahr if ausbildungsjahr else '–' }}</dd>
+      <dt>Ausbildungsberuf</dt>
+      <dd>{{ beruf }}{% if lehrjahr %} ({{ lehrjahr }}. LJ){% endif %}</dd>
+      <dt>Klasse</dt>
+      <dd>{% if klasse %}{{ klasse.name }}{% else %}–{% endif %}</dd>
+    </dl>
   </div>
-  <div class="btn-group">
-    <a href="/einsaetze/neu?trainee_id={{ trainee.id }}" class="btn btn-primary">Einsatz anlegen</a>
-    <a href="/trainees/{{ trainee.id }}/bearbeiten" class="btn btn-secondary">Bearbeiten</a>
+  <div class="visitenkarte-steckbrief">
+    <p class="visitenkarte-steckbrief-title">Steckbrief</p>
+    {% if trainee.steckbrief %}
+    <p class="visitenkarte-steckbrief-text">{{ trainee.steckbrief }}</p>
+    {% else %}
+    <p class="visitenkarte-steckbrief-text visitenkarte-steckbrief-empty">Noch kein Steckbrief hinterlegt.</p>
+    {% endif %}
   </div>
 </div>
 

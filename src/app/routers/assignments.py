@@ -347,6 +347,34 @@ def delete_assignment(assignment_id: int, db: DB):
     return HTMLResponse("")
 
 
+# ── Bulk Delete ───────────────────────────────────────────────────────────────
+
+@router.post("/bulk-delete", response_class=RedirectResponse)
+def bulk_delete_assignments(
+    request: Request,
+    db: DB,
+    ids: Annotated[list[int], Form()] = [],
+):
+    """Löscht alle übergebenen Assignment-IDs (nur existierende). PRG-Redirect zurück."""
+    if ids:
+        for assignment_id in ids:
+            a = db.get(Assignment, assignment_id)
+            if a:
+                db.delete(a)
+        db.commit()
+
+    # Filter-Query aus dem Referer / Request preservieren
+    schoolyear_id = request.query_params.get("schoolyear_id", "")
+    trainee_id = request.query_params.get("trainee_id", "")
+    params = {}
+    if schoolyear_id:
+        params["schoolyear_id"] = schoolyear_id
+    if trainee_id:
+        params["trainee_id"] = trainee_id
+    qs = ("?" + urllib.parse.urlencode(params)) if params else ""
+    return RedirectResponse(f"/einsaetze/{qs}", status_code=303)
+
+
 # ── Inline cell edit (matrix) ─────────────────────────────────────────────────
 
 @router.get("/cell-edit", response_class=HTMLResponse)

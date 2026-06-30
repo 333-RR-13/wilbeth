@@ -66,6 +66,17 @@ Format orientiert an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
   Überschriften, nur die Reihenfolge): Beruf (alphabetisch) → Lehrjahr (1→2→3) → Name.
 - **Roadmap-Seite** (`/roadmap`, Nav über „Über Wilbeth") – Live-Überblick Fertig/Geplant/
   Blocker für die Ausbilderin. **Temporär**: vor dem produktiven Deploy wieder entfernen.
+- **Übersicht – scrollbarer Wochen-Scope + Filter-Persistenz**: bei „N Wochen" wird ein
+  N-Wochen-breites Fenster gezeigt, durch das man **seitlich scrollt** (alle Wochen
+  gerendert, Namensspalte bleibt stehen, Start = heutige KW). Filter (Lehrjahr/Klasse/
+  Abteilung/Wochen) werden pro Sitzung gemerkt (Cookie).
+- **Profil-Visitenkarte** (Name, Ausbildungsjahr, Ausbildungsberuf, Rolle, **Steckbrief**) –
+  neues Feld `Trainee.steckbrief` (Migration `0004`). Studierende bekommen ein eigenes
+  **„DH-Student"-Badge**.
+- **Jahreswechsel**: Studierende (DH_STUDENT) werden **nicht mehr fälschlich archiviert** –
+  nur Azubis im Abschlussjahr.
+- **Klassen-Seite** nach **Ausbildungsberuf** gegliedert (Berufs-Sektionen, Klassen nach Lehrjahr).
+- **Einsätze**: „alle auswählen" + **Sammel-Löschen** (gefiltert).
 - **Abteilungskategorien sind jetzt verwaltbar**: aus dem festen Enum (ITO/Non-ITO/Extern)
   wurde eine DB-Tabelle (Migration `0003`). Neue Kategorien: **Platform Development,
   Customer Service, Grenke AG, Grenke Digital**. Unter „Abteilungen → Kategorien verwalten"

@@ -25,6 +25,8 @@ class Trainee(SQLModel, table=True):
     rolle: TraineeRolle
     aktiv: bool = Field(default=True)
     notizen: str = Field(default="")
+    # Frei editierbarer Steckbrief-Text (Visitenkarte im Profil)
+    steckbrief: str = Field(default="")
     # Self-Service: Capability-Token fuer /mein-plan/{token}; None = kein Zugang
     share_token: str | None = Field(default=None, max_length=36, unique=True, index=True)
     # Freitext-Wuensche des Azubis (inkl. Zeitwuensche) -- beratend fuer die Planerin

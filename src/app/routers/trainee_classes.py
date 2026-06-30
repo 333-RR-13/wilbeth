@@ -9,7 +9,7 @@ from sqlmodel import Session, select
 from app.database import get_session
 from app.models import Schoolyear, Trainee, TraineeClass, UnterrichtsTyp
 from app.models.trainee_class_membership import TraineeClassMembership
-from app.services.membership_utils import upsert_membership
+from app.services.membership_utils import beruf_und_lehrjahr, upsert_membership
 from app.services.school_sync import sync_trainee
 from app.utils.kw import WEEKDAY_LABELS, format_weekdays, parse_weekdays
 
@@ -32,6 +32,28 @@ def _weekday_fields(
     return schul_wochentage, halbtag_wochentag
 
 
+def _group_by_beruf(
+    classes: list[TraineeClass],
+) -> list[tuple[str, list[TraineeClass]]]:
+    """Gruppiert Klassen nach Beruf; innerhalb jedes Berufs nach Lehrjahr (None zuletzt)."""
+    from collections import defaultdict
+
+    buckets: dict[str, list[TraineeClass]] = defaultdict(list)
+    for c in classes:
+        beruf, _ = beruf_und_lehrjahr(c.name)
+        buckets[beruf].append(c)
+
+    def _lj_sort_key(c: TraineeClass) -> int:
+        _, lj = beruf_und_lehrjahr(c.name)
+        return lj if lj is not None else 99
+
+    result = []
+    for beruf in sorted(buckets.keys()):
+        sorted_classes = sorted(buckets[beruf], key=_lj_sort_key)
+        result.append((beruf, sorted_classes))
+    return result
+
+
 @router.get("/", response_class=HTMLResponse)
 def list_classes(request: Request, db: DB):
     classes = db.exec(select(TraineeClass).order_by(TraineeClass.name)).all()
@@ -39,8 +61,12 @@ def list_classes(request: Request, db: DB):
         c.id: format_weekdays(c.schul_wochentage, halbtag=c.halbtag_wochentag)
         for c in classes
     }
+    grouped = _group_by_beruf(classes)
     return templates.TemplateResponse(request, "trainee_classes/list.html", {
-        "classes": classes, "schul_labels": schul_labels, "active_nav": "klassen",
+        "classes": classes,
+        "grouped": grouped,
+        "schul_labels": schul_labels,
+        "active_nav": "klassen",
     })
 
 

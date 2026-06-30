@@ -80,6 +80,13 @@
       {% endif %}
 
       <div class="form-group">
+        <label for="steckbrief">Steckbrief</label>
+        <textarea id="steckbrief" name="steckbrief" rows="4"
+                  placeholder="Kurzer Steckbrief, z. B. Interessen, Schwerpunkte, Hintergrund">{{ trainee.steckbrief if trainee else '' }}</textarea>
+        <span class="form-hint">Wird in der Visitenkarte oben im Profil angezeigt.</span>
+      </div>
+
+      <div class="form-group">
         <label for="notizen">Notizen</label>
         <textarea id="notizen" name="notizen" rows="3"
                   placeholder="Besonderheiten, z. B. Prüfungszeiträume">{{ trainee.notizen if trainee else '' }}</textarea>

@@ -27,6 +27,11 @@
     <li>Verwaltbare Abteilungskategorien (Platform Development · Customer Service · Grenke AG · Grenke Digital)</li>
     <li>Übersicht nach Beruf &amp; Klasse gruppiert, nur aktive Azubis</li>
     <li><strong>Klick = Zelle auswählen, Doppelklick = bearbeiten</strong></li>
+    <li>Übersicht: Wochen-Scope als <strong>scrollbarer Zeitraum</strong> (beliebiges N-Wochen-Fenster, Namensspalte bleibt beim Scrollen stehen) + <strong>Filter pro Sitzung</strong> gemerkt</li>
+    <li><strong>Profil-Visitenkarte</strong> (Name · Ausbildungsjahr · Ausbildungsberuf · Rolle · Steckbrief) + eigener Tag für <strong>Studierende</strong></li>
+    <li>Jahreswechsel: <strong>Studierende werden nicht mehr fälschlich archiviert</strong> (nur Azubis im Abschlussjahr)</li>
+    <li>Einsätze: <strong>„alle auswählen" + Sammel-Löschen</strong> (gefiltert)</li>
+    <li>Klassen-Seite nach <strong>Ausbildungsberuf</strong> gegliedert</li>
   </ul>
 </div>
 
@@ -34,16 +39,11 @@
 <div class="form-card form-card-fluid" style="border-left:4px solid var(--accent);margin-bottom:18px">
   <h2 class="form-section-title" style="color:var(--accent)">📋 Geplant (aus dem Feedback der Ausbilderin)</h2>
   <ul class="roadmap-list">
-    <li><strong>Visitenkarte</strong> im Azubi-/Studi-Profil (Name · Ausbildungsjahr · Ausbildungsberuf · Azubi/Student · Steckbrief)</li>
-    <li>Eigener Tag für <strong>Studierende</strong> + Jahreswechsel-Fix: Studierende werden nicht fälschlich „abgeschlossen"/archiviert</li>
-    <li>Übersichts-<strong>Filter pro Sitzung merken</strong> (nicht mehr bei jedem Neuladen zurücksetzen)</li>
-    <li>„Lehrjahr" → „<strong>Ausbildungsjahr</strong>" umbenennen</li>
-    <li>Ausbildungsjahr in <strong>Halbjahre / Semester</strong> aufteilen (Planung erfolgt halbjährlich)</li>
-    <li>„Nächstes Ausbildungsjahr <strong>simulieren</strong>": künftiges Jahr wählen → Azubis rücken automatisch eine Stufe hoch, Abschlussjahrgang fällt raus (ohne manuellen Jahreswechsel)</li>
-    <li>Einsätze: „<strong>alle auswählen</strong>" (gefiltert) + Sammel-Löschen</li>
-    <li>Klassen-Seite: <strong>Beruf übergeordnet</strong>, einzelne Klassen als Unterpunkte</li>
+    <li>„Lehrjahr" → „<strong>Ausbildungsjahr</strong>" umbenennen <em>(als Nächstes)</em></li>
+    <li>Ausbildungsjahr in <strong>Halbjahre / Semester</strong> aufteilen (Planung erfolgt halbjährlich) <em>(Abstimmung nötig)</em></li>
+    <li>„Nächstes Ausbildungsjahr <strong>simulieren</strong>": künftiges Jahr wählen → Azubis rücken automatisch eine Stufe hoch, Abschlussjahrgang fällt raus (ohne manuellen Jahreswechsel) <em>(Abstimmung nötig)</em></li>
     <li><strong>Schulferien-Import</strong> (CSV oder automatisch aus dem Internet)</li>
-    <li><strong>KI-gestützter Schulblockplan-Import</strong>: Blockpläne (FISI/FIAE) werden automatisch gelesen und eingetragen, man bestätigt nur noch</li>
+    <li><strong>KI-gestützter Schulblockplan-Import</strong>: Blockpläne (FISI/FIAE) werden automatisch gelesen und eingetragen, man bestätigt nur noch <em>(braucht API-Key)</em></li>
   </ul>
 </div>
 
@@ -51,7 +51,7 @@
 <div class="form-card form-card-fluid" style="border-left:4px solid var(--warning)">
   <h2 class="form-section-title" style="color:var(--warning)">🔒 Vor dem Produktivbetrieb</h2>
   <ul class="roadmap-list">
-    <li><strong>SSO / Benutzeranmeldung</strong> über AD bzw. <strong>Entra ID</strong> – Rollen: Azubi, Ausbilder, Orga, Admin (in Klärung mit IAM)</li>
+    <li><strong>SSO / Benutzeranmeldung</strong> über <strong>Entra ID</strong> (OIDC) – Rollen: Azubi, Ausbilder, Orga, Admin. Entscheidung steht; App-Registration + Rollen-Gruppen per Ticket bestellt, App-Layer wird gebaut, sobald die Zugangsdaten da sind.</li>
     <li>Datenschutz-Freigabe (DSB) vor echten Personendaten</li>
     <li>Diese Roadmap-Seite wieder entfernen</li>
   </ul>

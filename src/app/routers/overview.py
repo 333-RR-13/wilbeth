@@ -1,5 +1,7 @@
+import json
 from datetime import date
 from typing import Annotated
+from urllib.parse import quote, unquote
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -29,6 +31,66 @@ router = APIRouter(tags=["overview"])
 templates = Jinja2Templates(directory=Path(__file__).resolve().parents[1] / "templates")
 DB = Annotated[Session, Depends(get_session)]
 
+# Name des Session-Cookies fuer Filter-Persistenz
+_FILTER_COOKIE = "ov_filters"
+
+
+def _read_filter_cookie(request: Request) -> dict:
+    """Liest den ov_filters-Cookie und gibt ein dict zurueck (leer wenn nicht vorhanden/ungueltig).
+
+    Der Wert ist URL-encodetes JSON (siehe _set_filter_cookie), wird also erst
+    percent-decoded und dann als JSON geparst.
+    """
+    raw = request.cookies.get(_FILTER_COOKIE, "")
+    if not raw:
+        return {}
+    try:
+        return json.loads(unquote(raw))
+    except (json.JSONDecodeError, ValueError):
+        return {}
+
+
+def _resolve_param(query_params, key: str, cookie_data: dict) -> str:
+    """Gibt den Query-Param-Wert zurueck wenn der Key im Request vorhanden ist
+    (auch als leerer String), sonst den Cookie-Wert.
+
+    Regel: Query-Param hat immer Vorrang vor Cookie – auch wenn er leer ist,
+    d. h. der Nutzer hat bewusst 'Alle ...' gewaehlt. Nur wenn der Parameter
+    gaenzlich fehlt, wird der gespeicherte Cookie-Wert genutzt.
+    """
+    if key in query_params:
+        return query_params[key]
+    return cookie_data.get(key, "")
+
+
+def _set_filter_cookie(
+    response,
+    schoolyear_id: str,
+    klasse_id: str,
+    abteilung_id: str,
+    wochen: str,
+) -> None:
+    """Schreibt die aktuellen Filter-Werte als JSON-Cookie (SameSite=Lax, kein HttpOnly).
+
+    Das JSON wird URL-encodet (percent-encoding). Sonst wuerde Starlettes
+    set_cookie das JSON wegen ',' und '"' via http.cookies in RFC-2109-Quoting
+    mit Oktal-Escapes (\\054) verpacken – das dekodieren Browser nicht zurueck
+    und der Client-Cookie-Jar (httpx) liefert unparsebares JSON.
+    """
+    payload = quote(json.dumps({
+        "schoolyear_id": schoolyear_id,
+        "klasse_id": klasse_id,
+        "abteilung_id": abteilung_id,
+        "wochen": wochen,
+    }, separators=(",", ":")))
+    response.set_cookie(
+        key=_FILTER_COOKIE,
+        value=payload,
+        samesite="lax",
+        httponly=False,
+        max_age=60 * 60 * 24 * 30,  # 30 Tage
+    )
+
 
 @router.get("/", response_class=RedirectResponse)
 def root():
@@ -53,10 +115,13 @@ WOCHEN_OPTIONS = [4, 8, 12, 16, 26]
 
 @router.get("/overview", response_class=HTMLResponse)
 def overview(request: Request, db: DB):
-    schoolyear_id = request.query_params.get("schoolyear_id", "")
-    klasse_id_str = request.query_params.get("klasse_id", "")
-    abteilung_id_str = request.query_params.get("abteilung_id", "")
-    wochen_str = request.query_params.get("wochen", "")
+    # ── Filter-Werte: Query-Param hat Vorrang vor Cookie ──────────────────────
+    _cookie = _read_filter_cookie(request)
+    qp = request.query_params
+    schoolyear_id = _resolve_param(qp, "schoolyear_id", _cookie)
+    klasse_id_str = _resolve_param(qp, "klasse_id", _cookie)
+    abteilung_id_str = _resolve_param(qp, "abteilung_id", _cookie)
+    wochen_str = _resolve_param(qp, "wochen", _cookie)
 
     years = db.exec(select(Schoolyear).order_by(Schoolyear.start_year.desc())).all()
     classes = db.exec(select(TraineeClass).order_by(TraineeClass.name)).all()
@@ -76,19 +141,22 @@ def overview(request: Request, db: DB):
 
     if not year:
         dept_colors = department_color_map(all_depts)
-        return templates.TemplateResponse(request, "overview/matrix.html", {
+        resp = templates.TemplateResponse(request, "overview/matrix.html", {
             "trainees": [], "grouped": [], "weeks": [], "cell_map": {}, "conflict_cells": set(),
             "conflict_count": 0, "years": years, "classes": classes,
             "depts": {}, "all_depts": all_depts, "school_week_map": {}, "trainee_klasse_map": {},
             "tage_fest_map": tage_fest_map,
             "visited_map": {},
             "dept_colors": dept_colors,
+            "n_wochen": 0,
             "selected_year": schoolyear_id, "selected_klasse": klasse_id_str,
             "selected_abteilung": abteilung_id_str,
             "selected_wochen": wochen_str,
             "wochen_options": WOCHEN_OPTIONS,
             "active_nav": "overview",
         })
+        _set_filter_cookie(resp, schoolyear_id, klasse_id_str, abteilung_id_str, wochen_str)
+        return resp
 
     _today = date.today().isocalendar()
     _today_key = (_today.week, _today.year)
@@ -105,21 +173,14 @@ def overview(request: Request, db: DB):
         )
     ]
 
-    # Wochen-Fenster: nur N Wochen ab heutiger KW anzeigen
+    # Alle Wochen des Lehrjahres immer rendern (kein Slicing).
+    # n_wochen steuert nur die sichtbare Viewport-Breite via max-width im Template.
     try:
         n_wochen = int(wochen_str) if wochen_str else 0
     except (ValueError, TypeError):
         n_wochen = 0
 
-    if n_wochen > 0:
-        # Anker: Index der heutigen ISO-Woche; falls nicht im Lehrjahr → Index 0
-        anker = next(
-            (i for i, w in enumerate(all_weeks) if (w["kw"], w["jahr"]) == _today_key),
-            0,
-        )
-        weeks = all_weeks[anker: anker + n_wochen]
-    else:
-        weeks = all_weeks
+    weeks = all_weeks
 
     # Membership-Map fuer das gewaehlte Lehrjahr (trainee_id -> klasse_id)
     memberships_for_year: dict[int, int] = {
@@ -263,7 +324,7 @@ def overview(request: Request, db: DB):
             ],
         })
 
-    return templates.TemplateResponse(request, "overview/matrix.html", {
+    resp = templates.TemplateResponse(request, "overview/matrix.html", {
         "trainees": trainees,
         "grouped": grouped,
         "weeks": weeks,
@@ -279,6 +340,7 @@ def overview(request: Request, db: DB):
         "tage_fest_map": tage_fest_map,
         "visited_map": visited_map,
         "dept_colors": dept_colors,
+        "n_wochen": n_wochen,
         "selected_year": schoolyear_id,
         "selected_klasse": klasse_id_str,
         "selected_abteilung": abteilung_id_str,
@@ -286,3 +348,5 @@ def overview(request: Request, db: DB):
         "wochen_options": WOCHEN_OPTIONS,
         "active_nav": "overview",
     })
+    _set_filter_cookie(resp, schoolyear_id, klasse_id_str, abteilung_id_str, wochen_str)
+    return resp

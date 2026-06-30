@@ -2,6 +2,22 @@
 {% block title %}Klassen{% endblock %}
 
 {% block content %}
+<style>
+  .beruf-section {
+    margin-bottom: 2rem;
+  }
+  .beruf-heading {
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-text-muted, #6b7280);
+    padding: 0.35rem 0 0.35rem 0;
+    margin: 0 0 0.5rem 0;
+    border-bottom: 1px solid var(--color-border, #e5e7eb);
+  }
+</style>
+
 <div class="page-header">
   <div>
     <h1 class="page-title">Klassen</h1>
@@ -13,48 +29,63 @@
   </a>
 </div>
 
+{% if not classes %}
 <div class="table-wrapper">
   <table>
-    <thead>
-      <tr>
-        <th>Name</th>
-        <th>Berufsschule</th>
-        <th>Typ</th>
-        <th></th>
-      </tr>
-    </thead>
     <tbody>
-      {% for c in classes %}
-      <tr id="row-c-{{ c.id }}" data-href="/klassen/{{ c.id }}/bearbeiten">
-        <td><strong>{{ c.name }}</strong></td>
-        <td class="td-muted">{{ c.berufsschule }}</td>
-        <td>
-          {% if c.unterrichts_typ.value == 'BLOCK_FEST' %}
-            <span class="badge badge-blue">Block fest</span>
-          {% elif c.unterrichts_typ.value == 'TAGE_FEST' %}
-            <span class="badge badge-orange">Wochentag-Schule</span>
-            {% if schul_labels.get(c.id) %}
-            <span class="td-muted" style="margin-left: 6px;">{{ schul_labels[c.id] }}</span>
-            {% endif %}
-          {% else %}
-            <span class="badge badge-gray">DH-Phasen</span>
-          {% endif %}
-        </td>
-        <td class="td-actions">
-          <a href="/klassen/{{ c.id }}/bearbeiten" class="btn btn-ghost btn-sm">Bearbeiten</a>
-          <button class="btn btn-ghost-danger btn-sm"
-                  hx-delete="/klassen/{{ c.id }}"
-                  hx-target="#row-c-{{ c.id }}"
-                  hx-swap="outerHTML swap:0.15s"
-                  hx-confirm="Klasse '{{ c.name }}' wirklich löschen?">
-            Löschen
-          </button>
-        </td>
-      </tr>
-      {% else %}
       <tr><td colspan="4" class="empty-state">Noch keine Klassen angelegt.</td></tr>
-      {% endfor %}
     </tbody>
   </table>
 </div>
+{% else %}
+
+{% for beruf, beruf_classes in grouped %}
+<div class="beruf-section">
+  <div class="beruf-heading">{{ beruf }}</div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Berufsschule</th>
+          <th>Typ</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in beruf_classes %}
+        <tr id="row-c-{{ c.id }}" data-href="/klassen/{{ c.id }}/bearbeiten">
+          <td><strong>{{ c.name }}</strong></td>
+          <td class="td-muted">{{ c.berufsschule }}</td>
+          <td>
+            {% if c.unterrichts_typ.value == 'BLOCK_FEST' %}
+              <span class="badge badge-blue">Block fest</span>
+            {% elif c.unterrichts_typ.value == 'TAGE_FEST' %}
+              <span class="badge badge-orange">Wochentag-Schule</span>
+              {% if schul_labels.get(c.id) %}
+              <span class="td-muted" style="margin-left: 6px;">{{ schul_labels[c.id] }}</span>
+              {% endif %}
+            {% else %}
+              <span class="badge badge-gray">DH-Phasen</span>
+            {% endif %}
+          </td>
+          <td class="td-actions">
+            <a href="/klassen/{{ c.id }}/bearbeiten" class="btn btn-ghost btn-sm">Bearbeiten</a>
+            <button class="btn btn-ghost-danger btn-sm"
+                    hx-delete="/klassen/{{ c.id }}"
+                    hx-target="#row-c-{{ c.id }}"
+                    hx-swap="outerHTML swap:0.15s"
+                    hx-confirm="Klasse '{{ c.name }}' wirklich löschen?">
+              Löschen
+            </button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endfor %}
+
+{% endif %}
 {% endblock %}

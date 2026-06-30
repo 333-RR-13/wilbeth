@@ -4,6 +4,27 @@
 {% block content_class %}content-inner--wide{% endblock %}
 
 {% block content %}
+<style>
+/* ── Scrollbarer Wochen-Viewport ───────────────────────────────────────── */
+.matrix-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Namensspalte sticky beim horizontalen Scrollen */
+.matrix-th-name,
+.matrix-td-name {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--bg-card, #fff);
+}
+
+/* Kopfzeile hat einen höheren z-index damit sie über Datenzellen liegt */
+.matrix-th-name {
+  z-index: 3;
+}
+</style>
 <div class="page-header">
   <div>
     <h1 class="page-title">Einsatzübersicht</h1>
@@ -64,7 +85,7 @@
   <span class="legend-item"><span class="matrix-today-sample"></span> Aktuelle KW</span>
 </div>
 
-<div class="matrix-scroll">
+<div class="matrix-scroll"{% if n_wochen and n_wochen > 0 %} style="max-width: calc(180px + {{ n_wochen }} * 38px)"{% endif %}>
   <table class="matrix-table">
     <thead>
       <tr>
@@ -488,6 +509,23 @@ document.getElementById('cell-edit-dialog').addEventListener('click', function (
         },
       });
     }
+  });
+}());
+
+/* ── Heute-KW beim Laden in den sichtbaren Bereich scrollen ─────────── */
+(function () {
+  var scroll = document.querySelector('.matrix-scroll');
+  if (!scroll) return;
+  // Suche zuerst eine Zelle mit mc-today, dann den Spalten-Header is-today
+  var todayCell = scroll.querySelector('.mc-today') || scroll.querySelector('.is-today');
+  if (!todayCell) return;
+  // Warte einen Frame damit Layout abgeschlossen ist
+  requestAnimationFrame(function () {
+    var containerLeft = scroll.getBoundingClientRect().left;
+    var cellLeft = todayCell.getBoundingClientRect().left;
+    // Namensspalte (~180px) als Offset abziehen damit die Spalte nicht darunter liegt
+    var stickyWidth = 180;
+    scroll.scrollLeft += cellLeft - containerLeft - stickyWidth;
   });
 }());
 </script>

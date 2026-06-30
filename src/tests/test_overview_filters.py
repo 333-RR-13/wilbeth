@@ -80,31 +80,40 @@ def test_date_header_present(client, session):
     assert "th-kw-date" in r.text
 
 
-def test_wochen_filter_limits_columns(client, session):
-    """wochen=4 darf hoechstens 4 KW-Spalten rendern (< alle Wochen des Lehrjahres)."""
+def test_wochen_filter_viewport_in_html(client, session):
+    """wochen=4 rendert ALLE KW-Spalten, setzt aber max-width fuer den Viewport-Container.
+
+    Seit der Umstellung auf scrollbaren Scope werden immer alle Wochen gerendert;
+    die sichtbare Breite wird per CSS max-width gesteuert, nicht per Slicing.
+    """
     _base(session)
     r = client.get("/overview", params={"schoolyear_id": SY, "wochen": "4"})
     assert r.status_code == 200
-    # Das Lehrjahr 2025-2026 hat ~52 Wochen; wochen=4 -> deutlich weniger th-kw-num-Vorkommen
+    # Alle ~52 Wochen des Lehrjahres sind im HTML (kein Slicing mehr)
     kw_headers = r.text.count("th-kw-num")
-    assert kw_headers <= 4, f"Erwartet <= 4 KW-Spalten, gefunden: {kw_headers}"
+    assert kw_headers > 4, f"Erwartet alle KW-Spalten, gefunden: {kw_headers}"
+    # Viewport-Begrenzung via max-width im matrix-scroll-Container
+    assert "max-width" in r.text, "max-width muss im HTML stehen wenn wochen=4"
+    assert "calc(180px + 4 * 38px)" in r.text, "Viewport-Formel fuer n_wochen=4 erwartet"
     # Dropdown muss mit '4' als selected gerendert sein
     assert 'value="4" selected' in r.text or "value=\"4\"  selected" in r.text or ">4 Wochen<" in r.text
 
 
 def test_wochen_filter_default_shows_all(client, session):
-    """Ohne wochen-Parameter werden alle Wochen des Lehrjahres angezeigt (Default-Verhalten)."""
+    """Ohne wochen-Parameter werden alle Wochen des Lehrjahres angezeigt; keine max-width."""
     _base(session)
     r_all = client.get("/overview", params={"schoolyear_id": SY})
     r_filtered = client.get("/overview", params={"schoolyear_id": SY, "wochen": "4"})
     assert r_all.status_code == 200
     assert r_filtered.status_code == 200
-    # Ungefiltert muss mehr KW-Spalten haben als bei wochen=4
+    # Beide rendern dieselbe Anzahl KW-Spalten (kein Slicing mehr)
     all_cols = r_all.text.count("th-kw-num")
     filtered_cols = r_filtered.text.count("th-kw-num")
-    assert all_cols > filtered_cols, (
-        f"Default sollte mehr Spalten zeigen als wochen=4 ({all_cols} vs {filtered_cols})"
+    assert all_cols == filtered_cols, (
+        f"Beide Modi sollen alle Spalten rendern ({all_cols} vs {filtered_cols})"
     )
+    # Ohne wochen-Parameter: kein max-width im Scroll-Container
+    assert "max-width" not in r_all.text or "calc(180px" not in r_all.text
 
 
 def test_wochen_filter_invalid_shows_all(client, session):

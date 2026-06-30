@@ -17,7 +17,7 @@ from pathlib import Path
 from sqlmodel import Session, select
 
 from app.database import get_session
-from app.models import Schoolyear, Trainee, TraineeClass
+from app.models import Schoolyear, Trainee, TraineeClass, TraineeRolle
 from app.models.trainee_class_membership import TraineeClassMembership
 from app.services.membership_utils import klasse_fuer, next_class_for, upsert_membership
 from app.services.school_sync import resync_all
@@ -76,7 +76,10 @@ def _build_preview(
                 "neue_klasse": next_klasse,
                 "already_exists": trainee.id in existing_targets,
             })
-        else:
+        elif trainee.rolle == TraineeRolle.AZUBI:
+            # Nur Azubis ohne naechste Klasse gelten als Abschluss.
+            # Studierende (DH_STUDENT) u. a. laufen einfach weiter -> nicht
+            # archivieren, nicht transferieren.
             abschluss.append({
                 "trainee": trainee,
                 "klasse": klasse,
@@ -181,6 +184,11 @@ def jahreswechsel_uebernehmen(
     all_classes_after = list(classes_by_id_after.values())
 
     for trainee in trainees_after:
+        # Nur Azubis duerfen automatisch archiviert werden. Studierende
+        # (DH_STUDENT) und andere Nicht-Azubi-Rollen haben kein LJ-Muster und
+        # wuerden sonst faelschlich als "Abschluss" deaktiviert.
+        if trainee.rolle != TraineeRolle.AZUBI:
+            continue
         klasse_id = klasse_fuer(db, trainee, source_year_id)
         klasse = classes_by_id_after.get(klasse_id) if klasse_id is not None else None
         if klasse is None:

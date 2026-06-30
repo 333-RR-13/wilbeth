@@ -21,7 +21,7 @@ from app.models import (
 )
 from app.models.trainee_wish import prioritaet_label
 from app.services.conflict_checker import find_conflicts
-from app.services.membership_utils import upsert_membership
+from app.services.membership_utils import beruf_und_lehrjahr, upsert_membership
 from app.services.school_sync import sync_trainee
 from app.utils.colors import department_color_map
 
@@ -76,6 +76,7 @@ def create_trainee(
     membership_year_id: Annotated[str, Form()] = "",
     membership_klasse_id: Annotated[str, Form()] = "",
     notizen: Annotated[str, Form()] = "",
+    steckbrief: Annotated[str, Form()] = "",
     aktiv: Annotated[str, Form()] = "",
 ):
     klasse_id_int = int(klasse_id) if klasse_id else None
@@ -85,6 +86,7 @@ def create_trainee(
         rolle=rolle,
         klasse_id=klasse_id_int,
         notizen=notizen,
+        steckbrief=steckbrief,
         aktiv=bool(aktiv),
     )
     db.add(t)
@@ -131,6 +133,12 @@ def trainee_detail(request: Request, trainee_id: int, db: DB):
         .order_by(TraineeWish.prioritaet)
     ).all()
 
+    # ── Visitenkarte ────────────────────────────────────────────────
+    # Ausbildungsjahr: neuestes Schuljahr (years ist bereits start_year desc sortiert)
+    ausbildungsjahr = next(iter(years), None)
+    # Ausbildungsberuf + Lehrjahr aus dem Klassennamen ableiten
+    beruf, lehrjahr = beruf_und_lehrjahr(klasse.name if klasse else None)
+
     return templates.TemplateResponse(request, "trainees/detail.html", {
         "trainee": trainee,
         "klasse": klasse,
@@ -141,6 +149,9 @@ def trainee_detail(request: Request, trainee_id: int, db: DB):
         "conflict_cells": conflict_cells,
         "today_key": today_key,
         "wishes": wishes,
+        "ausbildungsjahr": ausbildungsjahr,
+        "beruf": beruf,
+        "lehrjahr": lehrjahr,
         "active_nav": "trainees",
     })
 
@@ -200,6 +211,7 @@ def update_trainee(
     membership_year_id: Annotated[str, Form()] = "",
     membership_klasse_id: Annotated[str, Form()] = "",
     notizen: Annotated[str, Form()] = "",
+    steckbrief: Annotated[str, Form()] = "",
     aktiv: Annotated[str, Form()] = "",
 ):
     t = db.get(Trainee, trainee_id)
@@ -207,6 +219,7 @@ def update_trainee(
     t.nachname = nachname
     t.rolle = rolle
     t.notizen = notizen
+    t.steckbrief = steckbrief
     t.aktiv = bool(aktiv)
     # Membership fuer gewaehltes Lehrjahr setzen
     mem_klasse_int = int(membership_klasse_id) if membership_klasse_id else (int(klasse_id) if klasse_id else None)
