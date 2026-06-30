@@ -24,6 +24,19 @@
 .matrix-th-name {
   z-index: 3;
 }
+
+/* Semester-Label fuer DH-Studenten (scoped) */
+.ov-semester-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--color-accent-soft, #e0e7ff);
+  color: var(--color-accent, #4f46e5);
+  margin-left: 4px;
+  white-space: nowrap;
+  vertical-align: middle;
+}
 </style>
 <div class="page-header">
   <div>
@@ -120,6 +133,10 @@
                class="matrix-trainee-link">
               {{ t.nachname }}, {{ t.vorname }}
             </a>
+            {% set sem_label = semester_label_map.get(t.id) %}
+            {% if sem_label %}
+            <span class="ov-semester-badge" title="Semester: {{ sem_label }}">{{ sem_label }}</span>
+            {% endif %}
             {% if tage_fest_map.get(klasse_id) %}
             <span class="school-days-badge" title="Schultage jede Woche: {{ tage_fest_map[klasse_id] }}">
               &#128218; {{ tage_fest_map[klasse_id] }}

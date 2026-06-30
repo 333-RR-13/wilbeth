@@ -3,9 +3,7 @@
 (a) Membership steuert school_sync pro Jahr
 (b) Fallback ohne Membership = altes Verhalten
 (c) overview trainee_klasse_map nutzt Membership fuers gewaehlte Jahr
-(d) Jahreswechsel-Vorschau + Uebernehmen legt korrekte Memberships an,
-    Klassen ohne next_class werden nicht uebernommen
-(e) klasse_fuer-Helper
+(d) klasse_fuer-Helper (Override / Fallback / berechnet) + semester_label
 """
 
 import pytest
@@ -25,7 +23,7 @@ from app.models import (
     TraineeRolle,
     UnterrichtsTyp,
 )
-from app.services.membership_utils import klasse_fuer, next_class_for, upsert_membership
+from app.services.membership_utils import klasse_fuer, next_class_for, semester_label, upsert_membership
 from app.services.school_sync import sync_trainee
 
 SY_A = "2025-2026"
@@ -63,6 +61,25 @@ def _add_plan_week(session: Session, klasse_id: int, sy_id: str, kw: int, jahr: 
 
 def _add_trainee(session: Session, name: str, klasse_id: int | None = None) -> Trainee:
     t = Trainee(vorname=name, nachname="Test", rolle=TraineeRolle.AZUBI, klasse_id=klasse_id)
+    session.add(t)
+    session.flush()
+    return t
+
+
+def _add_trainee_full(
+    session: Session,
+    name: str,
+    klasse_id: int | None = None,
+    rolle: TraineeRolle = TraineeRolle.AZUBI,
+    ausbildungsbeginn=None,
+) -> Trainee:
+    t = Trainee(
+        vorname=name,
+        nachname="Test",
+        rolle=rolle,
+        klasse_id=klasse_id,
+        ausbildungsbeginn=ausbildungsbeginn,
+    )
     session.add(t)
     session.flush()
     return t
@@ -151,168 +168,7 @@ def test_overview_klasse_map_uses_membership(client, session: Session):
     assert klasse_b.name in r.text
 
 
-# ── (d) Jahreswechsel Vorschau + Uebernehmen ──────────────────────────────────
-
-def test_jahreswechsel_vorschau(client, session: Session):
-    """GET /jahreswechsel/?source=SY_A&target=SY_B zeigt korrekte Vorschau."""
-    _add_year(session, SY_A, 2025)
-    _add_year(session, SY_B, 2026)
-
-    klasse_a = _add_class(session, "JW FISI 1")
-    klasse_b = _add_class(session, "JW FISI 2")
-    klasse_a.next_class_id = klasse_b.id
-    session.add(klasse_a)
-
-    # Abschluss-Klasse (kein next_class_id)
-    klasse_end = _add_class(session, "JW FISI 3 Abschluss")
-
-    trainee1 = _add_trainee(session, "Diana")
-    trainee2 = _add_trainee(session, "Emil")
-    session.add(TraineeClassMembership(trainee_id=trainee1.id, schoolyear_id=SY_A, klasse_id=klasse_a.id))
-    session.add(TraineeClassMembership(trainee_id=trainee2.id, schoolyear_id=SY_A, klasse_id=klasse_end.id))
-    session.commit()
-
-    r = client.get(f"/jahreswechsel/?source_year_id={SY_A}&target_year_id={SY_B}")
-    assert r.status_code == 200
-    assert "JW FISI 1" in r.text
-    assert "JW FISI 2" in r.text
-    assert "Abschluss" in r.text or "JW FISI 3 Abschluss" in r.text
-
-
-def test_jahreswechsel_uebernehmen(client, session: Session):
-    """POST /jahreswechsel/uebernehmen legt Memberships an, Abschluss nicht."""
-    _add_year(session, SY_A, 2025)
-    _add_year(session, SY_B, 2026)
-
-    klasse_a = _add_class(session, "JWU FISI 1")
-    klasse_b = _add_class(session, "JWU FISI 2")
-    klasse_a.next_class_id = klasse_b.id
-    session.add(klasse_a)
-
-    klasse_end = _add_class(session, "JWU FISI 3 Abschluss")
-
-    trainee1 = _add_trainee(session, "Franz")
-    trainee2 = _add_trainee(session, "Greta")
-    session.add(TraineeClassMembership(trainee_id=trainee1.id, schoolyear_id=SY_A, klasse_id=klasse_a.id))
-    session.add(TraineeClassMembership(trainee_id=trainee2.id, schoolyear_id=SY_A, klasse_id=klasse_end.id))
-    session.commit()
-
-    r = client.post(
-        "/jahreswechsel/uebernehmen",
-        data={"source_year_id": SY_A, "target_year_id": SY_B},
-        follow_redirects=False,
-    )
-    assert r.status_code == 303
-
-    session.expire_all()
-
-    # trainee1 soll in SY_B Klasse B haben
-    m1 = session.exec(
-        select(TraineeClassMembership).where(
-            TraineeClassMembership.trainee_id == trainee1.id,
-            TraineeClassMembership.schoolyear_id == SY_B,
-        )
-    ).first()
-    assert m1 is not None
-    assert m1.klasse_id == klasse_b.id
-
-    # trainee2 (Abschluss) soll KEINE Membership in SY_B haben
-    m2 = session.exec(
-        select(TraineeClassMembership).where(
-            TraineeClassMembership.trainee_id == trainee2.id,
-            TraineeClassMembership.schoolyear_id == SY_B,
-        )
-    ).first()
-    assert m2 is None
-
-    # trainee1.klasse_id soll auf klasse_b gesetzt sein
-    t1 = session.get(Trainee, trainee1.id)
-    assert t1.klasse_id == klasse_b.id
-
-
-def test_jahreswechsel_skip_existing(client, session: Session):
-    """Bereits vorhandene Memberships im Ziel-Jahr werden uebersprungen."""
-    _add_year(session, SY_A, 2025)
-    _add_year(session, SY_B, 2026)
-
-    klasse_a = _add_class(session, "JWS FISI 1")
-    klasse_b = _add_class(session, "JWS FISI 2")
-    klasse_c = _add_class(session, "JWS FISI 2 Variant")
-    klasse_a.next_class_id = klasse_b.id
-    session.add(klasse_a)
-
-    trainee = _add_trainee(session, "Heidi")
-    # Membership in SY_A
-    session.add(TraineeClassMembership(trainee_id=trainee.id, schoolyear_id=SY_A, klasse_id=klasse_a.id))
-    # Bereits existierende Membership in SY_B (andere Klasse C)
-    session.add(TraineeClassMembership(trainee_id=trainee.id, schoolyear_id=SY_B, klasse_id=klasse_c.id))
-    session.commit()
-
-    r = client.post(
-        "/jahreswechsel/uebernehmen",
-        data={"source_year_id": SY_A, "target_year_id": SY_B},
-        follow_redirects=False,
-    )
-    assert r.status_code == 303
-    session.expire_all()
-
-    # Membership bleibt klasse_c (nicht ueberschrieben)
-    m = session.exec(
-        select(TraineeClassMembership).where(
-            TraineeClassMembership.trainee_id == trainee.id,
-            TraineeClassMembership.schoolyear_id == SY_B,
-        )
-    ).first()
-    assert m is not None
-    assert m.klasse_id == klasse_c.id
-
-
-def test_jahreswechsel_fallback_ohne_membership(client, session: Session):
-    """Regression: Azubis OHNE explizite Membership (nur klasse_id) werden per
-    Fallback uebernommen; das Quell-Jahr bleibt danach korrekt (festgepinnt)."""
-    _add_year(session, SY_A, 2025)
-    _add_year(session, SY_B, 2026)
-
-    klasse_a = _add_class(session, "FB FISI 1")
-    klasse_b = _add_class(session, "FB FISI 2")
-    klasse_a.next_class_id = klasse_b.id
-    session.add(klasse_a)
-
-    # Azubi NUR ueber klasse_id (keine Membership) – realistischer Ausgangszustand
-    trainee = _add_trainee(session, "Nora", klasse_id=klasse_a.id)
-    session.commit()
-
-    # Vorschau erkennt den Azubi (frueher: "keine Memberships gefunden")
-    r_prev = client.get(f"/jahreswechsel/?source_year_id={SY_A}&target_year_id={SY_B}")
-    assert r_prev.status_code == 200
-    assert "FB FISI 1" in r_prev.text
-    assert "FB FISI 2" in r_prev.text
-
-    # Uebernehmen
-    r = client.post(
-        "/jahreswechsel/uebernehmen",
-        data={"source_year_id": SY_A, "target_year_id": SY_B},
-        follow_redirects=False,
-    )
-    assert r.status_code == 303
-    session.expire_all()
-
-    trainee = session.get(Trainee, trainee.id)
-    # Ziel-Jahr: neue Klasse B; klasse_id (aktuelle Klasse) = B
-    assert klasse_fuer(session, trainee, SY_B) == klasse_b.id
-    assert trainee.klasse_id == klasse_b.id
-    # Quell-Jahr bleibt A – festgepinnt, trotz geaenderter klasse_id
-    assert klasse_fuer(session, trainee, SY_A) == klasse_a.id
-    m_source = session.exec(
-        select(TraineeClassMembership).where(
-            TraineeClassMembership.trainee_id == trainee.id,
-            TraineeClassMembership.schoolyear_id == SY_A,
-        )
-    ).first()
-    assert m_source is not None and m_source.klasse_id == klasse_a.id
-
-
-# ── (e) klasse_fuer-Helper ─────────────────────────────────────────────────────
+# ── (d) klasse_fuer-Helper ─────────────────────────────────────────────────────
 
 def test_klasse_fuer_with_membership(session: Session):
     """klasse_fuer gibt Membership-Klasse zurueck wenn vorhanden."""
@@ -330,7 +186,8 @@ def test_klasse_fuer_with_membership(session: Session):
 
 
 def test_klasse_fuer_fallback(session: Session):
-    """klasse_fuer faellt auf trainee.klasse_id zurueck wenn keine Membership."""
+    """klasse_fuer faellt auf trainee.klasse_id zurueck wenn keine Membership und
+    kein Anker (ausbildungsbeginn None)."""
     _add_year(session, SY_A, 2025)
     klasse_a = _add_class(session, "KFF FISI 1")
     trainee = _add_trainee(session, "Jana", klasse_id=klasse_a.id)
@@ -451,28 +308,125 @@ def test_update_without_class_selection_preserves_klasse(client, session: Sessio
     assert t.klasse_id == klasse.id
 
 
-def test_jahreswechsel_by_name_without_next_class_id(client, session: Session):
-    """Jahreswechsel funktioniert OHNE gesetztes next_class_id (Namens-Ableitung)."""
+# ── Berechnetes klasse_fuer + semester_label ──────────────────────────────────
+
+def test_klasse_fuer_berechnet_naechstes_lj(session: Session):
+    """(a) AZUBI mit ausbildungsbeginn 2025 + Einstiegsklasse 'FISI 1. LJ',
+    ohne Membership fuers Zieljahr -> klasse_fuer(2026-2027) liefert 'FISI 2. LJ'."""
+    from datetime import date
     _add_year(session, SY_A, 2025)
     _add_year(session, SY_B, 2026)
+
     k1 = _add_class(session, "FISI 1. LJ")
     k2 = _add_class(session, "FISI 2. LJ")
-    # bewusst KEIN next_class_id gesetzt
-    trainee = _add_trainee(session, "Otto", klasse_id=k1.id)
+
+    # ausbildungsbeginn im September 2025 -> start_year = 2025
+    trainee = _add_trainee_full(
+        session,
+        "Berechnet",
+        klasse_id=k1.id,
+        rolle=TraineeRolle.AZUBI,
+        ausbildungsbeginn=date(2025, 9, 1),
+    )
     session.commit()
 
-    r = client.get(f"/jahreswechsel/?source_year_id={SY_A}&target_year_id={SY_B}")
-    assert r.status_code == 200
-    assert "FISI 1. LJ" in r.text
-    assert "FISI 2. LJ" in r.text
+    # Keine explizite Membership fuer SY_B -> Berechnung greift
+    result = klasse_fuer(session, trainee, SY_B)
+    assert result == k2.id
 
-    r2 = client.post(
-        "/jahreswechsel/uebernehmen",
-        data={"source_year_id": SY_A, "target_year_id": SY_B},
-        follow_redirects=False,
+
+def test_klasse_fuer_absolvent_azubi(session: Session):
+    """(b) AZUBI im Abschlussjahr -> klasse_fuer fuers Folgejahr -> None."""
+    from datetime import date
+    _add_year(session, SY_A, 2025)
+    _add_year(session, SY_B, 2026)
+
+    # Nur k3 existiert, kein k4 -> Abschluss nach 3. LJ
+    k3 = _add_class(session, "FISI 3. LJ")
+
+    # start_year 2025, target SY_B start_year 2026 -> steps=1
+    # next_class_for(k3) -> None (3. LJ = Abschluss) -> AZUBI -> return None
+    trainee = _add_trainee_full(
+        session,
+        "Absolvent",
+        klasse_id=k3.id,
+        rolle=TraineeRolle.AZUBI,
+        ausbildungsbeginn=date(2025, 9, 1),
     )
-    assert r2.status_code == 303
-    session.expire_all()
+    session.commit()
 
-    t = session.get(Trainee, trainee.id)
-    assert klasse_fuer(session, t, SY_B) == k2.id
+    result = klasse_fuer(session, trainee, SY_B)
+    assert result is None
+
+
+def test_klasse_fuer_override_schlaegt_berechnung(session: Session):
+    """(c) Explizite Membership schlaegt die berechnete Klasse."""
+    from datetime import date
+    _add_year(session, SY_A, 2025)
+    _add_year(session, SY_B, 2026)
+
+    k1 = _add_class(session, "FISI 1. LJ")
+    k2 = _add_class(session, "FISI 2. LJ")
+    k_override = _add_class(session, "Sonder Override")
+
+    # Berechnung wuerde k2 liefern (ausbildungsbeginn 2025, target 2026)
+    trainee = _add_trainee_full(
+        session,
+        "Override",
+        klasse_id=k1.id,
+        rolle=TraineeRolle.AZUBI,
+        ausbildungsbeginn=date(2025, 9, 1),
+    )
+    # Aber: explizite Membership fuer SY_B zeigt auf k_override
+    session.add(TraineeClassMembership(trainee_id=trainee.id, schoolyear_id=SY_B, klasse_id=k_override.id))
+    session.commit()
+
+    result = klasse_fuer(session, trainee, SY_B)
+    assert result == k_override.id
+
+
+def test_dh_student_klasse_bleibt_und_semester_label(session: Session):
+    """(d) DH-Student: klasse_fuer bleibt gleiche Klasse (kein Abschluss);
+    semester_label liefert das erwartete Label."""
+    from datetime import date
+    _add_year(session, SY_A, 2025)
+    _add_year(session, SY_B, 2026)
+
+    # DH-Klassen haben kein "<Beruf> n. LJ"-Muster -> next_class_for gibt None zurueck
+    k_dh = _add_class(session, "DHBW Cybersecurity")
+
+    # start_year = 2025, target SY_B start_year = 2026 -> steps = 1
+    # next_class_for(k_dh) -> None (kein LJ-Muster)
+    # rolle != AZUBI -> break -> klasse bleibt k_dh
+    trainee = _add_trainee_full(
+        session,
+        "DH Student",
+        klasse_id=k_dh.id,
+        rolle=TraineeRolle.DH_STUDENT,
+        ausbildungsbeginn=date(2025, 9, 1),
+    )
+    session.commit()
+
+    # klasse_fuer: DH bleibt in k_dh
+    result = klasse_fuer(session, trainee, SY_B)
+    assert result == k_dh.id
+
+    # semester_label fuer SY_B (steps_years=1, base=2):
+    # halbjahr "1" -> "3. Semester"
+    # halbjahr "2" -> "4. Semester"
+    # halbjahr ""  -> "3./4. Semester"
+    assert semester_label(session, trainee, SY_B, "1") == "3. Semester"
+    assert semester_label(session, trainee, SY_B, "2") == "4. Semester"
+    assert semester_label(session, trainee, SY_B, "") == "3./4. Semester"
+
+    # semester_label fuer SY_A (steps_years=0, base=0):
+    # halbjahr "1" -> "1. Semester"
+    assert semester_label(session, trainee, SY_A, "1") == "1. Semester"
+
+    # semester_label fuer AZUBI -> None
+    azubi = _add_trainee_full(
+        session, "Azubi SL", klasse_id=k_dh.id, rolle=TraineeRolle.AZUBI,
+        ausbildungsbeginn=date(2025, 9, 1),
+    )
+    session.commit()
+    assert semester_label(session, azubi, SY_B, "1") is None

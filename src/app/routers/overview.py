@@ -20,9 +20,8 @@ from app.models import (
     TraineeClass,
     UnterrichtsTyp,
 )
-from app.models.trainee_class_membership import TraineeClassMembership
 from app.services.conflict_checker import describe_conflict, find_conflicts
-from app.services.membership_utils import beruf_und_lehrjahr, klasse_fuer
+from app.services.membership_utils import beruf_und_lehrjahr, klasse_fuer, semester_label
 from app.services.dept_history import visited_departments
 from app.utils.colors import department_color_map
 from app.utils.kw import format_weekdays, iter_schoolyear_weeks, kw_to_monday
@@ -159,7 +158,11 @@ def overview(request: Request, db: DB):
     else:
         halbjahr_str = _default_halbjahr()
 
-    years = db.exec(select(Schoolyear).order_by(Schoolyear.start_year.desc())).all()
+    years = db.exec(
+        select(Schoolyear)
+        .where(Schoolyear.archiviert == False)  # noqa: E712
+        .order_by(Schoolyear.start_year.desc())
+    ).all()
     classes = db.exec(select(TraineeClass).order_by(TraineeClass.name)).all()
     all_depts = db.exec(select(Department).order_by(Department.code)).all()
 
@@ -181,6 +184,7 @@ def overview(request: Request, db: DB):
             "trainees": [], "grouped": [], "weeks": [], "cell_map": {}, "conflict_cells": set(),
             "conflict_count": 0, "years": years, "classes": classes,
             "depts": {}, "all_depts": all_depts, "school_week_map": {}, "trainee_klasse_map": {},
+            "semester_label_map": {},
             "tage_fest_map": tage_fest_map,
             "visited_map": {},
             "dept_colors": dept_colors,
@@ -219,35 +223,8 @@ def overview(request: Request, db: DB):
 
     weeks = _filter_weeks_by_halbjahr(all_weeks, halbjahr_str)
 
-    # Membership-Map fuer das gewaehlte Lehrjahr (trainee_id -> klasse_id)
-    memberships_for_year: dict[int, int] = {
-        m.trainee_id: m.klasse_id
-        for m in db.exec(
-            select(TraineeClassMembership).where(
-                TraineeClassMembership.schoolyear_id == schoolyear_id
-            )
-        ).all()
-    }
-
-    # Filter trainees by class if requested — IMMER nur aktive Azubis
+    # Alle aktiven Azubis laden; dann per klasse_fuer() auf das Zieljahr filtern
     q = select(Trainee).where(Trainee.aktiv == True)  # noqa: E712
-    if klasse_id_str:
-        klasse_id_int = int(klasse_id_str)
-        # Trainees entweder per Membership oder per klasse_id (Fallback)
-        membership_trainee_ids = [
-            tid for tid, kid in memberships_for_year.items() if kid == klasse_id_int
-        ]
-        # Auch aktive Trainees ohne Membership aber mit passender klasse_id (Fallback)
-        all_trainees_for_q = db.exec(select(Trainee).where(Trainee.aktiv == True)).all()  # noqa: E712
-        fallback_ids = [
-            t.id for t in all_trainees_for_q
-            if t.id not in memberships_for_year and t.klasse_id == klasse_id_int
-        ]
-        combined_ids = list(set(membership_trainee_ids + fallback_ids))
-        if combined_ids:
-            q = q.where(Trainee.id.in_(combined_ids))
-        else:
-            q = q.where(Trainee.id.in_([-1]))  # leere Menge
     if abteilung_id_str:
         trainee_ids_in_dept = db.exec(
             select(Assignment.trainee_id).where(
@@ -256,7 +233,27 @@ def overview(request: Request, db: DB):
             )
         ).all()
         q = q.where(Trainee.id.in_(trainee_ids_in_dept))
-    trainees = db.exec(q.order_by(Trainee.nachname, Trainee.vorname)).all()
+    all_active_trainees = db.exec(q.order_by(Trainee.nachname, Trainee.vorname)).all()
+
+    # Berechnete Klasse je Trainee fuer das gewaehlte Lehrjahr (None = Absolvent/vor Beginn)
+    trainee_klasse_map: dict[int, int | None] = {
+        t.id: klasse_fuer(db, t, schoolyear_id)
+        for t in all_active_trainees
+    }
+
+    # Ausschluss NUR von Absolventen / vor Beginn: Anker (klasse_id) vorhanden, aber
+    # berechnet -> None. Trainees OHNE Anker (klasse_id None) bleiben sichtbar und
+    # landen in der Gruppe "Ohne Klasse" (sonst wuerden neu angelegte Azubis lautlos
+    # aus der Uebersicht verschwinden).
+    trainees = [
+        t for t in all_active_trainees
+        if trainee_klasse_map[t.id] is not None or t.klasse_id is None
+    ]
+
+    # Klassen-Filter auf Basis der berechneten Klasse
+    if klasse_id_str:
+        klasse_id_int = int(klasse_id_str)
+        trainees = [t for t in trainees if trainee_klasse_map[t.id] == klasse_id_int]
 
     # Assignments for the selected trainees
     trainee_ids = [t.id for t in trainees]
@@ -299,9 +296,9 @@ def overview(request: Request, db: DB):
             sw[f"{w.kw},{w.jahr}"] = w.typ.value
         school_week_map[plan.klasse_id] = sw
 
-    # trainee_klasse_map: Membership fuer gewaehltes Lehrjahr, Fallback trainee.klasse_id
-    trainee_klasse_map = {
-        t.id: memberships_for_year.get(t.id, t.klasse_id)
+    # semester_label_map: Semester-Label fuer DH-Studenten (None fuer AZUBI)
+    semester_label_map: dict[int, str | None] = {
+        t.id: semester_label(db, t, schoolyear_id, halbjahr_str)
         for t in trainees
     }
 
@@ -374,6 +371,7 @@ def overview(request: Request, db: DB):
         "all_depts": all_depts,
         "school_week_map": school_week_map,
         "trainee_klasse_map": trainee_klasse_map,
+        "semester_label_map": semester_label_map,
         "tage_fest_map": tage_fest_map,
         "visited_map": visited_map,
         "dept_colors": dept_colors,

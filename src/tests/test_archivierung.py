@@ -59,49 +59,6 @@ def _add_dept(session: Session, name: str = "IT") -> Department:
     return d
 
 
-# ── (a) Jahreswechsel archiviert Abschluss-Azubis ─────────────────────────────
-
-def test_jahreswechsel_archiviert_abschluss(client, session: Session):
-    """Ein FISI-3.LJ-Azubi (keine naechste Klasse) wird nach uebernehmen aktiv=False.
-    Ein FISI-2.LJ-Azubi (wird promotet zu FISI-3.LJ) bleibt aktiv=True."""
-    _add_year(session, SY_A, 2025)
-    _add_year(session, SY_B, 2026)
-
-    # FISI 2. LJ → FISI 3. LJ (via Namens-Ableitung, kein next_class_id noetig)
-    k2 = _add_class(session, "FISI 2. LJ")
-    k3 = _add_class(session, "FISI 3. LJ")
-    # FISI 3. LJ hat KEINE naechste Klasse → Abschluss
-
-    # Promotierter Azubi: in SY_A Klasse 2
-    azubi_promot = _add_trainee(session, "Promotiert", klasse_id=k2.id, aktiv=True)
-    session.add(TraineeClassMembership(
-        trainee_id=azubi_promot.id, schoolyear_id=SY_A, klasse_id=k2.id
-    ))
-
-    # Abschluss-Azubi: in SY_A Klasse 3
-    azubi_abschl = _add_trainee(session, "Abschluss", klasse_id=k3.id, aktiv=True)
-    session.add(TraineeClassMembership(
-        trainee_id=azubi_abschl.id, schoolyear_id=SY_A, klasse_id=k3.id
-    ))
-    session.commit()
-
-    r = client.post(
-        "/jahreswechsel/uebernehmen",
-        data={"source_year_id": SY_A, "target_year_id": SY_B},
-        follow_redirects=False,
-    )
-    assert r.status_code == 303
-    session.expire_all()
-
-    # Abschluss-Azubi muss archiviert sein
-    t_abschl = session.get(Trainee, azubi_abschl.id)
-    assert t_abschl.aktiv is False, "Abschluss-Azubi muss nach Jahreswechsel archiviert sein"
-
-    # Promotierter Azubi muss aktiv bleiben
-    t_promot = session.get(Trainee, azubi_promot.id)
-    assert t_promot.aktiv is True, "Promotierter Azubi muss nach Jahreswechsel aktiv bleiben"
-
-
 # ── (b) Reaktivieren-Endpoint ──────────────────────────────────────────────────
 
 def test_reaktivieren_endpoint(client, session: Session):

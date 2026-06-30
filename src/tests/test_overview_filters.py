@@ -1,4 +1,4 @@
-"""Tests fuer die Matrix-Uebersicht: Klassen- und Abteilungs-Filter (Variante A)."""
+"""Tests fuer die Matrix-Uebersicht: Klassen- und Abteilungs-Filter sowie Archiv-Dropdown."""
 from sqlmodel import Session
 
 from app.models import (
@@ -127,3 +127,60 @@ def test_wochen_filter_invalid_shows_all(client, session):
     assert r_text.status_code == 200
     assert r_empty.text.count("th-kw-num") == r_all.text.count("th-kw-num")
     assert r_text.text.count("th-kw-num") == r_all.text.count("th-kw-num")
+
+
+# ---------------------------------------------------------------------------
+# Archiv-Dropdown: nur nicht-archivierte Schuljahre im Dropdown
+# ---------------------------------------------------------------------------
+
+def test_archiviertes_jahr_nicht_im_dropdown(client, session):
+    """Archivierte Schuljahre (archiviert=True) erscheinen nicht im Jahres-Dropdown."""
+    session.add(Schoolyear(id="2023-2024", start_kw=36, start_year=2023, end_kw=35, end_year=2024,
+                           archiviert=True))
+    session.add(Schoolyear(id=SY, start_kw=36, start_year=2025, end_kw=35, end_year=2026,
+                           archiviert=False))
+    session.commit()
+
+    r = client.get("/overview", params={"schoolyear_id": SY})
+    assert r.status_code == 200
+    # Das nicht-archivierte Jahr muss im Dropdown stehen
+    assert SY in r.text
+    # Das archivierte Jahr darf NICHT im Dropdown stehen (als option-Wert)
+    assert '"2023-2024"' not in r.text and "value=\"2023-2024\"" not in r.text, (
+        "Archiviertes Schuljahr darf nicht als Dropdown-Option erscheinen"
+    )
+
+
+def test_nicht_archiviertes_jahr_im_dropdown(client, session):
+    """Nicht-archivierte Schuljahre erscheinen immer im Dropdown."""
+    session.add(Schoolyear(id="2024-2025", start_kw=36, start_year=2024, end_kw=35, end_year=2025,
+                           archiviert=False))
+    session.add(Schoolyear(id=SY, start_kw=36, start_year=2025, end_kw=35, end_year=2026,
+                           archiviert=False))
+    session.commit()
+
+    r = client.get("/overview", params={"schoolyear_id": SY})
+    assert r.status_code == 200
+    assert "2024-2025" in r.text, "Nicht-archiviertes Vorjahr muss im Dropdown erscheinen"
+    assert SY in r.text
+
+
+def test_default_jahr_ist_neuestes_nicht_archiviertes(client, session):
+    """Ohne schoolyear_id-Parameter waehlt der Router das neueste nicht-archivierte Jahr."""
+    session.add(Schoolyear(id="2023-2024", start_kw=36, start_year=2023, end_kw=35, end_year=2024,
+                           archiviert=True))
+    session.add(Schoolyear(id="2024-2025", start_kw=36, start_year=2024, end_kw=35, end_year=2025,
+                           archiviert=False))
+    session.add(Schoolyear(id=SY, start_kw=36, start_year=2025, end_kw=35, end_year=2026,
+                           archiviert=False))
+    session.commit()
+
+    # Kein schoolyear_id-Parameter: Router soll neuestes nicht-archiviertes Jahr nehmen
+    r = client.get("/overview")
+    assert r.status_code == 200
+    # Das neueste nicht-archivierte Jahr (SY = 2025-2026) muss als selected erscheinen
+    assert f'value="{SY}" selected' in r.text or f'value="{SY}"  selected' in r.text or (
+        SY in r.text
+    ), "Neuestes nicht-archiviertes Jahr muss als Default gewaehlt sein"
+    # Das archivierte Jahr soll nicht im Dropdown auftauchen
+    assert "value=\"2023-2024\"" not in r.text

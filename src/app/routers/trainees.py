@@ -21,7 +21,7 @@ from app.models import (
 )
 from app.models.trainee_wish import prioritaet_label
 from app.services.conflict_checker import find_conflicts
-from app.services.membership_utils import beruf_langname, beruf_und_lehrjahr, klasse_fuer, upsert_membership
+from app.services.membership_utils import beruf_langname, beruf_und_lehrjahr, klasse_fuer, semester_label, upsert_membership
 from app.services.school_sync import sync_trainee
 from app.utils.colors import department_color_map
 
@@ -80,6 +80,7 @@ def create_trainee(
     aktiv: Annotated[str, Form()] = "",
     ausbildungsbeginn: Annotated[str, Form()] = "",
 ):
+    # klasse_id IST die Einstiegsklasse (Anker)
     klasse_id_int = int(klasse_id) if klasse_id else None
     from datetime import date as _date
     ausbildungsbeginn_parsed: _date | None = None
@@ -101,12 +102,10 @@ def create_trainee(
     db.add(t)
     db.commit()
     db.refresh(t)
-    # Membership fuer gewaehltes Lehrjahr anlegen
-    mem_klasse_int = int(membership_klasse_id) if membership_klasse_id else klasse_id_int
+    # Optionaler Membership-Override fuer ein bestimmtes Schuljahr
+    mem_klasse_int = int(membership_klasse_id) if membership_klasse_id else None
     if membership_year_id and mem_klasse_int:
         upsert_membership(db, t.id, membership_year_id, mem_klasse_int)
-        t.klasse_id = mem_klasse_int
-        db.add(t)
         db.commit()
     sync_trainee(db, t.id)
     return RedirectResponse(f"/trainees/{t.id}?msg=created", status_code=303)
@@ -143,17 +142,22 @@ def trainee_detail(request: Request, trainee_id: int, db: DB):
     ).all()
 
     # ── Visitenkarte ────────────────────────────────────────────────
-    # Klasse ueber klasse_fuer ermitteln (neuestes Schuljahr)
+    # Klasse ueber klasse_fuer ermitteln (neuestes Schuljahr = berechneter Anker)
     schoolyear_id = years_list[0].id if years_list else None
     klasse_id = klasse_fuer(db, trainee, schoolyear_id) if schoolyear_id else trainee.klasse_id
     klasse = db.get(TraineeClass, klasse_id) if klasse_id else None
     # Ausbildungsberuf ausgeschrieben
     beruf_token, lehrjahr = beruf_und_lehrjahr(klasse.name if klasse else None)
     beruf_lang = beruf_langname(beruf_token)
+    # Fuer DH-Studenten: Semester-Label ermitteln
+    sem_label: str | None = None
+    if schoolyear_id and trainee.rolle != TraineeRolle.AZUBI:
+        sem_label = semester_label(db, trainee, schoolyear_id, "")
 
     return templates.TemplateResponse(request, "trainees/detail.html", {
         "trainee": trainee,
         "klasse": klasse,
+        "sem_label": sem_label,
         "years": years,
         "depts": depts,
         "dept_colors": dept_colors,
@@ -245,12 +249,13 @@ def update_trainee(
             t.ausbildungsbeginn = None
     else:
         t.ausbildungsbeginn = None
-    # Membership fuer gewaehltes Lehrjahr setzen
+    # Einstiegsklasse (Anker) direkt aus dem Formularfeld uebernehmen
+    if klasse_id:
+        t.klasse_id = int(klasse_id)
+    # Optionaler Membership-Override fuer ein bestimmtes Schuljahr
     mem_klasse_int = int(membership_klasse_id) if membership_klasse_id else None
     if membership_year_id and mem_klasse_int:
         upsert_membership(db, trainee_id, membership_year_id, mem_klasse_int)
-        t.klasse_id = mem_klasse_int
-    # sonst Klasse unveraendert lassen (kein else-Zweig)
     db.add(t)
     db.commit()
     sync_trainee(db, trainee_id)

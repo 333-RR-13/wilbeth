@@ -9,3 +9,4 @@ class Schoolyear(SQLModel, table=True):
     start_year: int
     end_kw: int
     end_year: int
+    archiviert: bool = Field(default=False)

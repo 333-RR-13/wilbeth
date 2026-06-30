@@ -78,7 +78,14 @@
       <dt>Ausbildungsberuf</dt>
       <dd>{{ beruf_lang if beruf_lang else '–' }}</dd>
       <dt>Klasse</dt>
-      <dd>{% if klasse %}{{ klasse.name }}{% else %}–{% endif %}</dd>
+      <dd>
+        {% if klasse %}{{ klasse.name }}{% else %}–{% endif %}
+        {% if sem_label %}<span style="margin-left:6px; color: var(--text-muted); font-size:13px;">({{ sem_label }})</span>{% endif %}
+      </dd>
+      {% if sem_label %}
+      <dt>Semester</dt>
+      <dd>{{ sem_label }}</dd>
+      {% endif %}
       {% if ausbildungsbeginn %}
       <dt>Beginn</dt>
       <dd>{{ ausbildungsbeginn.strftime('%d.%m.%Y') }}</dd>

@@ -1,10 +1,12 @@
 """Hilfsfunktionen fuer TraineeClassMembership."""
 
 import re
+from datetime import date
 
 from sqlmodel import Session, select
 
-from app.models.trainee import Trainee
+from app.models.schoolyear import Schoolyear
+from app.models.trainee import Trainee, TraineeRolle
 from app.models.trainee_class import TraineeClass
 from app.models.trainee_class_membership import TraineeClassMembership
 
@@ -29,13 +31,37 @@ def beruf_langname(token: str) -> str:
     return BERUF_LANGNAMEN.get(token.strip().upper(), token.strip())
 
 
+def _start_year(d: date | None) -> int | None:
+    """Leitet das Startjahr des Schuljahres aus dem Ausbildungsbeginn ab.
+
+    Konvention: Ausbildungsjahrgang beginnt im Schuljahr das ab August gilt.
+    - Monat >= 8: start_year = d.year
+    - Monat < 8:  start_year = d.year - 1
+    - None:       None
+    """
+    if d is None:
+        return None
+    return d.year if d.month >= 8 else d.year - 1
+
+
 def klasse_fuer(db: Session, trainee: Trainee, schoolyear_id: str) -> int | None:
     """Gibt die Klasse des Trainees fuer das angegebene Lehrjahr zurueck.
 
     Prioritaet:
-    1. TraineeClassMembership fuer (trainee, schoolyear_id)
-    2. Fallback: trainee.klasse_id
+    1. Override: existiert eine TraineeClassMembership fuer (trainee.id, schoolyear_id)
+       -> return membership.klasse_id
+    2. Kein Anker moeglich (statischer Fallback = bisheriges Verhalten):
+       - trainee.klasse_id is None -> None
+       - start_year nicht ableitbar ODER target-Schoolyear nicht vorhanden
+         -> trainee.klasse_id (statisch)
+    3. Berechnet: steps = target.start_year - start_year
+       - steps == 0 -> trainee.klasse_id
+       - steps < 0  -> None (vor Ausbildungsbeginn)
+       - steps > 0  -> steps-mal next_class_for anwenden;
+                       AZUBI ohne Nachfolger -> None (Absolvent)
+                       nicht-AZUBI ohne Nachfolger -> letzte bekannte Klasse
     """
+    # (1) Override via Membership
     membership = db.exec(
         select(TraineeClassMembership).where(
             TraineeClassMembership.trainee_id == trainee.id,
@@ -44,7 +70,82 @@ def klasse_fuer(db: Session, trainee: Trainee, schoolyear_id: str) -> int | None
     ).first()
     if membership is not None:
         return membership.klasse_id
-    return trainee.klasse_id
+
+    # (2) Statischer Fallback wenn kein Anker moeglich
+    if trainee.klasse_id is None:
+        return None
+
+    start_year = _start_year(trainee.ausbildungsbeginn)
+    target = db.get(Schoolyear, schoolyear_id)
+
+    if start_year is None or target is None:
+        return trainee.klasse_id
+
+    # (3) Berechnet
+    steps = target.start_year - start_year
+
+    if steps == 0:
+        return trainee.klasse_id
+
+    if steps < 0:
+        return None
+
+    # steps > 0: Klasse um 'steps' Schritte vorwaerts bewegen
+    klasse = db.get(TraineeClass, trainee.klasse_id)
+    if klasse is None:
+        return None
+
+    all_classes = db.exec(select(TraineeClass)).all()
+
+    for _ in range(steps):
+        next_k = next_class_for(klasse, all_classes)
+        if next_k is None:
+            if trainee.rolle == TraineeRolle.AZUBI:
+                return None  # Absolvent
+            else:
+                break  # DH bleibt in letzter Klasse
+        klasse = next_k
+
+    return klasse.id
+
+
+def semester_label(
+    db: Session,
+    trainee: Trainee,
+    schoolyear_id: str,
+    halbjahr: str,
+) -> str | None:
+    """Gibt das Semester-Label fuer einen nicht-AZUBI zurueck.
+
+    Nur sinnvoll fuer trainee.rolle != AZUBI.
+    Gibt None zurueck wenn nicht ableitbar.
+
+    halbjahr:
+      "1"  -> "<n>. Semester"
+      "2"  -> "<n+1>. Semester"
+      ""   -> "<n>./<n+1>. Semester"
+    """
+    if trainee.rolle == TraineeRolle.AZUBI:
+        return None
+
+    start_year = _start_year(trainee.ausbildungsbeginn)
+    target = db.get(Schoolyear, schoolyear_id)
+
+    if start_year is None or target is None:
+        return None
+
+    steps_years = target.start_year - start_year
+    if steps_years < 0:
+        return None
+
+    base = 2 * steps_years
+
+    if halbjahr == "2":
+        return f"{base + 2}. Semester"
+    elif halbjahr == "1":
+        return f"{base + 1}. Semester"
+    else:
+        return f"{base + 1}./{base + 2}. Semester"
 
 
 def upsert_membership(

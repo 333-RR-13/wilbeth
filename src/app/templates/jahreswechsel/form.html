@@ -1,32 +1,23 @@
 {% extends "base.html" %}
-{% block title %}Jahreswechsel{% endblock %}
+{% block title %}Jahresabschluss{% endblock %}
 
 {% block content %}
 <div class="page-header">
   <div>
-    <h1 class="page-title">Globaler Jahreswechsel</h1>
-    <p class="page-subtitle">Klassenmitgliedschaften ins nächste Ausbildungsjahr übertragen</p>
+    <h1 class="page-title">Jahresabschluss</h1>
+    <p class="page-subtitle">Ein Ausbildungsjahr abschliessen und archivieren</p>
   </div>
 </div>
 
 <div class="form-card">
-  <form method="get" action="/jahreswechsel/">
+  <form method="get" action="/jahresabschluss/">
     <div class="form-grid form-grid-2">
       <div class="form-group">
-        <label for="source_year_id">Quell-Ausbildungsjahr <span class="required">*</span></label>
-        <select id="source_year_id" name="source_year_id" required>
+        <label for="schoolyear_id">Ausbildungsjahr abschliessen <span class="required">*</span></label>
+        <select id="schoolyear_id" name="schoolyear_id" required>
           <option value="">– Ausbildungsjahr wählen –</option>
           {% for y in years %}
-          <option value="{{ y.id }}" {{ 'selected' if y.id == source_year_id else '' }}>{{ y.id }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="form-group">
-        <label for="target_year_id">Ziel-Ausbildungsjahr <span class="required">*</span></label>
-        <select id="target_year_id" name="target_year_id" required>
-          <option value="">– Ausbildungsjahr wählen –</option>
-          {% for y in years %}
-          <option value="{{ y.id }}" {{ 'selected' if y.id == target_year_id else '' }}>{{ y.id }}</option>
+          <option value="{{ y.id }}" {{ 'selected' if y.id == selected_year_id else '' }}>{{ y.id }}</option>
           {% endfor %}
         </select>
       </div>
@@ -37,94 +28,51 @@
   </form>
 </div>
 
-{% if source_year_id and target_year_id and source_year_id != target_year_id %}
+{% if selected_year_id %}
 
-{% if preview_transfer %}
+{% if absolventen %}
 <div class="form-card form-card-fluid" style="margin-top: 24px;">
-  <h2 class="form-section-title">Vorschau: {{ preview_transfer | length }} Azubi(s) werden übernommen</h2>
+  <h2 class="form-section-title">{{ absolventen | length }} Azubi(s) machen mit diesem Abschluss ihren Abschluss</h2>
+  <p class="page-subtitle" style="margin-bottom: 12px;">Diese Azubis haben keine Nachfolge-Klasse &ndash; sie gelten nach dem Jahresabschluss als Absolventen.</p>
   <div class="table-wrapper">
     <table>
       <thead>
         <tr>
           <th>Azubi</th>
-          <th>Klasse ({{ source_year_id }})</th>
-          <th></th>
-          <th>Klasse ({{ target_year_id }})</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for row in preview_transfer %}
-        <tr>
-          <td>{{ row.trainee.nachname }}, {{ row.trainee.vorname }}</td>
-          <td><span class="badge badge-blue">{{ row.alte_klasse.name }}</span></td>
-          <td class="td-muted">→</td>
-          <td>
-            {% if row.neue_klasse %}
-            <span class="badge badge-green">{{ row.neue_klasse.name }}</span>
-            {% else %}
-            <span class="td-muted">–</span>
-            {% endif %}
-          </td>
-          <td>
-            {% if row.already_exists %}
-            <span class="badge badge-orange">Bereits vorhanden – wird übersprungen</span>
-            {% else %}
-            <span class="badge badge-gray">Neu</span>
-            {% endif %}
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
-{% endif %}
-
-{% if preview_abschluss %}
-<div class="form-card form-card-fluid" style="margin-top: 16px;">
-  <h2 class="form-section-title">{{ preview_abschluss | length }} Azubi(s) schließen ab und werden archiviert (deaktiviert)</h2>
-  <div class="table-wrapper">
-    <table>
-      <thead>
-        <tr>
-          <th>Azubi</th>
-          <th>Klasse ({{ source_year_id }})</th>
+          <th>Klasse ({{ selected_year_id }})</th>
           <th>Hinweis</th>
         </tr>
       </thead>
       <tbody>
-        {% for row in preview_abschluss %}
+        {% for row in absolventen %}
         <tr>
           <td>{{ row.trainee.nachname }}, {{ row.trainee.vorname }}</td>
           <td><span class="badge badge-gray">{{ row.klasse.name }}</span></td>
-          <td class="td-muted">Keine nächste Klasse definiert → Abschluss</td>
+          <td class="td-muted">Keine Nachfolge-Klasse &rarr; Abschluss</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 </div>
-{% endif %}
-
-{% if not preview_transfer and not preview_abschluss %}
+{% else %}
 <div class="flash flash-info" style="margin-top: 16px;">
-  Keine aktiven Azubis mit einer Klasse im Quell-Ausbildungsjahr gefunden.
+  Keine aktiven Azubis mit Abschluss in diesem Jahr gefunden.
 </div>
 {% endif %}
 
-{% set new_count = preview_transfer | selectattr('already_exists', 'equalto', false) | list | length %}
-{% if new_count > 0 %}
-<form method="post" action="/jahreswechsel/uebernehmen" style="margin-top: 24px;">
-  <input type="hidden" name="source_year_id" value="{{ source_year_id }}">
-  <input type="hidden" name="target_year_id" value="{{ target_year_id }}">
+<div class="flash flash-info" style="margin-top: 16px;">
+  <strong>Hinweis:</strong> Sonderfälle (Wiederholer, Verkürzer, Abbruch, Wechsel) folgen in einer späteren Version.
+</div>
+
+<form method="post" action="/jahresabschluss/abschliessen" style="margin-top: 24px;">
+  <input type="hidden" name="schoolyear_id" value="{{ selected_year_id }}">
   <button type="submit" class="btn btn-primary"
-          onclick="return confirm('{{ new_count }} neue Mitgliedschaft(en) anlegen und Schulwochen für {{ target_year_id }} synchronisieren?')">
-    Jahreswechsel übernehmen ({{ new_count }} neu)
+          onclick="return confirm('Ausbildungsjahr {{ selected_year_id }} wirklich abschliessen und archivieren?\n\nDies kann nicht rückgängig gemacht werden.')">
+    Jahr abschliessen &amp; archivieren
   </button>
-  <a href="/jahreswechsel/" class="btn btn-secondary" style="margin-left: 8px;">Abbrechen</a>
+  <a href="/jahresabschluss/" class="btn btn-secondary" style="margin-left: 8px;">Abbrechen</a>
 </form>
-{% endif %}
 
 {% endif %}
 {% endblock %}

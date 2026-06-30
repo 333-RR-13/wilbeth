@@ -39,51 +39,80 @@
         </select>
       </div>
 
+      {# ── Anker: Einstiegsklasse ──────────────────────────────────── #}
       <div class="form-group">
-        <label for="membership_year_id">Ausbildungsjahr für Klassenzuweisung</label>
-        <select id="membership_year_id" name="membership_year_id">
-          <option value="">– kein Ausbildungsjahr –</option>
-          {% for y in years %}
-          <option value="{{ y.id }}" {{ 'selected' if y.id == selected_year_id else '' }}>{{ y.id }}</option>
-          {% endfor %}
-        </select>
-        <span class="form-hint">Wähle das Ausbildungsjahr, für das die Klassenzuordnung gelten soll.</span>
-      </div>
-
-      <div class="form-group">
-        <label for="membership_klasse_id">Klasse <span class="required">*</span></label>
-        <select id="membership_klasse_id" name="membership_klasse_id">
+        <label for="klasse_id">Einstiegsklasse (1. LJ / Start-Kohorte)</label>
+        <select id="klasse_id" name="klasse_id">
           <option value="">– keine Klasse –</option>
           {% for c in classes %}
           <option value="{{ c.id }}"
-            {{ 'selected' if selected_year_id and memberships.get(selected_year_id) == c.id else (
-               'selected' if not selected_year_id and trainee and trainee.klasse_id == c.id else ''
-            ) }}>
+            {{ 'selected' if trainee and trainee.klasse_id == c.id else '' }}>
             {{ c.name }}
           </option>
           {% endfor %}
         </select>
-        <span class="form-hint">Klasse für das gewählte Ausbildungsjahr. Praktikanten und Umschüler können ohne Klasse bleiben.</span>
+        <span class="form-hint">
+          Die Klasse, mit der der Azubi / DH-Student seine Ausbildung <strong>begonnen</strong> hat.
+          In Kombination mit dem Ausbildungsbeginn wird daraus die aktuelle Klasse automatisch berechnet.
+        </span>
       </div>
-
-      {% if trainee and memberships %}
-      <div class="form-group">
-        <label>Alle Klassenzuweisungen</label>
-        <div class="member-list">
-          {% for year_id, klasse_id in memberships.items() %}
-          <span class="badge badge-blue">{{ year_id }}</span>
-          {% for c in classes %}{% if c.id == klasse_id %}<span style="margin-left:4px">{{ c.name }}</span>{% endif %}{% endfor %}
-          <br>
-          {% endfor %}
-        </div>
-      </div>
-      {% endif %}
 
       <div class="form-group">
         <label for="ausbildungsbeginn">Ausbildungsbeginn</label>
         <input type="date" id="ausbildungsbeginn" name="ausbildungsbeginn"
                value="{{ trainee.ausbildungsbeginn.isoformat() if trainee and trainee.ausbildungsbeginn else '' }}">
+        <span class="form-hint">
+          Zusammen mit der Einstiegsklasse wird hieraus die jeweilige Jahrgangsstufe automatisch ermittelt.
+        </span>
       </div>
+
+      {# ── Membership-Override (nur für Ausnahmen) ─────────────────── #}
+      <details class="form-group">
+        <summary style="cursor:pointer; font-weight:500; color: var(--text-secondary);">
+          Klassen-Override (nur für Ausnahmen)
+        </summary>
+        <div style="margin-top: 12px; padding: 12px; border: 1px solid var(--border, #e5e7eb); border-radius: 6px;">
+          <p class="form-hint" style="margin-bottom: 12px;">
+            Nur ausfüllen, wenn die automatische Berechnung nicht stimmt – z.&thinsp;B. bei
+            Wiederholern, Quereinsteigern oder anderen Sonderfällen. Der Override überschreibt
+            die berechnete Klasse für das gewählte Schuljahr.
+          </p>
+          <div class="form-group">
+            <label for="membership_year_id">Schuljahr (Override)</label>
+            <select id="membership_year_id" name="membership_year_id">
+              <option value="">– kein Override –</option>
+              {% for y in years %}
+              <option value="{{ y.id }}" {{ 'selected' if y.id == selected_year_id else '' }}>{{ y.id }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="membership_klasse_id">Klasse (Override)</label>
+            <select id="membership_klasse_id" name="membership_klasse_id">
+              <option value="">– keine Klasse –</option>
+              {% for c in classes %}
+              <option value="{{ c.id }}"
+                {{ 'selected' if selected_year_id and memberships.get(selected_year_id) == c.id else '' }}>
+                {{ c.name }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          {% if trainee and memberships %}
+          <div class="form-group">
+            <label>Bestehende Overrides</label>
+            <div class="member-list">
+              {% for year_id, klasse_id in memberships.items() %}
+              <span class="badge badge-blue">{{ year_id }}</span>
+              {% for c in classes %}{% if c.id == klasse_id %}<span style="margin-left:4px">{{ c.name }}</span>{% endif %}{% endfor %}
+              <br>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </details>
 
       <div class="form-group">
         <label for="steckbrief">Steckbrief</label>

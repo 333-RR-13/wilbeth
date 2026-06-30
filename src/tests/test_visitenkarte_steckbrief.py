@@ -1,10 +1,9 @@
-"""Tests fuer Visitenkarte, Steckbrief, Rollen-Badge und Jahreswechsel-Fix
-fuer Studierende (DH_STUDENT).
+"""Tests fuer Visitenkarte, Steckbrief, Rollen-Badge und Jahresabschluss.
 
 (1) Visitenkarte/Steckbrief: detail.html zeigt Steckbrief; Formular speichert ihn.
 (2) Rollen-Badge: DH_STUDENT zeigt "DH-Student".
-(3) Jahreswechsel: ein DH_STUDENT (Klasse ohne next_class) bleibt nach
-    uebernehmen aktiv=True; ein AZUBI im Abschlussjahr wird weiterhin archiviert.
+(3) Jahresabschluss: POST /jahresabschluss/abschliessen setzt archiviert=True;
+    Vorschau zeigt korrekte Absolventen.
 """
 from sqlmodel import Session, select
 
@@ -140,63 +139,95 @@ def test_badge_azubi(client, session: Session):
     assert "badge-blue" in r.text
 
 
-# ── (3) Jahreswechsel-Fix fuer Studierende ────────────────────────────────────
+# ── (3) Jahresabschluss ───────────────────────────────────────────────────────
 
-def test_jahreswechsel_dh_student_bleibt_aktiv(client, session: Session):
-    """Ein DH_STUDENT in einer Klasse OHNE next_class wird beim Jahreswechsel
-    NICHT archiviert (bleibt aktiv=True). Ein AZUBI im Abschlussjahr wird
-    weiterhin archiviert."""
-    _add_year(session, SY_A, 2025)
-    _add_year(session, SY_B, 2026)
-
-    # DHBW-Klasse ohne LJ-Muster und ohne next_class_id -> kein next
-    dh_klasse = _add_class(session, "DHBW Cybersecurity")
-    # FISI 3. LJ -> Abschluss (kein next)
-    fisi3 = _add_class(session, "FISI 3. LJ")
-
-    student = Trainee(
-        vorname="Sara", nachname="Student", rolle=TraineeRolle.DH_STUDENT,
-        klasse_id=dh_klasse.id, aktiv=True,
-    )
-    session.add(student)
-    session.flush()
-    session.add(TraineeClassMembership(
-        trainee_id=student.id, schoolyear_id=SY_A, klasse_id=dh_klasse.id
-    ))
-
-    azubi = Trainee(
-        vorname="Abel", nachname="Abschluss", rolle=TraineeRolle.AZUBI,
-        klasse_id=fisi3.id, aktiv=True,
-    )
-    session.add(azubi)
-    session.flush()
-    session.add(TraineeClassMembership(
-        trainee_id=azubi.id, schoolyear_id=SY_A, klasse_id=fisi3.id
-    ))
+def test_jahresabschluss_setzt_archiviert(client, session: Session):
+    """POST /jahresabschluss/abschliessen setzt Schoolyear.archiviert = True."""
+    year = _add_year(session, SY_A, 2025)
+    assert year.archiviert is False
     session.commit()
 
     r = client.post(
-        "/jahreswechsel/uebernehmen",
-        data={"source_year_id": SY_A, "target_year_id": SY_B},
+        "/jahresabschluss/abschliessen",
+        data={"schoolyear_id": SY_A},
         follow_redirects=False,
     )
     assert r.status_code == 303
+    assert "/jahresabschluss/" in r.headers["location"]
+
     session.expire_all()
-
-    # DH_STUDENT bleibt aktiv (nicht archiviert)
-    s = session.get(Trainee, student.id)
-    assert s.aktiv is True, "DH_STUDENT darf beim Jahreswechsel nicht archiviert werden"
-
-    # AZUBI im Abschlussjahr wird archiviert
-    a = session.get(Trainee, azubi.id)
-    assert a.aktiv is False, "AZUBI im Abschlussjahr muss weiterhin archiviert werden"
+    updated = session.get(Schoolyear, SY_A)
+    assert updated is not None
+    assert updated.archiviert is True, "Schoolyear.archiviert muss True sein nach Abschluss"
 
 
-def test_jahreswechsel_preview_dh_student_nicht_abschluss(client, session: Session):
-    """Die Vorschau listet einen DH_STUDENT ohne next_class NICHT als Abschluss."""
+def test_jahresabschluss_nicht_archivierbares_jahr_liefert_fehler(client, session: Session):
+    """POST /jahresabschluss/abschliessen mit unbekanntem Jahr -> Redirect mit Fehlermeldung."""
+    r = client.post(
+        "/jahresabschluss/abschliessen",
+        data={"schoolyear_id": "9999-9999"},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    assert "error" in r.headers["location"]
+
+
+def test_jahresabschluss_formular_zeigt_nur_nicht_archivierte(client, session: Session):
+    """GET /jahresabschluss/ zeigt nur nicht-archivierte Jahre in der Auswahl."""
+    aktiv = _add_year(session, SY_A, 2025)
+    archiv = _add_year(session, SY_B, 2026)
+    archiv.archiviert = True
+    session.add(archiv)
+    session.commit()
+
+    r = client.get("/jahresabschluss/")
+    assert r.status_code == 200
+    assert SY_A in r.text
+    assert SY_B not in r.text
+
+
+def test_jahresabschluss_vorschau_absolventen(client, session: Session):
+    """Die Absolventen-Vorschau listet Azubis ohne Nachfolge-Klasse."""
+    from app.routers.jahreswechsel import _absolventen_vorschau
+
     _add_year(session, SY_A, 2025)
-    _add_year(session, SY_B, 2026)
+    # FISI 3. LJ -> Abschluss (kein next)
+    fisi3 = _add_class(session, "FISI 3. LJ")
+    # FISI 1. LJ -> hat Nachfolger FISI 2. LJ, aber den legen wir nicht an -> kein next
+    fisi1 = _add_class(session, "FISI 1. LJ")
+    # Lege FISI 2. LJ an, damit fisi1 eine Nachfolge hat
+    fisi2 = _add_class(session, "FISI 2. LJ")
 
+    azubi_abschluss = Trainee(
+        vorname="Abel", nachname="Abschluss", rolle=TraineeRolle.AZUBI,
+        klasse_id=fisi3.id, aktiv=True,
+    )
+    session.add(azubi_abschluss)
+    azubi_weiter = Trainee(
+        vorname="Willi", nachname="Weiter", rolle=TraineeRolle.AZUBI,
+        klasse_id=fisi1.id, aktiv=True,
+    )
+    session.add(azubi_weiter)
+    session.flush()
+    session.add(TraineeClassMembership(
+        trainee_id=azubi_abschluss.id, schoolyear_id=SY_A, klasse_id=fisi3.id
+    ))
+    session.add(TraineeClassMembership(
+        trainee_id=azubi_weiter.id, schoolyear_id=SY_A, klasse_id=fisi1.id
+    ))
+    session.commit()
+
+    absolventen = _absolventen_vorschau(session, SY_A)
+    ids = {row["trainee"].id for row in absolventen}
+    assert azubi_abschluss.id in ids, "Azubi im 3. LJ muss als Absolvent erscheinen"
+    assert azubi_weiter.id not in ids, "Azubi im 1. LJ darf nicht als Absolvent erscheinen"
+
+
+def test_jahresabschluss_vorschau_dh_student_nicht_in_absolventen(client, session: Session):
+    """DH_STUDENT ohne Nachfolge-Klasse erscheint NICHT in der Absolventen-Vorschau."""
+    from app.routers.jahreswechsel import _absolventen_vorschau
+
+    _add_year(session, SY_A, 2025)
     dh_klasse = _add_class(session, "DHBW Cybersecurity")
     student = Trainee(
         vorname="Paul", nachname="Preview", rolle=TraineeRolle.DH_STUDENT,
@@ -209,8 +240,6 @@ def test_jahreswechsel_preview_dh_student_nicht_abschluss(client, session: Sessi
     ))
     session.commit()
 
-    from app.routers.jahreswechsel import _build_preview
-    _transfer, abschluss = _build_preview(session, SY_A, SY_B)
-    abschluss_ids = {row["trainee"].id for row in abschluss}
-    assert student.id not in abschluss_ids, \
-        "DH_STUDENT darf nicht in der Abschluss-Vorschau erscheinen"
+    absolventen = _absolventen_vorschau(session, SY_A)
+    ids = {row["trainee"].id for row in absolventen}
+    assert student.id not in ids, "DH_STUDENT darf nicht in der Absolventen-Vorschau erscheinen"
