@@ -33,7 +33,9 @@ def upgrade() -> None:
                 'archiviert',
                 sa.Boolean(),
                 nullable=False,
-                server_default=sa.text('0'),
+                # sa.false() rendert dialekt-korrekt (PostgreSQL: false, SQLite: 0).
+                # sa.text('0') wuerde auf PostgreSQL scheitern (boolean != integer).
+                server_default=sa.false(),
             )
         )
 
