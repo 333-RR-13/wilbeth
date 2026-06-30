@@ -173,3 +173,133 @@ def test_liste_default_zeigt_nur_aktive(client, session: Session):
     assert r.status_code == 200
     assert aktiv.vorname in r.text
     assert inaktiv.vorname not in r.text
+
+
+# ── (a) Jahresabschluss Aktionen ──────────────────────────────────────────────
+
+def test_absolvent_wird_archiviert(client, session: Session):
+    """Absolvent (AZUBI in FISI 3. LJ) wird nach POST /jahresabschluss/abschliessen aktiv=False."""
+    closing = _add_year(session, SY_A, 2025)
+    _add_year(session, SY_B, 2026)  # Folgejahr anlegen
+
+    fisi3 = _add_class(session, "FISI 3. LJ")
+    fisi2 = _add_class(session, "FISI 2. LJ")
+    fisi1 = _add_class(session, "FISI 1. LJ")
+
+    # Absolvent: AZUBI im 3. LJ -> kein next_class_for
+    absolvent = _add_trainee(session, "AbsolventMax", klasse_id=fisi3.id, aktiv=True)
+    session.add(TraineeClassMembership(
+        trainee_id=absolvent.id, schoolyear_id=SY_A, klasse_id=fisi3.id
+    ))
+
+    # Nicht-Absolvent: AZUBI im 2. LJ -> rueckt auf 3. LJ auf
+    weiter = _add_trainee(session, "WeiterAnna", klasse_id=fisi2.id, aktiv=True)
+    session.add(TraineeClassMembership(
+        trainee_id=weiter.id, schoolyear_id=SY_A, klasse_id=fisi2.id
+    ))
+    session.commit()
+
+    r = client.post(
+        "/jahresabschluss/abschliessen",
+        data={"schoolyear_id": SY_A},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+
+    session.expire_all()
+    assert session.get(Trainee, absolvent.id).aktiv is False, \
+        "Absolvent (FISI 3. LJ) muss nach Abschluss archiviert sein"
+    assert session.get(Trainee, weiter.id).aktiv is True, \
+        "2.-LJ-AZUBI muss nach Abschluss aktiv bleiben"
+
+
+def test_aktion_wiederholt_schreibt_override_membership(client, session: Session):
+    """aktion 'wiederholt' schreibt Override-Membership fuers Folgejahr mit gleicher Klasse."""
+    from app.services.membership_utils import klasse_fuer as _klasse_fuer
+
+    closing = _add_year(session, SY_A, 2025)
+    folge = _add_year(session, SY_B, 2026)
+
+    fisi2 = _add_class(session, "FISI 2. LJ")
+    fisi3 = _add_class(session, "FISI 3. LJ")  # next_class_for(fisi2) ergibt fisi3
+
+    wiederholer = _add_trainee(session, "WiederholerKlaus", klasse_id=fisi2.id, aktiv=True)
+    session.add(TraineeClassMembership(
+        trainee_id=wiederholer.id, schoolyear_id=SY_A, klasse_id=fisi2.id
+    ))
+    session.commit()
+
+    r = client.post(
+        "/jahresabschluss/abschliessen",
+        data={
+            "schoolyear_id": SY_A,
+            f"aktion_{wiederholer.id}": "wiederholt",
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+
+    session.expire_all()
+    # klasse_fuer(folgejahr) muss fisi2 (gleiche Klasse) zurueckgeben, nicht fisi3
+    klasse_id = _klasse_fuer(session, session.get(Trainee, wiederholer.id), SY_B)
+    assert klasse_id == fisi2.id, \
+        "Wiederholer muss im Folgejahr dieselbe Klasse (fisi2) haben, nicht die aufgestiegene"
+
+
+def test_aktion_abbruch_setzt_inaktiv(client, session: Session):
+    """aktion 'abbruch' setzt trainee.aktiv=False."""
+    _add_year(session, SY_A, 2025)
+
+    fisi1 = _add_class(session, "FISI 1. LJ")
+    abbrecher = _add_trainee(session, "AbbrecherTom", klasse_id=fisi1.id, aktiv=True)
+    session.add(TraineeClassMembership(
+        trainee_id=abbrecher.id, schoolyear_id=SY_A, klasse_id=fisi1.id
+    ))
+    session.commit()
+
+    r = client.post(
+        "/jahresabschluss/abschliessen",
+        data={
+            "schoolyear_id": SY_A,
+            f"aktion_{abbrecher.id}": "abbruch",
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+
+    session.expire_all()
+    assert session.get(Trainee, abbrecher.id).aktiv is False, \
+        "Abbrecher muss nach Abschluss inaktiv sein"
+
+
+def test_aktion_wechselt_schreibt_override_membership(client, session: Session):
+    """aktion 'wechselt' mit gewaehlter Klasse schreibt die Override-Membership entsprechend."""
+    from app.services.membership_utils import klasse_fuer as _klasse_fuer
+
+    _add_year(session, SY_A, 2025)
+    _add_year(session, SY_B, 2026)
+
+    fisi2 = _add_class(session, "FISI 2. LJ")
+    fiae1 = _add_class(session, "FIAE 1. LJ")
+
+    wechsler = _add_trainee(session, "WechslerLisa", klasse_id=fisi2.id, aktiv=True)
+    session.add(TraineeClassMembership(
+        trainee_id=wechsler.id, schoolyear_id=SY_A, klasse_id=fisi2.id
+    ))
+    session.commit()
+
+    r = client.post(
+        "/jahresabschluss/abschliessen",
+        data={
+            "schoolyear_id": SY_A,
+            f"aktion_{wechsler.id}": "wechselt",
+            f"wechsel_klasse_{wechsler.id}": str(fiae1.id),
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+
+    session.expire_all()
+    klasse_id = _klasse_fuer(session, session.get(Trainee, wechsler.id), SY_B)
+    assert klasse_id == fiae1.id, \
+        "Wechsler muss im Folgejahr die gewaehlte Zielklasse (fiae1) haben"

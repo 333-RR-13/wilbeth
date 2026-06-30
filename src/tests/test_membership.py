@@ -430,3 +430,88 @@ def test_dh_student_klasse_bleibt_und_semester_label(session: Session):
     )
     session.commit()
     assert semester_label(session, azubi, SY_B, "1") is None
+
+
+# ── Re-Anker: Wiederholer ─────────────────────────────────────────────────────
+
+SY_2024 = "2024-2025"
+SY_2025 = "2025-2026"
+SY_2026 = "2026-2027"
+SY_2027 = "2027-2028"
+
+
+def test_klasse_fuer_wiederholer(session: Session):
+    """Wiederholer: Override-Membership in 2026-2027 = 'FISI 2. LJ' (Wiederholung).
+
+    Start: 2024 (ausbildungsbeginn date(2024,9,1)), Einstiegsklasse 'FISI 1. LJ'.
+    Override-Membership 2026-2027 = 'FISI 2. LJ'.
+
+    Erwartungen:
+    - klasse_fuer(2025-2026) = FISI 2. LJ  (globaler Anker 2024, steps=1)
+    - klasse_fuer(2026-2027) = FISI 2. LJ  (Override-Jahr: exakter Override gewinnt)
+    - klasse_fuer(2027-2028) = FISI 3. LJ  (re-verankert ab 2026, steps=1 -> FISI 3. LJ)
+    """
+    from datetime import date
+
+    _add_year(session, SY_2024, 2024)
+    _add_year(session, SY_2025, 2025)
+    _add_year(session, SY_2026, 2026)
+    _add_year(session, SY_2027, 2027)
+
+    k1 = _add_class(session, "FISI 1. LJ")
+    k2 = _add_class(session, "FISI 2. LJ")
+    k3 = _add_class(session, "FISI 3. LJ")
+
+    trainee = _add_trainee_full(
+        session,
+        "Wiederholer",
+        klasse_id=k1.id,
+        rolle=TraineeRolle.AZUBI,
+        ausbildungsbeginn=date(2024, 9, 1),
+    )
+    # Override: Wiederholung des 2. LJ in 2026-2027
+    session.add(TraineeClassMembership(trainee_id=trainee.id, schoolyear_id=SY_2026, klasse_id=k2.id))
+    session.commit()
+
+    # Vor dem Override (globaler Start 2024 -> steps=1 -> FISI 2. LJ)
+    assert klasse_fuer(session, trainee, SY_2025) == k2.id
+
+    # Override-Jahr selbst (exakter Override gewinnt)
+    assert klasse_fuer(session, trainee, SY_2026) == k2.id
+
+    # Folgejahr: re-verankert ab 2026 (FISI 2. LJ), steps=1 -> FISI 3. LJ
+    assert klasse_fuer(session, trainee, SY_2027) == k3.id
+
+
+# ── Re-Anker: Berufswechsel ───────────────────────────────────────────────────
+
+def test_klasse_fuer_berufswechsel(session: Session):
+    """Wechsel: Override-Membership in Jahr Y = 'FIAE 2. LJ';
+    Folgejahr -> 'FIAE 3. LJ' (Progression folgt dem neuen Beruf).
+    """
+    from datetime import date
+
+    _add_year(session, SY_2025, 2025)
+    _add_year(session, SY_2026, 2026)
+    _add_year(session, SY_2027, 2027)
+
+    k_fisi1 = _add_class(session, "FISI 1. LJ")
+    k_fiae2 = _add_class(session, "FIAE 2. LJ")
+    k_fiae3 = _add_class(session, "FIAE 3. LJ")
+
+    trainee = _add_trainee_full(
+        session,
+        "Wechsler",
+        klasse_id=k_fisi1.id,
+        rolle=TraineeRolle.AZUBI,
+        ausbildungsbeginn=date(2025, 9, 1),
+    )
+    # Override: Wechsel zu FIAE 2. LJ ab 2026-2027
+    session.add(TraineeClassMembership(trainee_id=trainee.id, schoolyear_id=SY_2026, klasse_id=k_fiae2.id))
+    session.commit()
+
+    # Override-Jahr: FIAE 2. LJ (exakter Override gewinnt)
+    assert klasse_fuer(session, trainee, SY_2026) == k_fiae2.id
+
+    # Folgejahr: re-verankert ab 2026 (FIAE 2. LJ), steps=1 -> FIAE 3. LJ
+    assert klasse_fuer(session, trainee, SY_2027) == k_fiae3.id

@@ -47,21 +47,20 @@ def _start_year(d: date | None) -> int | None:
 def klasse_fuer(db: Session, trainee: Trainee, schoolyear_id: str) -> int | None:
     """Gibt die Klasse des Trainees fuer das angegebene Lehrjahr zurueck.
 
-    Prioritaet:
-    1. Override: existiert eine TraineeClassMembership fuer (trainee.id, schoolyear_id)
-       -> return membership.klasse_id
-    2. Kein Anker moeglich (statischer Fallback = bisheriges Verhalten):
-       - trainee.klasse_id is None -> None
-       - start_year nicht ableitbar ODER target-Schoolyear nicht vorhanden
-         -> trainee.klasse_id (statisch)
-    3. Berechnet: steps = target.start_year - start_year
-       - steps == 0 -> trainee.klasse_id
-       - steps < 0  -> None (vor Ausbildungsbeginn)
-       - steps > 0  -> steps-mal next_class_for anwenden;
-                       AZUBI ohne Nachfolger -> None (Absolvent)
-                       nicht-AZUBI ohne Nachfolger -> letzte bekannte Klasse
+    Re-Anker-Logik: der Anker ist der juengste Pin <= Zieljahr.
+    Pins sind: (a) globaler Start (start_year aus ausbildungsbeginn, klasse_id) und
+    (b) jede Override-Membership des Trainees (year = msy.start_year, klasse_id = m.klasse_id).
+
+    Prioritaet / Ablauf:
+    1. Exakter Override fuer schoolyear_id vorhanden -> return dessen klasse_id.
+    2. target (Schoolyear) nicht vorhanden -> statischer Fallback (trainee.klasse_id).
+    3. Pins sammeln und juengsten Pin <= target.start_year suchen.
+       - Keine Candidates, aber Pins vorhanden -> None (Zieljahr vor erstem Anker).
+       - Keine Candidates und keine Pins -> statischer Fallback (trainee.klasse_id).
+    4. Ab dem juengsten Anker steps-mal next_class_for anwenden.
+       AZUBI ohne Nachfolger -> None (Absolvent); nicht-AZUBI -> letzte Klasse.
     """
-    # (1) Override via Membership
+    # (1) Exakter Override via Membership
     membership = db.exec(
         select(TraineeClassMembership).where(
             TraineeClassMembership.trainee_id == trainee.id,
@@ -71,27 +70,45 @@ def klasse_fuer(db: Session, trainee: Trainee, schoolyear_id: str) -> int | None
     if membership is not None:
         return membership.klasse_id
 
-    # (2) Statischer Fallback wenn kein Anker moeglich
-    if trainee.klasse_id is None:
-        return None
-
-    start_year = _start_year(trainee.ausbildungsbeginn)
+    # (2) Zieljahr nicht aufloesbar -> statischer Fallback
     target = db.get(Schoolyear, schoolyear_id)
-
-    if start_year is None or target is None:
+    if target is None:
         return trainee.klasse_id
 
-    # (3) Berechnet
-    steps = target.start_year - start_year
+    # (3) Pins sammeln: (year, klasse_id)
+    anchors: list[tuple[int, int]] = []
+
+    global_start_year = _start_year(trainee.ausbildungsbeginn)
+    if global_start_year is not None and trainee.klasse_id is not None:
+        anchors.append((global_start_year, trainee.klasse_id))
+
+    all_memberships = db.exec(
+        select(TraineeClassMembership).where(
+            TraineeClassMembership.trainee_id == trainee.id,
+        )
+    ).all()
+    for m in all_memberships:
+        msy = db.get(Schoolyear, m.schoolyear_id)
+        if msy is not None:
+            anchors.append((msy.start_year, m.klasse_id))
+
+    # (4) Juengster Anker <= target.start_year
+    candidates = [(yr, kid) for (yr, kid) in anchors if yr <= target.start_year]
+
+    if not candidates:
+        if anchors:
+            return None  # Zieljahr liegt vor dem ersten Anker
+        return trainee.klasse_id  # statischer Fallback, altes Verhalten
+
+    anchor_year, anchor_klasse_id = max(candidates, key=lambda a: a[0])
+
+    steps = target.start_year - anchor_year
 
     if steps == 0:
-        return trainee.klasse_id
-
-    if steps < 0:
-        return None
+        return anchor_klasse_id
 
     # steps > 0: Klasse um 'steps' Schritte vorwaerts bewegen
-    klasse = db.get(TraineeClass, trainee.klasse_id)
+    klasse = db.get(TraineeClass, anchor_klasse_id)
     if klasse is None:
         return None
 

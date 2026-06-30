@@ -30,10 +30,16 @@
 
 {% if selected_year_id %}
 
+{% if folgejahr_fehlt %}
+<div class="flash flash-warn" style="margin-top: 16px;">
+  <strong>Hinweis:</strong> Es wurde noch kein Folgejahr angelegt. Die Aktionen <em>wiederholt</em> und <em>wechselt</em> stehen daher nicht zur Verfügung – nur <em>standard</em> und <em>abbruch</em> sind möglich.
+</div>
+{% endif %}
+
 {% if absolventen %}
 <div class="form-card form-card-fluid" style="margin-top: 24px;">
   <h2 class="form-section-title">{{ absolventen | length }} Azubi(s) machen mit diesem Abschluss ihren Abschluss</h2>
-  <p class="page-subtitle" style="margin-bottom: 12px;">Diese Azubis haben keine Nachfolge-Klasse &ndash; sie gelten nach dem Jahresabschluss als Absolventen.</p>
+  <p class="page-subtitle" style="margin-bottom: 12px;">Diese Azubis haben keine Nachfolge-Klasse &ndash; sie gelten nach dem Jahresabschluss als Absolventen (werden automatisch archiviert, sofern Aktion = Standard).</p>
   <div class="table-wrapper">
     <table>
       <thead>
@@ -61,10 +67,80 @@
 </div>
 {% endif %}
 
-<div class="flash flash-info" style="margin-top: 16px;">
-  <strong>Hinweis:</strong> Sonderfälle (Wiederholer, Verkürzer, Abbruch, Wechsel) folgen in einer späteren Version.
-</div>
+{% if trainee_rows %}
+<form method="post" action="/jahresabschluss/abschliessen" style="margin-top: 24px;">
+  <input type="hidden" name="schoolyear_id" value="{{ selected_year_id }}">
 
+  <div class="form-card form-card-fluid" style="margin-top: 0;">
+    <h2 class="form-section-title">Sonderfall-Editor: Aktionen je Trainee</h2>
+    <p class="page-subtitle" style="margin-bottom: 12px;">
+      Standard-Aktion: Azubis rücken automatisch auf. Absolventen werden archiviert. Sonderfälle hier auswählen.
+    </p>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Trainee</th>
+            <th>Aktuelle Klasse</th>
+            <th>Standard-Folgeklasse</th>
+            <th>Aktion</th>
+            <th>Zielklasse (bei "wechselt")</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in trainee_rows %}
+          <tr>
+            <td>{{ row.trainee.nachname }}, {{ row.trainee.vorname }}
+              <small class="td-muted">({{ row.trainee.rolle.value }})</small>
+            </td>
+            <td>
+              {% if row.klasse %}
+                <span class="badge badge-gray">{{ row.klasse.name }}</span>
+              {% else %}
+                <span class="td-muted">–</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if row.is_absolvent %}
+                <span class="badge badge-red">Abschluss/Archiv</span>
+              {% elif row.folge_klasse_name %}
+                <span class="td-muted">{{ row.folge_klasse_name }}</span>
+              {% else %}
+                <span class="td-muted">–</span>
+              {% endif %}
+            </td>
+            <td>
+              <select name="aktion_{{ row.trainee.id }}" style="min-width: 130px;">
+                <option value="standard">Standard</option>
+                <option value="wiederholt" {% if folgejahr_fehlt %}disabled{% endif %}>wiederholt</option>
+                <option value="wechselt" {% if folgejahr_fehlt %}disabled{% endif %}>wechselt</option>
+                <option value="abbruch">Abbruch</option>
+              </select>
+            </td>
+            <td>
+              <select name="wechsel_klasse_{{ row.trainee.id }}" style="min-width: 160px;" {% if folgejahr_fehlt %}disabled{% endif %}>
+                <option value="">– Klasse wählen –</option>
+                {% for cls in all_classes %}
+                <option value="{{ cls.id }}">{{ cls.name }}</option>
+                {% endfor %}
+              </select>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div style="margin-top: 16px;">
+    <button type="submit" class="btn btn-primary"
+            onclick="return confirm('Ausbildungsjahr {{ selected_year_id }} wirklich abschliessen und archivieren?\n\nDies kann nicht rückgängig gemacht werden.')">
+      Jahr abschliessen &amp; archivieren
+    </button>
+    <a href="/jahresabschluss/" class="btn btn-secondary" style="margin-left: 8px;">Abbrechen</a>
+  </div>
+</form>
+{% else %}
 <form method="post" action="/jahresabschluss/abschliessen" style="margin-top: 24px;">
   <input type="hidden" name="schoolyear_id" value="{{ selected_year_id }}">
   <button type="submit" class="btn btn-primary"
@@ -73,6 +149,7 @@
   </button>
   <a href="/jahresabschluss/" class="btn btn-secondary" style="margin-left: 8px;">Abbrechen</a>
 </form>
+{% endif %}
 
 {% endif %}
 {% endblock %}
