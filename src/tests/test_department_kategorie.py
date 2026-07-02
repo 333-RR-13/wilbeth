@@ -263,3 +263,69 @@ def test_list_shows_dash_when_info_text_empty(client, session: Session):
     r = client.get("/abteilungen/")
     assert r.status_code == 200
     assert "NIT" in r.text
+
+
+# ── verantwortliche speichern und anzeigen ───────────────────────────────────
+
+def test_create_department_saves_verantwortliche(client, session: Session):
+    """POST /abteilungen/ speichert verantwortliche korrekt in der Datenbank."""
+    r = client.post("/abteilungen/", data={
+        "code": "VER",
+        "name": "Verantwortliche Dept",
+        "verantwortliche": "max.mustermann@firma.de, anna.beispiel@firma.de",
+    }, follow_redirects=False)
+    assert r.status_code == 303
+
+    dept = session.exec(select(Department).where(Department.code == "VER")).first()
+    assert dept is not None
+    assert dept.verantwortliche == "max.mustermann@firma.de, anna.beispiel@firma.de"
+
+
+def test_update_department_saves_verantwortliche(client, session: Session):
+    """POST /abteilungen/{id} aktualisiert verantwortliche korrekt."""
+    dept = Department(code="UPV", name="Update Verantwortliche Dept", verantwortliche="alt@firma.de")
+    session.add(dept)
+    session.commit()
+
+    r = client.post(f"/abteilungen/{dept.id}", data={
+        "code": "UPV",
+        "name": "Update Verantwortliche Dept",
+        "verantwortliche": "neu@firma.de",
+    }, follow_redirects=False)
+    assert r.status_code == 303
+
+    session.refresh(dept)
+    assert dept.verantwortliche == "neu@firma.de"
+
+
+def test_form_prefills_verantwortliche(client, session: Session):
+    """GET /abteilungen/{id}/bearbeiten zeigt bestehenden verantwortliche-Wert im Formular."""
+    dept = Department(code="PFV", name="Prefill Dept", verantwortliche="vorhanden@firma.de")
+    session.add(dept)
+    session.commit()
+
+    r = client.get(f"/abteilungen/{dept.id}/bearbeiten")
+    assert r.status_code == 200
+    assert "vorhanden@firma.de" in r.text
+
+
+def test_list_shows_verantwortliche(client, session: Session):
+    """GET /abteilungen/ zeigt verantwortliche in der Liste an."""
+    dept = Department(code="LSV", name="List Verantwortliche Dept", verantwortliche="liste@firma.de")
+    session.add(dept)
+    session.commit()
+
+    r = client.get("/abteilungen/")
+    assert r.status_code == 200
+    assert "liste@firma.de" in r.text
+
+
+def test_list_shows_dash_when_verantwortliche_empty(client, session: Session):
+    """GET /abteilungen/ zeigt '–' wenn kein verantwortliche gesetzt."""
+    dept = Department(code="NVD", name="No Verantwortliche Dept", verantwortliche="")
+    session.add(dept)
+    session.commit()
+
+    r = client.get("/abteilungen/")
+    assert r.status_code == 200
+    assert "NVD" in r.text

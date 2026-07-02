@@ -102,6 +102,7 @@ def create_department(
     info_text: Annotated[str, Form()] = "",
     erlaubt_mehrfachbelegung: Annotated[str, Form()] = "",
     farbe: Annotated[str, Form()] = "#9CA3AF",
+    verantwortliche: Annotated[str, Form()] = "",
 ):
     db.add(Department(
         code=code.strip().upper(),
@@ -111,6 +112,7 @@ def create_department(
         info_text=info_text,
         erlaubt_mehrfachbelegung=bool(erlaubt_mehrfachbelegung),
         farbe=farbe,
+        verantwortliche=verantwortliche,
     ))
     db.commit()
     return RedirectResponse("/abteilungen/?msg=created", status_code=303)
@@ -134,6 +136,7 @@ def update_department(
     info_text: Annotated[str, Form()] = "",
     erlaubt_mehrfachbelegung: Annotated[str, Form()] = "",
     farbe: Annotated[str, Form()] = "#9CA3AF",
+    verantwortliche: Annotated[str, Form()] = "",
 ):
     dept = db.get(Department, dept_id)
     dept.code = code.strip().upper()
@@ -143,6 +146,7 @@ def update_department(
     dept.info_text = info_text
     dept.erlaubt_mehrfachbelegung = bool(erlaubt_mehrfachbelegung)
     dept.farbe = farbe
+    dept.verantwortliche = verantwortliche
     db.commit()
     return RedirectResponse("/abteilungen/?msg=updated", status_code=303)
 

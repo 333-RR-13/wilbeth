@@ -435,6 +435,7 @@ def cell_save(
     typ: Annotated[AssignmentTyp, Form()],
     abteilung_id: Annotated[str, Form()] = "",
     notiz: Annotated[str, Form()] = "",
+    bestaetigung: Annotated[str, Form()] = "",
 ):
     _abt_id = int(abteilung_id) if typ == AssignmentTyp.ABTEILUNG and abteilung_id else None
 
@@ -451,6 +452,8 @@ def cell_save(
         existing.abteilung_id = _abt_id
         existing.notiz = notiz
         existing.source = AssignmentSource.MANUAL
+        if bestaetigung:
+            existing.bestaetigung = bestaetigung
     else:
         db.add(Assignment(
             trainee_id=trainee_id,
@@ -461,6 +464,7 @@ def cell_save(
             abteilung_id=_abt_id,
             notiz=notiz,
             source=AssignmentSource.MANUAL,
+            bestaetigung=bestaetigung or "offen",
         ))
     db.commit()
 

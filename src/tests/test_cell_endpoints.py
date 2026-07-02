@@ -96,6 +96,70 @@ def test_cell_delete(client, session):
     assert f'id="cell-{ids["trainee"]}-40-2025"' in r.text
 
 
+def test_cell_edit_form_shows_bestaetigung_select(client, session):
+    ids = _setup(session)
+    session.add(Assignment(trainee_id=ids["trainee"], schoolyear_id=SY, kw=40, jahr=2025,
+                           typ=AssignmentTyp.ABTEILUNG, abteilung_id=ids["cp"],
+                           bestaetigung="bestaetigt",
+                           source=AssignmentSource.MANUAL))
+    session.commit()
+
+    r = client.get("/einsaetze/cell-edit", params={
+        "trainee_id": ids["trainee"], "kw": 40, "jahr": 2025, "schoolyear_id": SY,
+    })
+    assert r.status_code == 200
+    assert 'name="bestaetigung"' in r.text
+    assert 'value="bestaetigt" selected' in r.text
+
+
+def test_cell_save_persists_bestaetigung(client, session):
+    ids = _setup(session)
+    r = client.post("/einsaetze/cell-save", data={
+        "trainee_id": ids["trainee"], "schoolyear_id": SY, "kw": 40, "jahr": 2025,
+        "typ": "ABTEILUNG", "abteilung_id": ids["cp"], "notiz": "",
+        "bestaetigung": "bestaetigt",
+    })
+    assert r.status_code == 200
+
+    a = session.exec(select(Assignment).where(Assignment.trainee_id == ids["trainee"])).first()
+    assert a is not None
+    assert a.bestaetigung == "bestaetigt"
+
+    # Marker-Klasse erscheint in der OOB-gerenderten Zelle
+    assert "mc-confirm-bestaetigt" in r.text
+
+
+def test_cell_save_defaults_bestaetigung_offen_when_not_sent(client, session):
+    ids = _setup(session)
+    r = client.post("/einsaetze/cell-save", data={
+        "trainee_id": ids["trainee"], "schoolyear_id": SY, "kw": 40, "jahr": 2025,
+        "typ": "ABTEILUNG", "abteilung_id": ids["cp"], "notiz": "",
+    })
+    assert r.status_code == 200
+
+    a = session.exec(select(Assignment).where(Assignment.trainee_id == ids["trainee"])).first()
+    assert a.bestaetigung == "offen"
+    assert "mc-confirm-offen" in r.text
+
+
+def test_cell_save_keeps_existing_bestaetigung_when_not_sent(client, session):
+    ids = _setup(session)
+    session.add(Assignment(trainee_id=ids["trainee"], schoolyear_id=SY, kw=40, jahr=2025,
+                           typ=AssignmentTyp.ABTEILUNG, abteilung_id=ids["cp"],
+                           bestaetigung="abgelehnt",
+                           source=AssignmentSource.MANUAL))
+    session.commit()
+
+    r = client.post("/einsaetze/cell-save", data={
+        "trainee_id": ids["trainee"], "schoolyear_id": SY, "kw": 40, "jahr": 2025,
+        "typ": "ABTEILUNG", "abteilung_id": ids["cp"], "notiz": "geändert",
+    })
+    assert r.status_code == 200
+
+    a = session.exec(select(Assignment).where(Assignment.trainee_id == ids["trainee"])).first()
+    assert a.bestaetigung == "abgelehnt"
+
+
 def test_cell_save_conflict_counter(client, session):
     ids = _setup(session)
     # Schulwoche KW41/2025 fuer eine Klasse, Trainee dieser Klasse zuordnen

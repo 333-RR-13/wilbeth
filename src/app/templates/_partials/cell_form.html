@@ -55,6 +55,16 @@
       </div>
     </div>
 
+    <div class="form-group" id="cell-bestaetigung-group">
+      <label for="cell-bestaetigung">Bestätigung</label>
+      {% set _current_bestaetigung = (existing.bestaetigung if existing and existing.bestaetigung else 'offen') %}
+      <select id="cell-bestaetigung" name="bestaetigung">
+        <option value="offen" {{ 'selected' if _current_bestaetigung == 'offen' else '' }}>Offen</option>
+        <option value="bestaetigt" {{ 'selected' if _current_bestaetigung == 'bestaetigt' else '' }}>Bestätigt</option>
+        <option value="abgelehnt" {{ 'selected' if _current_bestaetigung == 'abgelehnt' else '' }}>Abgelehnt</option>
+      </select>
+    </div>
+
     <div class="form-group">
       <label for="cell-notiz">Notiz</label>
       <input type="text" id="cell-notiz" name="notiz"
@@ -89,7 +99,10 @@
   var visitedIds = {{ visited_dept_ids | tojson }};
 
   function syncCellAbt(sel) {
-    document.getElementById('cell-abt-group').style.display = sel.value === 'ABTEILUNG' ? '' : 'none';
+    var isAbt = sel.value === 'ABTEILUNG';
+    document.getElementById('cell-abt-group').style.display = isAbt ? '' : 'none';
+    var bestGroup = document.getElementById('cell-bestaetigung-group');
+    if (bestGroup) bestGroup.style.display = isAbt ? '' : 'none';
     checkRepeatDept(document.getElementById('cell-abt'));
   }
 

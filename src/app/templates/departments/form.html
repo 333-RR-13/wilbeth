@@ -47,6 +47,13 @@
       </div>
 
       <div class="form-group">
+        <label for="verantwortliche">Verantwortliche Ausbilder (E-Mails/UPNs, kommagetrennt)</label>
+        <textarea id="verantwortliche" name="verantwortliche" rows="2"
+                  placeholder="z. B. max.mustermann@firma.de, anna.beispiel@firma.de">{{ department.verantwortliche if department else '' }}</textarea>
+        <span class="form-hint">Wird spaeter fuer Login-Zuordnung &amp; Benachrichtigung verwendet.</span>
+      </div>
+
+      <div class="form-group">
         <label for="info_text">Abteilungs-Beschreibung</label>
         <textarea id="info_text" name="info_text" rows="4"
                   placeholder="Informationen zur Abteilung (Aufgaben, Hinweise fuer Azubis …)">{{ department.info_text if department else '' }}</textarea>

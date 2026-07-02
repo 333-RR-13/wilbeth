@@ -37,6 +37,37 @@
   white-space: nowrap;
   vertical-align: middle;
 }
+
+/* Bestaetigungsstatus-Marker fuer ABTEILUNG-Zellen (scoped) */
+.matrix-cell.mc-confirm-offen,
+.matrix-cell.mc-confirm-ok,
+.matrix-cell.mc-confirm-abgelehnt {
+  position: relative;
+}
+
+.matrix-cell.mc-confirm-offen::after,
+.matrix-cell.mc-confirm-ok::after,
+.matrix-cell.mc-confirm-abgelehnt::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.matrix-cell.mc-confirm-offen::after {
+  background: var(--warning, #d97706);
+}
+
+.matrix-cell.mc-confirm-ok::after {
+  background: var(--success, #16a34a);
+}
+
+.matrix-cell.mc-confirm-abgelehnt::after {
+  background: var(--danger, #dc2626);
+}
 </style>
 <div class="page-header">
   <div>
@@ -149,8 +180,10 @@
           {% set a = t_cells.get(cell_key) %}
           {% set is_conflict = conflict_key in conflict_cells %}
           {% set is_school = t_school_weeks.get(cell_key) %}
+          {% set _is_abteilung = a and a.typ.value == 'ABTEILUNG' %}
+          {% set _bestaetigung = (a.bestaetigung if a.bestaetigung else 'offen') if _is_abteilung else none %}
           <td id="cell-{{ t.id }}-{{ w.kw }}-{{ w.jahr }}"
-              class="matrix-cell cell-clickable{% if is_conflict %} mc-conflict{% endif %}{% if w.is_today %} mc-today{% endif %}"
+              class="matrix-cell cell-clickable{% if is_conflict %} mc-conflict{% endif %}{% if w.is_today %} mc-today{% endif %}{% if _is_abteilung %} mc-confirm-{{ _bestaetigung }}{% endif %}"
               data-trainee="{{ t.id }}"
               data-kw="{{ w.kw }}"
               data-jahr="{{ w.jahr }}"

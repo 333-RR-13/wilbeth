@@ -24,6 +24,7 @@
         <th>Name</th>
         <th>Kategorie</th>
         <th>Zustaendige Mitarbeiter</th>
+        <th>Verantwortliche</th>
         <th>Beschreibung</th>
         <th>Mehrfach</th>
         <th></th>
@@ -42,6 +43,13 @@
           {% endif %}
         </td>
         <td class="td-muted">{{ d.ansprechpartner or '–' }}</td>
+        <td class="td-muted" title="{{ d.verantwortliche }}">
+          {% if d.verantwortliche %}
+            {{ d.verantwortliche[:40] }}{% if d.verantwortliche | length > 40 %}…{% endif %}
+          {% else %}
+            <span class="text-muted">–</span>
+          {% endif %}
+        </td>
         <td class="td-muted" title="{{ d.info_text }}">
           {% if d.info_text %}
             {{ d.info_text[:60] }}{% if d.info_text | length > 60 %}…{% endif %}
@@ -68,7 +76,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="7" class="empty-state">Noch keine Abteilungen angelegt.</td></tr>
+      <tr><td colspan="8" class="empty-state">Noch keine Abteilungen angelegt.</td></tr>
       {% endfor %}
     </tbody>
   </table>

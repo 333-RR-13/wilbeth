@@ -270,3 +270,76 @@ def test_overview_no_visited_chip_when_no_history(client, session: Session):
     assert "Bereits eingeplant" in r.text
     # No chips in it
     assert "visited-col-chip" not in r.text
+
+
+# ── Bestaetigungsstatus-Marker (ABTEILUNG-Zellen) ────────────────────────────
+
+def _cell_html(r_text: str, trainee_id: int, kw: int, jahr: int) -> str:
+    """Extract the <td ...> snippet for one matrix cell from the response HTML."""
+    marker = f'id="cell-{trainee_id}-{kw}-{jahr}"'
+    idx = r_text.find(marker)
+    assert idx != -1, "cell not found in response (check halbjahr filter / kw range)"
+    end = r_text.find("</td>", idx)
+    return r_text[idx:end]
+
+
+def test_overview_abteilung_bestaetigt_shows_confirm_marker(client, session: Session):
+    """ABTEILUNG assignment with bestaetigung='bestaetigt' gets mc-confirm-bestaetigt marker."""
+    ids = _setup_overview(session)
+    session.add(Assignment(
+        trainee_id=ids["trainee_id"], schoolyear_id=SY, kw=40, jahr=2025,
+        typ=AssignmentTyp.ABTEILUNG, abteilung_id=ids["cp_id"], source=AssignmentSource.MANUAL,
+        bestaetigung="bestaetigt",
+    ))
+    session.commit()
+
+    r = client.get("/overview", params={"schoolyear_id": SY, "halbjahr": "1"})
+    assert r.status_code == 200
+    cell = _cell_html(r.text, ids["trainee_id"], 40, 2025)
+    assert "mc-confirm-bestaetigt" in cell
+
+
+def test_overview_abteilung_default_offen_shows_offen_marker(client, session: Session):
+    """ABTEILUNG assignment without explicit bestaetigung defaults to 'offen' marker."""
+    ids = _setup_overview(session)
+    session.add(Assignment(
+        trainee_id=ids["trainee_id"], schoolyear_id=SY, kw=40, jahr=2025,
+        typ=AssignmentTyp.ABTEILUNG, abteilung_id=ids["cp_id"], source=AssignmentSource.MANUAL,
+    ))
+    session.commit()
+
+    r = client.get("/overview", params={"schoolyear_id": SY, "halbjahr": "1"})
+    assert r.status_code == 200
+    cell = _cell_html(r.text, ids["trainee_id"], 40, 2025)
+    assert "mc-confirm-offen" in cell
+
+
+def test_overview_abteilung_abgelehnt_shows_confirm_marker(client, session: Session):
+    """ABTEILUNG assignment with bestaetigung='abgelehnt' gets mc-confirm-abgelehnt marker."""
+    ids = _setup_overview(session)
+    session.add(Assignment(
+        trainee_id=ids["trainee_id"], schoolyear_id=SY, kw=40, jahr=2025,
+        typ=AssignmentTyp.ABTEILUNG, abteilung_id=ids["cp_id"], source=AssignmentSource.MANUAL,
+        bestaetigung="abgelehnt",
+    ))
+    session.commit()
+
+    r = client.get("/overview", params={"schoolyear_id": SY, "halbjahr": "1"})
+    assert r.status_code == 200
+    cell = _cell_html(r.text, ids["trainee_id"], 40, 2025)
+    assert "mc-confirm-abgelehnt" in cell
+
+
+def test_overview_non_abteilung_has_no_confirm_marker(client, session: Session):
+    """BERUFSSCHULE/URLAUB/FREI assignments never get a confirm marker class."""
+    ids = _setup_overview(session)
+    session.add(Assignment(
+        trainee_id=ids["trainee_id"], schoolyear_id=SY, kw=40, jahr=2025,
+        typ=AssignmentTyp.URLAUB, abteilung_id=None, source=AssignmentSource.MANUAL,
+    ))
+    session.commit()
+
+    r = client.get("/overview", params={"schoolyear_id": SY, "halbjahr": "1"})
+    assert r.status_code == 200
+    cell = _cell_html(r.text, ids["trainee_id"], 40, 2025)
+    assert "mc-confirm-" not in cell

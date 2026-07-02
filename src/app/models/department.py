@@ -24,6 +24,7 @@ class Department(SQLModel, table=True):
     info_text: str = Field(default="")
     erlaubt_mehrfachbelegung: bool = Field(default=False)
     farbe: str = Field(default="#9CA3AF")
+    verantwortliche: str = Field(default="")
 
     # relationship – lädt die DepartmentKategorie automatisch (für Templates: d.kategorie.name)
     kategorie: Optional[DepartmentKategorie] = Relationship(back_populates="departments")

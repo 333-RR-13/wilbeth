@@ -3,8 +3,10 @@
 {% set _has_assignment = a is not none and a is defined and a %}
 {% set _is_school = is_school if is_school is defined else false %}
 {% set _oob = oob if oob is defined else false %}
+{% set _is_abteilung = _has_assignment and a.typ.value == 'ABTEILUNG' %}
+{% set _bestaetigung = (a.bestaetigung if a.bestaetigung else 'offen') if _is_abteilung else none %}
 <td id="cell-{{ trainee_id }}-{{ kw }}-{{ jahr }}"
-    class="matrix-cell cell-clickable{% if is_conflict %} mc-conflict{% endif %}"
+    class="matrix-cell cell-clickable{% if is_conflict %} mc-conflict{% endif %}{% if _is_abteilung %} mc-confirm-{{ _bestaetigung }}{% endif %}"
     data-trainee="{{ trainee_id }}"
     data-kw="{{ kw }}"
     data-jahr="{{ jahr }}"
