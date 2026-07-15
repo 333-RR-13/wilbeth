@@ -1,5 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="14" fill="#1b61c9"/>
-  <polyline points="13,21 23,44 33,21" fill="none" stroke="#ffffff" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
-  <polyline points="31,21 41,44 51,21" fill="none" stroke="#a9c8f5" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Wilbeth-Logo: 6x6-Wochenmatrix, Accent-Zellen formen ein "W" -->
+  <rect width="64" height="64" rx="14" fill="#212836"/>
+  <g fill="#3a4354">
+    <rect x="5" y="5" width="7.6" height="7.6" rx="2"/><rect x="14.2" y="5" width="7.6" height="7.6" rx="2"/><rect x="23.4" y="5" width="7.6" height="7.6" rx="2"/><rect x="32.6" y="5" width="7.6" height="7.6" rx="2"/><rect x="41.8" y="5" width="7.6" height="7.6" rx="2"/><rect x="51" y="5" width="7.6" height="7.6" rx="2"/>
+    <rect x="14.2" y="14.2" width="7.6" height="7.6" rx="2"/><rect x="23.4" y="14.2" width="7.6" height="7.6" rx="2"/><rect x="32.6" y="14.2" width="7.6" height="7.6" rx="2"/><rect x="41.8" y="14.2" width="7.6" height="7.6" rx="2"/>
+    <rect x="14.2" y="23.4" width="7.6" height="7.6" rx="2"/><rect x="23.4" y="23.4" width="7.6" height="7.6" rx="2"/><rect x="32.6" y="23.4" width="7.6" height="7.6" rx="2"/><rect x="41.8" y="23.4" width="7.6" height="7.6" rx="2"/>
+    <rect x="14.2" y="32.6" width="7.6" height="7.6" rx="2"/><rect x="41.8" y="32.6" width="7.6" height="7.6" rx="2"/>
+    <rect x="14.2" y="41.8" width="7.6" height="7.6" rx="2"/><rect x="41.8" y="41.8" width="7.6" height="7.6" rx="2"/>
+    <rect x="5" y="51" width="7.6" height="7.6" rx="2"/><rect x="23.4" y="51" width="7.6" height="7.6" rx="2"/><rect x="32.6" y="51" width="7.6" height="7.6" rx="2"/><rect x="51" y="51" width="7.6" height="7.6" rx="2"/>
+  </g>
+  <g fill="#2f7de6">
+    <rect x="5" y="14.2" width="7.6" height="7.6" rx="2"/><rect x="51" y="14.2" width="7.6" height="7.6" rx="2"/>
+    <rect x="5" y="23.4" width="7.6" height="7.6" rx="2"/><rect x="51" y="23.4" width="7.6" height="7.6" rx="2"/>
+    <rect x="5" y="32.6" width="7.6" height="7.6" rx="2"/><rect x="23.4" y="32.6" width="7.6" height="7.6" rx="2"/><rect x="32.6" y="32.6" width="7.6" height="7.6" rx="2"/><rect x="51" y="32.6" width="7.6" height="7.6" rx="2"/>
+    <rect x="5" y="41.8" width="7.6" height="7.6" rx="2"/><rect x="23.4" y="41.8" width="7.6" height="7.6" rx="2"/><rect x="32.6" y="41.8" width="7.6" height="7.6" rx="2"/><rect x="51" y="41.8" width="7.6" height="7.6" rx="2"/>
+    <rect x="14.2" y="51" width="7.6" height="7.6" rx="2"/><rect x="41.8" y="51" width="7.6" height="7.6" rx="2"/>
+  </g>
 </svg>
