@@ -34,3 +34,5 @@ class Trainee(SQLModel, table=True):
     wunsch_notiz: str = Field(default="")
     # Beginn der Ausbildung/des Studiums
     ausbildungsbeginn: date | None = Field(default=None)
+    # Entra UserPrincipalName fuer SSO-Matching (Azubi-Login via OIDC)
+    upn: str | None = Field(default=None)

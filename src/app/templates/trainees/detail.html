@@ -90,6 +90,8 @@
       <dt>Beginn</dt>
       <dd>{{ ausbildungsbeginn.strftime('%d.%m.%Y') }}</dd>
       {% endif %}
+      <dt>UPN</dt>
+      <dd>{{ trainee.upn if trainee.upn else '–' }}</dd>
     </dl>
   </div>
   <div class="visitenkarte-steckbrief">

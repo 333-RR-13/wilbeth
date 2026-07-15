@@ -40,6 +40,31 @@ spec:
                 name: wilbeth-config
             - secretRef:
                 name: wilbeth-secrets
+          env:
+            - name: AUTH_MODE
+              value: "oidc"
+            - name: OIDC_CLIENT_ID
+              value: "91140e20-226e-4fcd-9e12-68b79e21a945"
+            - name: OIDC_DISCOVERY_URL
+              value: "https://login.microsoftonline.com/3ee85b28-d803-4baf-89fa-f89ec9b33cbe/v2.0/.well-known/openid-configuration"
+            - name: OIDC_REDIRECT_URI
+              value: "https://wilbeth.k8s-ai-apps-staging.grenke.com/auth/callback"
+            - name: OIDC_GROUP_ADMIN
+              value: "95b96fa3-4b7e-43f3-b51d-1153e4cb2536"
+            - name: OIDC_GROUP_AUSBILDER
+              value: "b781cad9-2d79-4c97-a847-0bb7b410ce0e"
+            - name: OIDC_GROUP_ORGA
+              value: "996f02f2-5d2b-4c36-b3ee-de8ec25d647f"
+            - name: OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: wilbeth-secrets
+                  key: oidc-client-secret
+            - name: SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: wilbeth-secrets
+                  key: session-secret
           readinessProbe:
             httpGet:
               path: /health

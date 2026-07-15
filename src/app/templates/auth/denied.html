@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kein Zugriff – Wilbeth</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #181d26;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #171717;
+      padding: 24px;
+    }
+    .card {
+      width: 100%;
+      max-width: 420px;
+      background: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.35);
+      padding: 32px 32px 28px;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 24px;
+      font-size: 20px;
+      font-weight: 700;
+      color: #171717;
+      text-decoration: none;
+    }
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: #1b61c9;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 16px;
+    }
+    h1 {
+      font-size: 17px;
+      margin: 0 0 8px;
+      color: #dc2626;
+    }
+    p {
+      font-size: 14px;
+      color: #4d4d4d;
+      line-height: 1.5;
+      margin: 0 0 6px;
+    }
+    .upn-box {
+      margin-top: 16px;
+      padding: 10px 12px;
+      background: #fef2f2;
+      border-radius: 8px;
+      font-size: 13px;
+      color: #dc2626;
+      word-break: break-all;
+    }
+    a.btn-back {
+      display: inline-block;
+      margin-top: 22px;
+      padding: 8px 16px;
+      border-radius: 8px;
+      background: #1b61c9;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+    }
+    a.btn-back:hover { background: #154ea0; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">
+      <div class="logo-icon">W</div>
+      Wilbeth
+    </div>
+    <h1>Kein Zugriff</h1>
+    <p>UPN nicht bekannt und keine Wilbeth-Gruppe.</p>
+    <p>Bitte wende dich an deine Ausbildungsleitung, wenn du glaubst, dass dies ein Fehler ist.</p>
+    {% if upn %}
+    <div class="upn-box">Angemeldet als: {{ upn }}</div>
+    {% endif %}
+    <a class="btn-back" href="/auth/login">Zurück zum Login</a>
+  </div>
+</body>
+</html>

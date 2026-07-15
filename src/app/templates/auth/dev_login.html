@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dev-Login – Wilbeth</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #181d26;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #171717;
+      padding: 24px;
+    }
+    .card {
+      width: 100%;
+      max-width: 420px;
+      background: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.35);
+      padding: 32px 32px 28px;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 4px;
+      font-size: 20px;
+      font-weight: 700;
+      color: #171717;
+      text-decoration: none;
+    }
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: #1b61c9;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 16px;
+    }
+    .subtitle {
+      margin: 0 0 24px;
+      font-size: 13px;
+      color: #808080;
+    }
+    .dev-banner {
+      background: #fff8e6;
+      border: 1px solid #f0d896;
+      color: #6b5300;
+      font-size: 12px;
+      border-radius: 6px;
+      padding: 8px 10px;
+      margin-bottom: 22px;
+    }
+    .section {
+      margin-bottom: 22px;
+    }
+    .section-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #808080;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-bottom: 10px;
+    }
+    .role-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+    }
+    form.inline { margin: 0; }
+    button {
+      font-family: inherit;
+      cursor: pointer;
+      border: none;
+    }
+    .btn-role {
+      width: 100%;
+      padding: 10px 6px;
+      border-radius: 8px;
+      background: #ebf3ff;
+      color: #1b61c9;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .btn-role:hover { background: #1b61c9; color: #fff; }
+    .azubi-row {
+      display: flex;
+      gap: 8px;
+    }
+    select {
+      flex: 1;
+      padding: 8px 10px;
+      border: 1px solid #e0e2e6;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      color: #171717;
+    }
+    .btn-primary {
+      padding: 8px 16px;
+      border-radius: 8px;
+      background: #1b61c9;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .btn-primary:hover { background: #154ea0; }
+    .btn-primary:disabled { background: #b7c8e6; cursor: not-allowed; }
+    .empty-hint {
+      font-size: 13px;
+      color: #808080;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">
+      <div class="logo-icon">W</div>
+      Wilbeth
+    </div>
+    <p class="subtitle">Einsatzplanung für IT-Azubis</p>
+
+    <div class="dev-banner">Dev-Login – nur lokale Entwicklung, kein echtes SSO.</div>
+
+    <div class="section">
+      <div class="section-label">Als Mitarbeiter anmelden</div>
+      <div class="role-grid">
+        <form class="inline" method="post" action="/auth/dev-login">
+          <input type="hidden" name="rolle" value="admin">
+          <button type="submit" class="btn-role">Admin</button>
+        </form>
+        <form class="inline" method="post" action="/auth/dev-login">
+          <input type="hidden" name="rolle" value="orga">
+          <button type="submit" class="btn-role">Orga</button>
+        </form>
+        <form class="inline" method="post" action="/auth/dev-login">
+          <input type="hidden" name="rolle" value="ausbilder">
+          <button type="submit" class="btn-role">Ausbilder</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Als Azubi anmelden</div>
+      {% if trainees %}
+      <form method="post" action="/auth/dev-login">
+        <input type="hidden" name="rolle" value="azubi">
+        <div class="azubi-row">
+          <select name="trainee_id" required>
+            {% for t in trainees %}
+            <option value="{{ t.id }}">{{ t.nachname }}, {{ t.vorname }}</option>
+            {% endfor %}
+          </select>
+          <button type="submit" class="btn-primary">Anmelden</button>
+        </div>
+      </form>
+      {% else %}
+      <p class="empty-hint">Keine aktiven Trainees vorhanden.</p>
+      {% endif %}
+    </div>
+  </div>
+</body>
+</html>

@@ -79,6 +79,7 @@ def create_trainee(
     steckbrief: Annotated[str, Form()] = "",
     aktiv: Annotated[str, Form()] = "",
     ausbildungsbeginn: Annotated[str, Form()] = "",
+    upn: Annotated[str, Form()] = "",
 ):
     # klasse_id IST die Einstiegsklasse (Anker)
     klasse_id_int = int(klasse_id) if klasse_id else None
@@ -98,6 +99,7 @@ def create_trainee(
         steckbrief=steckbrief,
         aktiv=bool(aktiv),
         ausbildungsbeginn=ausbildungsbeginn_parsed,
+        upn=upn.strip() or None,
     )
     db.add(t)
     db.commit()
@@ -233,6 +235,7 @@ def update_trainee(
     steckbrief: Annotated[str, Form()] = "",
     aktiv: Annotated[str, Form()] = "",
     ausbildungsbeginn: Annotated[str, Form()] = "",
+    upn: Annotated[str, Form()] = "",
 ):
     from datetime import date as _date
     t = db.get(Trainee, trainee_id)
@@ -242,6 +245,7 @@ def update_trainee(
     t.notizen = notizen
     t.steckbrief = steckbrief
     t.aktiv = bool(aktiv)
+    t.upn = upn.strip() or None
     if ausbildungsbeginn:
         try:
             t.ausbildungsbeginn = _date.fromisoformat(ausbildungsbeginn)

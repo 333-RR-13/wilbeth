@@ -58,6 +58,13 @@
       </div>
 
       <div class="form-group">
+        <label for="upn">UPN (Entra-Anmeldename)</label>
+        <input type="text" id="upn" name="upn" placeholder="vorname.nachname@grenke.de"
+               value="{{ trainee.upn if trainee and trainee.upn else '' }}">
+        <span class="form-hint">für SSO-Login des Azubis; leer = kein SSO-Zugang</span>
+      </div>
+
+      <div class="form-group">
         <label for="ausbildungsbeginn">Ausbildungsbeginn</label>
         <input type="date" id="ausbildungsbeginn" name="ausbildungsbeginn"
                value="{{ trainee.ausbildungsbeginn.isoformat() if trainee and trainee.ausbildungsbeginn else '' }}">

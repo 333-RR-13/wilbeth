@@ -47,6 +47,29 @@ Stand: gefüllt passend zum `pipelinetest`-Branch (Build über Firmen-Template).
 + Team-Mail bestätigen; cert-manager-Issuer `keyfactor-command-issuer`, StorageClass
 `longhorn` und DNS bestätigen.
 
+## Auth (Entra OIDC)
+
+Wilbeth authentifiziert sich per OIDC gegen Entra ID. Der `wilbeth`-Container liest dazu u. a.
+`AUTH_MODE`, `OIDC_CLIENT_ID`, `OIDC_DISCOVERY_URL`, `OIDC_REDIRECT_URI`, die drei
+`OIDC_GROUP_*`-Variablen (Klartext, nicht geheim – gesetzt in `deployment.wilbeth.yaml`) sowie
+`OIDC_CLIENT_SECRET` und `SESSION_SECRET` (geheim – via `secretKeyRef` aus `wilbeth-secrets`).
+
+**Benötigte zusätzliche ADO-Pipeline-Variablen** (analog zu `dbPassword`, **als „secret“ markieren**):
+
+| Variable | Zweck |
+|---|---|
+| `oidcClientSecret` | Client-Secret der Entra-App-Registrierung → Token `{{oidcClientSecret}}` in `secret.yaml` |
+| `sessionSecret` | Secret zum Signieren der Session-Cookies → Token `{{sessionSecret}}` in `secret.yaml` |
+
+⚠️ **Ohne diese beiden Pipeline-Variablen scheitert der Deploy am `replacetokens`-Schritt**
+(`missingVarLog: error` → unaufgelöste `{{oidcClientSecret}}` / `{{sessionSecret}}`-Tokens).
+
+Redirect-URI (muss in der Entra-App-Registrierung als Reply-URL hinterlegt sein):
+`https://wilbeth.k8s-ai-apps-staging.grenke.com/auth/callback`
+
+Das Client-Secret darf **niemals im Klartext ins Repo** – es existiert nur als ADO-Pipeline-Secret
+und wird zur Deploy-Zeit per Token-Ersetzung in `wilbeth-secrets` (Kubernetes Secret) eingesetzt.
+
 ## Lokales Rendern (ohne Pipeline)
 
 ```bash

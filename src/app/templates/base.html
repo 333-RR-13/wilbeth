@@ -5,6 +5,40 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}Wilbeth{% endblock %} – Einsatzplanung</title>
   <link rel="stylesheet" href="/static/style.css?v=4">
+  <style>
+    .user-badge {
+      padding: 10px 8px;
+      margin-bottom: 8px;
+      border-bottom: 1px solid var(--sidebar-border, rgba(255,255,255,0.08));
+    }
+    .user-badge-name {
+      color: #ffffff;
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .user-badge-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 2px;
+    }
+    .user-badge-role {
+      color: rgba(255,255,255,0.5);
+      font-size: 12px;
+    }
+    .user-badge-logout {
+      color: rgba(255,255,255,0.6);
+      font-size: 12px;
+      text-decoration: none;
+    }
+    .user-badge-logout:hover {
+      color: #ffffff;
+      text-decoration: underline;
+    }
+  </style>
 </head>
 <body>
 <div class="layout">
@@ -91,6 +125,22 @@
     </nav>
 
     <div class="sidebar-footer">
+      {% set cu = request.state.current_user if request.state is defined and request.state.current_user is defined else None %}
+      {% if cu %}
+      <div class="user-badge">
+        <div class="user-badge-name">{{ cu.name }}</div>
+        <div class="user-badge-row">
+          <span class="user-badge-role">
+            {%- if cu.rolle == 'admin' -%}Admin
+            {%- elif cu.rolle == 'orga' -%}Orga
+            {%- elif cu.rolle == 'ausbilder' -%}Ausbilder
+            {%- else -%}Azubi
+            {%- endif -%}
+          </span>
+          <a href="/auth/logout" class="user-badge-logout">Abmelden</a>
+        </div>
+      </div>
+      {% endif %}
       <a href="/roadmap" class="nav-link {% if active_nav == 'roadmap' %}active{% endif %}">
         <svg viewBox="0 0 16 16" fill="currentColor">
           <path d="M3 1v14H2V1h1zm1 0h9l-2 3 2 3H4V1z"/>
