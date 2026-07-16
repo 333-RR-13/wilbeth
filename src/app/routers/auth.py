@@ -94,8 +94,16 @@ async def callback(request: Request, db: DB):
 
     user = resolve_role(db, groups, upn, name)
     if user is None:
+        # Diagnose fuer "Kein Zugriff": im Pod-Log (kubectl logs) UND auf der
+        # 403-Seite sichtbar. Haeufigste Ursachen: groups-Claim fehlt in der
+        # Token-Konfiguration der App-Registration, oder die Objekt-IDs im
+        # Token matchen nicht die OIDC_GROUP_*-Umgebungsvariablen.
+        print(f"[auth] Zugriff verweigert: upn={upn!r} groups={groups!r}", flush=True)
         return templates.TemplateResponse(
-            request, "auth/denied.html", {"upn": upn}, status_code=403
+            request,
+            "auth/denied.html",
+            {"upn": upn, "groups": groups, "groups_overage": "_claim_names" in claims},
+            status_code=403,
         )
 
     login_session(request, user)

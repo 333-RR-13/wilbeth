@@ -94,6 +94,23 @@
     {% if upn %}
     <div class="upn-box">Angemeldet als: {{ upn }}</div>
     {% endif %}
+    {% if groups %}
+    <div class="upn-box" style="word-break: break-all;">
+      Gruppen im Token ({{ groups|length }}):<br>
+      {% for g in groups %}{{ g }}<br>{% endfor %}
+    </div>
+    {% else %}
+    <div class="upn-box">
+      Gruppen im Token: <strong>keine</strong> — vermutlich fehlt der
+      groups-Claim in der Token-Konfiguration der App-Registration.
+    </div>
+    {% endif %}
+    {% if groups_overage %}
+    <div class="upn-box">
+      Hinweis: Das Token enthält nur einen Gruppen-<em>Verweis</em>
+      (_claim_names, zu viele Gruppen) statt der Liste.
+    </div>
+    {% endif %}
     <a class="btn-back" href="/auth/login">Zurück zum Login</a>
   </div>
 </body>
