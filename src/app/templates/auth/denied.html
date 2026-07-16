@@ -111,6 +111,11 @@
       (_claim_names, zu viele Gruppen) statt der Liste.
     </div>
     {% endif %}
+    {% if claim_keys %}
+    <div class="upn-box" style="word-break: break-all;">
+      Claims im Token: {{ claim_keys|join(', ') }}
+    </div>
+    {% endif %}
     <a class="btn-back" href="/auth/login">Zurück zum Login</a>
   </div>
 </body>

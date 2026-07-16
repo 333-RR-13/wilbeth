@@ -98,11 +98,20 @@ async def callback(request: Request, db: DB):
         # 403-Seite sichtbar. Haeufigste Ursachen: groups-Claim fehlt in der
         # Token-Konfiguration der App-Registration, oder die Objekt-IDs im
         # Token matchen nicht die OIDC_GROUP_*-Umgebungsvariablen.
-        print(f"[auth] Zugriff verweigert: upn={upn!r} groups={groups!r}", flush=True)
+        claim_keys = sorted(claims.keys())
+        print(
+            f"[auth] Zugriff verweigert: upn={upn!r} groups={groups!r} claim_keys={claim_keys}",
+            flush=True,
+        )
         return templates.TemplateResponse(
             request,
             "auth/denied.html",
-            {"upn": upn, "groups": groups, "groups_overage": "_claim_names" in claims},
+            {
+                "upn": upn,
+                "groups": groups,
+                "groups_overage": "_claim_names" in claims,
+                "claim_keys": claim_keys,
+            },
             status_code=403,
         )
 
