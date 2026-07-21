@@ -122,6 +122,9 @@ async def callback(request: Request, db: DB):
         request.session[SESSION_KEY]["share_token"] = token_str
         return RedirectResponse(f"/mein-plan/{token_str}", status_code=303)
 
+    if user.rolle == "ausbilder":
+        return RedirectResponse("/meine-abteilung/", status_code=303)
+
     return RedirectResponse("/overview", status_code=303)
 
 
@@ -155,6 +158,10 @@ def dev_login(
 
     user = CurrentUser(upn="dev@local", name=f"Dev {rolle}", rolle=rolle)
     login_session(request, user)
+
+    if rolle == "ausbilder":
+        return RedirectResponse("/meine-abteilung/", status_code=303)
+
     return RedirectResponse("/overview", status_code=303)
 
 

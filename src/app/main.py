@@ -12,6 +12,7 @@ from app.routers import (
     assignments,
     auto_plan,
     auth,
+    ausbilder,
     departments,
     holidays,
     imports,
@@ -22,6 +23,7 @@ from app.routers import (
     share,
     trainee_classes,
     trainees,
+    vorschlaege,
 )
 from app.services.auth_service import SESSION_KEY, CurrentUser, user_from_session
 
@@ -107,6 +109,8 @@ app.include_router(school_plans.router)
 app.include_router(assignments.router)
 app.include_router(share.router)
 app.include_router(about.router)
+app.include_router(ausbilder.router)
+app.include_router(vorschlaege.router)
 
 
 @app.on_event("startup")

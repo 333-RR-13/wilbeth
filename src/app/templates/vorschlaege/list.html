@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Vorschläge{% endblock %}
+
+{% block content %}
+<style>
+  .vorschlag-kommentar { max-width: 220px; }
+  .vorschlag-ablehnen-form { display: inline-flex; gap: 6px; align-items: center; }
+  .vorschlag-ablehnen-form input[type="text"] { width: 150px; }
+  .vorschlag-actions form { display: inline-block; }
+</style>
+
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Vorschläge</h1>
+    <p class="page-subtitle">{{ vorschlaege | length }} Vorschläge</p>
+  </div>
+</div>
+
+<div class="table-wrapper">
+  <table>
+    <thead>
+      <tr>
+        <th>Azubi</th>
+        <th>Abteilung</th>
+        <th>Zeitraum</th>
+        <th>Eingereicht von</th>
+        <th>Kommentar</th>
+        <th>Status</th>
+        <th>Antwort</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for v in vorschlaege %}
+      {% set t = trainee_map.get(v.trainee_id) %}
+      {% set d = dept_map.get(v.department_id) %}
+      <tr>
+        <td>{{ (t.nachname ~ ', ' ~ t.vorname) if t else '–' }}</td>
+        <td>{{ (d.code ~ ' – ' ~ d.name) if d else '–' }}</td>
+        <td class="mono">KW {{ v.kw_von }}/{{ v.jahr_von }} – KW {{ v.kw_bis }}/{{ v.jahr_bis }}</td>
+        <td class="td-muted">{{ v.eingereicht_von_name or v.eingereicht_von_upn }}</td>
+        <td class="vorschlag-kommentar">{{ v.kommentar or '–' }}</td>
+        <td>
+          {% if v.status == 'offen' %}
+            <span class="badge badge-orange">Offen</span>
+          {% elif v.status == 'angenommen' %}
+            <span class="badge badge-green">Angenommen</span>
+          {% else %}
+            <span class="badge badge-red">Abgelehnt</span>
+          {% endif %}
+        </td>
+        <td class="td-muted">{{ v.antwort_kommentar or '–' }}</td>
+        <td class="td-actions vorschlag-actions">
+          {% if v.status == 'offen' %}
+          <form method="post" action="/vorschlaege/{{ v.id }}/annehmen">
+            <button type="submit" class="btn btn-primary btn-sm">Annehmen</button>
+          </form>
+          <form method="post" action="/vorschlaege/{{ v.id }}/ablehnen" class="vorschlag-ablehnen-form">
+            <input type="text" name="kommentar" placeholder="Kommentar (optional)">
+            <button type="submit" class="btn btn-ghost-danger btn-sm">Ablehnen</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" class="empty-state">Keine Vorschläge vorhanden.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

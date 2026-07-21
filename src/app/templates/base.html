@@ -68,7 +68,21 @@
         </svg>
         Einsätze
       </a>
+      {% if cu and cu.rolle in ("ausbilder", "orga", "admin") %}
+      <a href="/meine-abteilung/" class="nav-link {% if active_nav == 'meine_abteilung' %}active{% endif %}">
+        <svg viewBox="0 0 16 16" fill="currentColor">
+          <path d="M1 3h14v2H1zm2 4h10v2H3zm2 4h6v2H5z"/>
+        </svg>
+        Meine Abteilung
+      </a>
+      {% endif %}
       {% if cu and cu.rolle in ("orga", "admin") %}
+      <a href="/vorschlaege/" class="nav-link {% if active_nav == 'vorschlaege' %}active{% endif %}">
+        <svg viewBox="0 0 16 16" fill="currentColor">
+          <path d="M2 2h9l3 3v9H2V2zm1 1v10h10V5.4L10.6 3H3zm2 3h6v1H5V6zm0 3h6v1H5V9zm0 3h4v1H5v-1z"/>
+        </svg>
+        Vorschläge
+      </a>
       <a href="/auto-plan" class="nav-link {% if active_nav == 'auto_plan' %}active{% endif %}">
         <svg viewBox="0 0 16 16" fill="currentColor">
           <path d="M2 2h12v2H2zm0 4h8v2H2zm0 4h5v2H2zm8 1 4-3-4-3v2H7v2h3v2z"/>

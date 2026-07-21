@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+{% block title %}Meine Abteilung{% endblock %}
+
+{% block content %}
+<style>
+  .dept-card { margin-bottom: 24px; }
+  .dept-card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px; border-bottom: 1px solid var(--border);
+  }
+  .dept-card-title { font-size: 16px; font-weight: 600; color: var(--text-primary); }
+  .dept-card-table { box-shadow: none; border-radius: 0; }
+  .block-form { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .block-form input[type="text"] { width: 140px; }
+  .vorschlag-form-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 14px 16px; margin-bottom: 16px;
+  }
+  .hint-box {
+    padding: 16px 20px; border-radius: var(--radius); background: var(--accent-light);
+    color: var(--accent); font-size: 14px; margin-bottom: 20px;
+  }
+</style>
+
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Meine Abteilung</h1>
+    {% if not no_dept %}
+    <p class="page-subtitle">{{ offen_count }} offene Bloecke insgesamt</p>
+    {% endif %}
+  </div>
+</div>
+
+{% if no_dept %}
+<div class="hint-box">
+  Deinem Konto (UPN {{ user.upn }}) ist keine Abteilung zugeordnet – Feld "Verantwortliche Ausbilder" in der Abteilung pflegen.
+</div>
+{% else %}
+
+{% if years %}
+<form class="filter-bar" method="get" action="/meine-abteilung/">
+  <select name="schoolyear_id" onchange="this.form.submit()">
+    {% for y in years %}
+    <option value="{{ y.id }}" {{ 'selected' if y.id == selected_year else '' }}>{{ y.id }}</option>
+    {% endfor %}
+  </select>
+</form>
+{% endif %}
+
+{% for entry in dept_blocks %}
+{% set d = entry.dept %}
+<div class="card dept-card">
+  <div class="dept-card-header">
+    <span class="dept-card-title">{{ d.code }} – {{ d.name }}</span>
+    <span class="badge badge-gray">{{ entry.blocks | length }} Bloecke</span>
+  </div>
+  <div class="table-wrapper dept-card-table">
+    <table>
+      <thead>
+        <tr>
+          <th>Azubi</th>
+          <th>Zeitraum</th>
+          <th>Status</th>
+          <th>Notiz / Feedback</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in entry.blocks %}
+        <tr>
+          <td>{{ (b.trainee.nachname ~ ', ' ~ b.trainee.vorname) if b.trainee else '–' }}</td>
+          <td class="mono">KW {{ b.kw_von }}/{{ b.jahr_von }} – KW {{ b.kw_bis }}/{{ b.jahr_bis }}</td>
+          <td>
+            {% if b.status == 'bestaetigt' %}
+              <span class="badge badge-green">Bestätigt</span>
+            {% elif b.status == 'abgelehnt' %}
+              <span class="badge badge-red">Abgelehnt</span>
+            {% else %}
+              <span class="badge badge-orange">Offen</span>
+            {% endif %}
+          </td>
+          <td>
+            <form method="post" action="/meine-abteilung/block" class="block-form">
+              <input type="hidden" name="assignment_ids" value="{{ b.assignment_ids | join(',') }}">
+              <input type="hidden" name="schoolyear_id" value="{{ selected_year }}">
+              <input type="text" name="notiz" value="{{ b.notiz }}" placeholder="Notiz">
+              <input type="text" name="feedback" value="{{ b.feedback }}" placeholder="Feedback">
+              <button type="submit" name="aktion" value="bestaetigt" class="btn btn-primary btn-sm">Bestätigen</button>
+              <button type="submit" name="aktion" value="abgelehnt" class="btn btn-ghost-danger btn-sm">Ablehnen</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="empty-state">Keine Einsätze in diesem Schuljahr.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endfor %}
+
+<div class="card card-body" style="margin-bottom:24px;">
+  <div class="form-section-title">Einsatz vorschlagen</div>
+  <form method="post" action="/meine-abteilung/vorschlag">
+    <input type="hidden" name="schoolyear_id" value="{{ selected_year }}">
+    <div class="vorschlag-form-grid">
+      <div class="form-group">
+        <label for="vor-trainee">Azubi</label>
+        <select id="vor-trainee" name="trainee_id" required>
+          {% for t in trainees %}
+          <option value="{{ t.id }}">{{ t.nachname }}, {{ t.vorname }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="vor-dept">Abteilung</label>
+        <select id="vor-dept" name="department_id" required>
+          {% for entry in dept_blocks %}
+          <option value="{{ entry.dept.id }}">{{ entry.dept.code }} – {{ entry.dept.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="vor-kw-von">KW von</label>
+        <input type="number" id="vor-kw-von" name="kw_von" min="1" max="53" required>
+      </div>
+      <div class="form-group">
+        <label for="vor-jahr-von">Jahr von</label>
+        <input type="number" id="vor-jahr-von" name="jahr_von" required>
+      </div>
+      <div class="form-group">
+        <label for="vor-kw-bis">KW bis</label>
+        <input type="number" id="vor-kw-bis" name="kw_bis" min="1" max="53" required>
+      </div>
+      <div class="form-group">
+        <label for="vor-jahr-bis">Jahr bis</label>
+        <input type="number" id="vor-jahr-bis" name="jahr_bis" required>
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom:16px;">
+      <label for="vor-kommentar">Kommentar</label>
+      <textarea id="vor-kommentar" name="kommentar" rows="2" placeholder="Begründung (optional)"></textarea>
+    </div>
+    <button type="submit" class="btn btn-primary">Vorschlag einreichen</button>
+  </form>
+</div>
+
+<div class="form-section-title">Meine Vorschläge</div>
+<div class="table-wrapper">
+  <table>
+    <thead>
+      <tr>
+        <th>Azubi</th>
+        <th>Abteilung</th>
+        <th>Zeitraum</th>
+        <th>Status</th>
+        <th>Antwort</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for v in own_vorschlaege %}
+      {% set t = trainee_map.get(v.trainee_id) %}
+      {% set d = dept_map.get(v.department_id) %}
+      <tr>
+        <td>{{ (t.nachname ~ ', ' ~ t.vorname) if t else '–' }}</td>
+        <td>{{ (d.code ~ ' – ' ~ d.name) if d else '–' }}</td>
+        <td class="mono">KW {{ v.kw_von }}/{{ v.jahr_von }} – KW {{ v.kw_bis }}/{{ v.jahr_bis }}</td>
+        <td>
+          {% if v.status == 'offen' %}
+            <span class="badge badge-orange">Offen</span>
+          {% elif v.status == 'angenommen' %}
+            <span class="badge badge-green">Angenommen</span>
+          {% else %}
+            <span class="badge badge-red">Abgelehnt</span>
+          {% endif %}
+        </td>
+        <td class="td-muted">{{ v.antwort_kommentar or '–' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="empty-state">Noch keine eigenen Vorschläge.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endif %}
+{% endblock %}
