@@ -50,6 +50,39 @@ def list_trainees(request: Request, db: DB, status: str = "aktiv"):
     })
 
 
+@router.get("/upn-pflege", response_class=HTMLResponse)
+def upn_pflege(request: Request, db: DB):
+    """Sammel-Pflege der UPN (Entra-Anmeldename) fuer alle aktiven Trainees."""
+    trainees = db.exec(
+        select(Trainee)
+        .where(Trainee.aktiv == True)  # noqa: E712
+        .order_by(Trainee.nachname, Trainee.vorname)
+    ).all()
+    return templates.TemplateResponse(request, "trainees/upn_pflege.html", {
+        "trainees": trainees,
+        "active_nav": "trainees",
+    })
+
+
+@router.post("/upn-pflege", response_class=RedirectResponse)
+async def upn_pflege_speichern(request: Request, db: DB):
+    """Speichert die je Zeile eingetragenen UPN-Werte fuer alle aktiven Trainees."""
+    form = await request.form()
+    trainees = db.exec(
+        select(Trainee).where(Trainee.aktiv == True)  # noqa: E712
+    ).all()
+    for t in trainees:
+        field_name = f"upn_{t.id}"
+        if field_name not in form:
+            continue
+        neuer_wert = (form[field_name] or "").strip() or None
+        if neuer_wert != t.upn:
+            t.upn = neuer_wert
+            db.add(t)
+    db.commit()
+    return RedirectResponse("/trainees/upn-pflege?msg=updated", status_code=303)
+
+
 @router.get("/neu", response_class=HTMLResponse)
 def new_trainee(request: Request, db: DB):
     classes = db.exec(select(TraineeClass).order_by(TraineeClass.name)).all()

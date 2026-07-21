@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}UPN-Pflege{% endblock %}
+
+{% block content %}
+<style>
+  .upn-pflege-table th, .upn-pflege-table td { padding: 6px 10px; vertical-align: middle; }
+  .upn-pflege-table td.td-upn { width: 40%; }
+  .upn-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 6px 8px;
+  }
+  .upn-pflege-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    margin-bottom: 12px;
+  }
+  .upn-pflege-toolbar label {
+    font-size: 13px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  #upn-domain {
+    padding: 6px 8px;
+    min-width: 220px;
+    width: auto;
+  }
+</style>
+
+<div class="page-header">
+  <div>
+    <h1 class="page-title">UPN-Pflege</h1>
+    <p class="page-subtitle">{{ trainees | length }} aktive Person{{ 'en' if trainees | length != 1 else '' }}</p>
+  </div>
+  <a href="/trainees/" class="btn btn-secondary">Zurück zur Liste</a>
+</div>
+
+<p class="form-hint" style="margin-bottom: 16px;">
+  Vorschläge füllen nur leere Felder. Format: &lt;erster Buchstabe Vorname&gt;&lt;Nachname&gt;@&lt;Domain&gt;.
+</p>
+
+<form method="post" action="/trainees/upn-pflege">
+  <div class="upn-pflege-toolbar">
+    <label for="upn-domain">Domain
+      <input type="text" id="upn-domain" value="grenkeleasing.com">
+    </label>
+    <button type="button" id="upn-vorschlaege-btn" class="btn btn-secondary">Vorschläge generieren</button>
+    <button type="submit" class="btn btn-primary">Alle speichern</button>
+  </div>
+
+  <div class="table-wrapper">
+    <table class="upn-pflege-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Rolle</th>
+          <th>UPN</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in trainees %}
+        <tr>
+          <td><strong>{{ t.nachname }}, {{ t.vorname }}</strong></td>
+          <td>
+            {% if t.rolle.value == 'AZUBI' %}
+              <span class="badge badge-blue">Azubi</span>
+            {% elif t.rolle.value == 'DH_STUDENT' %}
+              <span class="badge badge-orange">DH-Student</span>
+            {% elif t.rolle.value == 'PRAKTIKANT' %}
+              <span class="badge badge-gray">Praktikant</span>
+            {% else %}
+              <span class="badge badge-gray">Umschüler</span>
+            {% endif %}
+          </td>
+          <td class="td-upn">
+            <input type="text" name="upn_{{ t.id }}" value="{{ t.upn or '' }}"
+                   data-vorname="{{ t.vorname }}" data-nachname="{{ t.nachname }}"
+                   class="upn-input">
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" class="empty-state">Keine aktiven Trainees vorhanden.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</form>
+
+<script>
+(function () {
+  var btn = document.getElementById('upn-vorschlaege-btn');
+  if (!btn) return;
+
+  var TRANSLIT = {
+    'ä': 'ae', 'ö': 'oe', 'ü': 'ue', 'ß': 'ss',
+    'Ä': 'ae', 'Ö': 'oe', 'Ü': 'ue',
+    'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
+    'á': 'a', 'à': 'a', 'â': 'a',
+    'í': 'i', 'ì': 'i', 'î': 'i',
+    'ó': 'o', 'ò': 'o', 'ô': 'o',
+    'ú': 'u', 'ù': 'u', 'û': 'u',
+    'ç': 'c', 'ñ': 'n'
+  };
+
+  function transliterate(s) {
+    var out = '';
+    for (var i = 0; i < s.length; i++) {
+      var ch = s.charAt(i);
+      out += (TRANSLIT.hasOwnProperty(ch) ? TRANSLIT[ch] : ch);
+    }
+    return out;
+  }
+
+  function normalize(s) {
+    var t = transliterate(s || '');
+    t = t.replace(/[\s\-]+/g, '');
+    t = t.toLowerCase();
+    t = t.replace(/[^a-z0-9]/g, '');
+    return t;
+  }
+
+  btn.addEventListener('click', function () {
+    var domainInput = document.getElementById('upn-domain');
+    var domain = (domainInput ? domainInput.value : '').trim();
+    var inputs = document.querySelectorAll('.upn-input');
+    inputs.forEach(function (input) {
+      if (input.value.trim() !== '') return;
+      var vorname = normalize(input.dataset.vorname);
+      var nachname = normalize(input.dataset.nachname);
+      if (!vorname || !nachname) return;
+      input.value = vorname.charAt(0) + nachname + '@' + domain;
+    });
+  });
+})();
+</script>
+{% endblock %}

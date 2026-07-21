@@ -111,33 +111,43 @@
 {% endif %}
 
 {# ── Azubi-Zugang (Self-Service-Link) ───────────────────────────── #}
-<div class="card card-body detail-access" style="margin-bottom: 24px;">
-  <h2 class="form-section-title">Azubi-Zugang</h2>
-  {% if trainee.share_token %}
-    <p class="form-hint" style="margin-bottom: 8px;">Persönlicher Link – der Azubi sieht seinen Plan, kann Urlaub eintragen und Wünsche äußern.</p>
-    <div class="access-link-row">
-      <input type="text" id="share-link" readonly
-             value="/mein-plan/{{ trainee.share_token }}"
-             data-path="/mein-plan/{{ trainee.share_token }}">
-      <button type="button" class="btn btn-secondary btn-sm" onclick="copyShareLink()">Kopieren</button>
-    </div>
-    <div class="btn-group" style="margin-top: 12px;">
-      <form method="post" action="/trainees/{{ trainee.id }}/share-token"
-            onsubmit="return confirm('Neuen Link erzeugen? Der alte Link wird sofort ungültig.')">
-        <button type="submit" class="btn btn-ghost btn-sm">Neuen Link erzeugen</button>
-      </form>
-      <form method="post" action="/trainees/{{ trainee.id }}/share-token/deaktivieren"
-            onsubmit="return confirm('Zugang deaktivieren? Der Link wird ungültig.')">
-        <button type="submit" class="btn btn-ghost-danger btn-sm">Zugang deaktivieren</button>
-      </form>
-    </div>
-  {% else %}
-    <p class="form-hint" style="margin-bottom: 12px;">Kein Zugang aktiv.</p>
-    <form method="post" action="/trainees/{{ trainee.id }}/share-token">
-      <button type="submit" class="btn btn-secondary btn-sm">Zugangs-Link erzeugen</button>
+{% set share_section %}
+<h2 class="form-section-title">Azubi-Zugang</h2>
+{% if trainee.share_token %}
+  <p class="form-hint" style="margin-bottom: 8px;">Persönlicher Link – der Azubi sieht seinen Plan, kann Urlaub eintragen und Wünsche äußern.</p>
+  <div class="access-link-row">
+    <input type="text" id="share-link" readonly
+           value="/mein-plan/{{ trainee.share_token }}"
+           data-path="/mein-plan/{{ trainee.share_token }}">
+    <button type="button" class="btn btn-secondary btn-sm" onclick="copyShareLink()">Kopieren</button>
+  </div>
+  <div class="btn-group" style="margin-top: 12px;">
+    <form method="post" action="/trainees/{{ trainee.id }}/share-token"
+          onsubmit="return confirm('Neuen Link erzeugen? Der alte Link wird sofort ungültig.')">
+      <button type="submit" class="btn btn-ghost btn-sm">Neuen Link erzeugen</button>
     </form>
-  {% endif %}
+    <form method="post" action="/trainees/{{ trainee.id }}/share-token/deaktivieren"
+          onsubmit="return confirm('Zugang deaktivieren? Der Link wird ungültig.')">
+      <button type="submit" class="btn btn-ghost-danger btn-sm">Zugang deaktivieren</button>
+    </form>
+  </div>
+{% else %}
+  <p class="form-hint" style="margin-bottom: 12px;">Kein Zugang aktiv.</p>
+  <form method="post" action="/trainees/{{ trainee.id }}/share-token">
+    <button type="submit" class="btn btn-secondary btn-sm">Zugangs-Link erzeugen</button>
+  </form>
+{% endif %}
+{% endset %}
+{% if trainee.upn %}
+<details class="card card-body detail-access" style="margin-bottom: 24px;">
+  <summary>Share-Link (Fallback – Azubi meldet sich per SSO an)</summary>
+  {{ share_section }}
+</details>
+{% else %}
+<div class="card card-body detail-access" style="margin-bottom: 24px;">
+  {{ share_section }}
 </div>
+{% endif %}
 
 {# ── Wünsche des Azubis ─────────────────────────────────────────── #}
 {% if wishes or trainee.wunsch_notiz %}

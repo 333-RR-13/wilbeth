@@ -7,10 +7,13 @@
     <h1 class="page-title">Trainees</h1>
     <p class="page-subtitle">{{ trainees | length }} Person{{ 'en' if trainees | length != 1 else '' }}</p>
   </div>
-  <a href="/trainees/neu" class="btn btn-primary">
-    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2Z"/></svg>
-    Trainee anlegen
-  </a>
+  <div class="btn-group">
+    <a href="/trainees/upn-pflege" class="btn btn-secondary">UPN-Pflege</a>
+    <a href="/trainees/neu" class="btn btn-primary">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2Z"/></svg>
+      Trainee anlegen
+    </a>
+  </div>
 </div>
 
 {# ── Status-Filter-Tabs ───────────────────────────────────────────────────── #}
