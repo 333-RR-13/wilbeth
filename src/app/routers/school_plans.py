@@ -14,6 +14,7 @@ from app.models import (
     Schoolyear,
     TraineeClass,
 )
+from app.services.auth_service import CurrentUser, require_roles
 from app.services.school_sync import sync_class
 
 router = APIRouter(prefix="/schulplaene", tags=["schulplaene"])
@@ -55,6 +56,7 @@ def create_plan(
     db: DB,
     klasse_id: Annotated[int, Form()],
     schoolyear_id: Annotated[str, Form()],
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
     existing = db.exec(
         select(SchoolPlan).where(
@@ -99,6 +101,7 @@ def add_week(
     kw: Annotated[int, Form()],
     jahr: Annotated[int, Form()],
     typ: Annotated[SchoolWeekTyp, Form()],
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
     existing = db.exec(
         select(SchoolPlanWeek).where(
@@ -118,7 +121,10 @@ def add_week(
 
 
 @router.delete("/{plan_id}/wochen/{week_id}")
-def delete_week(plan_id: int, week_id: int, db: DB):
+def delete_week(
+    plan_id: int, week_id: int, db: DB,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
+):
     w = db.get(SchoolPlanWeek, week_id)
     db.delete(w)
     db.commit()
@@ -128,7 +134,10 @@ def delete_week(plan_id: int, week_id: int, db: DB):
 
 
 @router.delete("/{plan_id}")
-def delete_plan(plan_id: int, db: DB):
+def delete_plan(
+    plan_id: int, db: DB,
+    user: CurrentUser = Depends(require_roles("admin")),
+):
     plan = db.get(SchoolPlan, plan_id)
     klasse_id = plan.klasse_id  # capture before deletion
     for w in db.exec(select(SchoolPlanWeek).where(SchoolPlanWeek.plan_id == plan_id)).all():

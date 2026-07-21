@@ -41,3 +41,4 @@ class Assignment(SQLModel, table=True):
     source: AssignmentSource = Field(default=AssignmentSource.MANUAL)
     notiz: str = Field(default="")
     bestaetigung: str = Field(default="offen")
+    feedback: str | None = Field(default=None)  # Ausbilder-Feedback zum Einsatz

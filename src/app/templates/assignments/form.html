@@ -2,6 +2,8 @@
 {% block title %}{{ "Einsatz bearbeiten" if assignment else "Einsatz anlegen" }}{% endblock %}
 
 {% block content %}
+{% set cu = request.state.current_user if request.state is defined and request.state.current_user is defined else None %}
+{% set can_save = not (cu and cu.rolle == 'ausbilder') %}
 <div class="page-header">
   <div>
     <h1 class="page-title">{{ "Einsatz bearbeiten" if assignment else "Einsatz anlegen" }}</h1>
@@ -100,7 +102,9 @@
 
     </div>
     <div class="form-actions">
+      {% if can_save %}
       <button type="submit" class="btn btn-primary">Speichern</button>
+      {% endif %}
       <a href="/einsaetze/" class="btn btn-secondary">Abbrechen</a>
     </div>
   </form>

@@ -4,6 +4,8 @@
 {% block content_class %}content-inner--wide{% endblock %}
 
 {% block content %}
+{% set cu = request.state.current_user if request.state is defined and request.state.current_user is defined else None %}
+{% set can_edit = cu and cu.rolle in ('orga', 'admin') %}
 <style>
 /* ── Scrollbarer Wochen-Viewport ───────────────────────────────────────── */
 .matrix-scroll {
@@ -86,7 +88,9 @@
       {% endif %}
     </div>
   </div>
+  {% if can_edit %}
   <a href="/einsaetze/neu" class="btn btn-secondary">Einsatz anlegen</a>
+  {% endif %}
 </div>
 
 <div id="conflict-panel" class="conflict-panel" hidden></div>
@@ -188,7 +192,7 @@
               data-kw="{{ w.kw }}"
               data-jahr="{{ w.jahr }}"
               data-occupied="{{ '1' if (a or is_school) else '0' }}"
-              {% if a %}draggable="true"{% endif %}>
+              {% if a and can_edit %}draggable="true"{% endif %}>
             {{ cell_content(a, dept_colors, t_school_weeks.get(cell_key)) }}
           </td>
           {% endfor %}
@@ -248,6 +252,7 @@ document.getElementById('cell-edit-dialog').addEventListener('click', function (
 /* ── Drag & Drop + Block-Auswahl + Strg+C/V ────────────────────── */
 (function () {
   var schoolyearId = '{{ selected_year }}';
+  var CAN_EDIT = {{ "true" if can_edit else "false" }};
 
   // ── Einzel-Drag-Zustand ──────────────────────────────────────────
   var dragSrc = null;   // { traineeId, kw, jahr } | null
@@ -426,12 +431,14 @@ document.getElementById('cell-edit-dialog').addEventListener('click', function (
     htmx.ajax('GET', url, { target: '#cell-dialog-body', swap: 'innerHTML' });
   });
 
-  // Escape → Auswahl leeren
+  // Escape → Auswahl leeren (für alle Rollen); Copy/Paste nur wenn CAN_EDIT
   document.addEventListener('keydown', function (evt) {
     if (evt.key === 'Escape') {
       clearSelection();
       clearClipboard();
     }
+
+    if (!CAN_EDIT) return;
 
     // ── Strg+C ────────────────────────────────────────────────────
     if ((evt.ctrlKey || evt.metaKey) && evt.key === 'c') {
@@ -467,7 +474,9 @@ document.getElementById('cell-edit-dialog').addEventListener('click', function (
     }
   });
 
-  // ── Drag & Drop ─────────────────────────────────────────────────
+  // ── Drag & Drop (nur wenn CAN_EDIT) ───────────────────────────────
+  if (!CAN_EDIT) return;
+
   container.addEventListener('dragstart', function (evt) {
     var td = evt.target.closest('td[data-trainee][draggable="true"]');
     if (!td) return;

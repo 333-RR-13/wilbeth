@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 
 from app.database import get_session
 from app.models import Department, DepartmentKategorie
+from app.services.auth_service import CurrentUser, require_roles
 
 router = APIRouter(prefix="/abteilungen", tags=["abteilungen"])
 templates = Jinja2Templates(directory=Path(__file__).resolve().parents[1] / "templates")
@@ -34,6 +35,7 @@ def list_kategorien(request: Request, db: DB):
 def create_kategorie(
     db: DB,
     name: Annotated[str, Form()],
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
     name = name.strip()
     if name:
@@ -47,6 +49,7 @@ def update_kategorie(
     kat_id: int,
     db: DB,
     name: Annotated[str, Form()],
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
     kat = db.get(DepartmentKategorie, kat_id)
     if kat and name.strip():
@@ -56,7 +59,10 @@ def update_kategorie(
 
 
 @router.post("/kategorien/{kat_id}/loeschen", response_class=RedirectResponse)
-def delete_kategorie(kat_id: int, db: DB):
+def delete_kategorie(
+    kat_id: int, db: DB,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
+):
     kat = db.get(DepartmentKategorie, kat_id)
     if kat is None:
         return RedirectResponse("/abteilungen/kategorien?err=notfound", status_code=303)
@@ -103,6 +109,7 @@ def create_department(
     erlaubt_mehrfachbelegung: Annotated[str, Form()] = "",
     farbe: Annotated[str, Form()] = "#9CA3AF",
     verantwortliche: Annotated[str, Form()] = "",
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
     db.add(Department(
         code=code.strip().upper(),
@@ -137,6 +144,7 @@ def update_department(
     erlaubt_mehrfachbelegung: Annotated[str, Form()] = "",
     farbe: Annotated[str, Form()] = "#9CA3AF",
     verantwortliche: Annotated[str, Form()] = "",
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
     dept = db.get(Department, dept_id)
     dept.code = code.strip().upper()
@@ -152,7 +160,10 @@ def update_department(
 
 
 @router.delete("/{dept_id:int}")
-def delete_department(dept_id: int, db: DB):
+def delete_department(
+    dept_id: int, db: DB,
+    user: CurrentUser = Depends(require_roles("admin")),
+):
     dept = db.get(Department, dept_id)
     db.delete(dept)
     db.commit()

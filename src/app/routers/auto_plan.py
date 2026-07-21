@@ -16,6 +16,7 @@ from sqlmodel import Session, select
 
 from app.database import get_session
 from app.models import Department, Schoolyear, Trainee, TraineeClass
+from app.services.auth_service import CurrentUser, require_roles
 from app.services.auto_plan import apply_auto_plan, plan_assignments
 
 router = APIRouter(tags=["auto_plan"])
@@ -43,7 +44,10 @@ def _parse_auto_plan_params(request: Request) -> tuple[str, list[int], int]:
 
 
 @router.get("/auto-plan", response_class=HTMLResponse)
-def auto_plan_index(request: Request, db: DB):
+def auto_plan_index(
+    request: Request, db: DB,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
+):
     """Zeigt die Auto-Plan-Seite mit Lehrjahr-Auswahl, Azubi-Liste und Block-Länge."""
     schoolyear_id = request.query_params.get("schoolyear_id", "")
     msg = request.query_params.get("msg", "")
@@ -71,7 +75,10 @@ def auto_plan_index(request: Request, db: DB):
 
 
 @router.post("/auto-plan/preview", response_class=HTMLResponse)
-async def auto_plan_preview(request: Request, db: DB):
+async def auto_plan_preview(
+    request: Request, db: DB,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
+):
     """Berechnet Auto-Plan-Vorschlag und rendert das Vorschau-Partial.
 
     Kein DB-Write. Parameter: schoolyear_id, trainee_ids (mehrfach), block_length.
@@ -112,7 +119,10 @@ async def auto_plan_preview(request: Request, db: DB):
 
 
 @router.post("/auto-plan/apply", response_class=RedirectResponse)
-async def auto_plan_apply(request: Request, db: DB):
+async def auto_plan_apply(
+    request: Request, db: DB,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
+):
     """Berechnet Auto-Plan und schreibt ihn als Assignment(source=AUTO) in die DB.
 
     Danach PRG-Redirect auf /auto-plan mit ?msg=... .

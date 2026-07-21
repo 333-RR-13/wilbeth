@@ -2,6 +2,9 @@
 {% block title %}Einsätze{% endblock %}
 
 {% block content %}
+{% set cu = request.state.current_user if request.state is defined and request.state.current_user is defined else None %}
+{% set show_bulk = not (cu and cu.rolle == 'ausbilder') %}
+{% set total_cols = 8 if show_bulk else 7 %}
 <style>
   .bulk-bar {
     display: flex;
@@ -45,10 +48,12 @@
     <h1 class="page-title">Einsätze</h1>
     <p class="page-subtitle">{{ assignments | length }} Einträge</p>
   </div>
+  {% if show_bulk %}
   <a href="/einsaetze/neu" class="btn btn-primary">
     <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2Z"/></svg>
     Einsatz anlegen
   </a>
+  {% endif %}
 </div>
 
 <form class="filter-bar" method="get" action="/einsaetze/">
@@ -74,6 +79,7 @@
       method="post"
       action="/einsaetze/bulk-delete{% if selected_year or selected_trainee %}?{% if selected_year %}schoolyear_id={{ selected_year }}{% endif %}{% if selected_year and selected_trainee %}&{% endif %}{% if selected_trainee %}trainee_id={{ selected_trainee }}{% endif %}{% endif %}">
 
+  {% if show_bulk %}
   <div class="bulk-bar">
     <button type="button" id="btn-bulk-delete"
             class="btn-danger-outline"
@@ -82,14 +88,17 @@
     </button>
     <span class="bulk-count" id="bulk-count"></span>
   </div>
+  {% endif %}
 
   <div class="table-wrapper">
     <table>
       <thead>
         <tr>
+          {% if show_bulk %}
           <th class="cb-cell">
             <input type="checkbox" id="cb-all" title="Alle auswählen">
           </th>
+          {% endif %}
           <th>Trainee</th>
           <th>KW</th>
           <th>Jahr</th>
@@ -103,9 +112,11 @@
         {% for a in assignments %}
         {% set t = trainee_map.get(a.trainee_id) %}
         <tr id="row-a-{{ a.id }}" data-href="/einsaetze/{{ a.id }}/bearbeiten">
+          {% if show_bulk %}
           <td class="cb-cell">
             <input type="checkbox" class="row-cb" name="ids" value="{{ a.id }}">
           </td>
+          {% endif %}
           <td>{{ t.nachname ~ ', ' ~ t.vorname if t else '–' }}</td>
           <td><strong>KW {{ a.kw }}</strong></td>
           <td class="td-muted">{{ a.jahr }}</td>
@@ -138,6 +149,7 @@
           </td>
           <td class="td-actions">
             <a href="/einsaetze/{{ a.id }}/bearbeiten" class="btn btn-ghost btn-sm">Bearbeiten</a>
+            {% if show_bulk %}
             <button class="btn btn-ghost-danger btn-sm"
                     hx-delete="/einsaetze/{{ a.id }}"
                     hx-target="#row-a-{{ a.id }}"
@@ -145,16 +157,18 @@
                     hx-confirm="Einsatz KW {{ a.kw }}/{{ a.jahr }} wirklich löschen?">
               Löschen
             </button>
+            {% endif %}
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="8" class="empty-state">Keine Einträge gefunden.</td></tr>
+        <tr><td colspan="{{ total_cols }}" class="empty-state">Keine Einträge gefunden.</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 </form>
 
+{% if show_bulk %}
 <script>
 (function () {
   const cbAll = document.getElementById('cb-all');
@@ -201,4 +215,5 @@
   };
 })();
 </script>
+{% endif %}
 {% endblock %}

@@ -11,13 +11,16 @@ oder ist der Session-Inhalt kaputt/veraltet, wird None zurueckgegeben statt
 eine Exception hochzureichen.
 """
 
+import re
 import uuid
 from dataclasses import dataclass
 
+from fastapi import HTTPException, Request
 from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.config import settings
+from app.models.department import Department
 from app.models.trainee import Trainee
 
 SESSION_KEY = "wilbeth_user"
@@ -117,3 +120,43 @@ def ensure_share_token(db: Session, trainee_id: int) -> str | None:
         db.commit()
 
     return trainee.share_token
+
+
+def require_roles(*rollen: str):
+    """Dependency-Factory fuer rollenbasierten Routen-Schutz.
+
+    Nutzung: Depends(require_roles("orga", "admin")). Liest den in
+    app.main gesetzten request.state.current_user; fehlt er oder passt die
+    Rolle nicht zu den erlaubten rollen, wird ein 403 geworfen.
+    """
+
+    def _dep(request: Request) -> CurrentUser:
+        user = getattr(request.state, "current_user", None)
+        if user is None or user.rolle not in rollen:
+            raise HTTPException(status_code=403, detail="Keine Berechtigung")
+        return user
+
+    return _dep
+
+
+def allowed_dept_ids(db: Session, user: CurrentUser) -> set[int]:
+    """Ermittelt die Department-IDs, fuer die user als verantwortlich gelistet ist.
+
+    Department.verantwortliche ist eine per Komma/Semikolon/Newline getrennte
+    Liste von UPNs/E-Mails (siehe 0007bestaetigung). Der Vergleich ist
+    case-insensitive und whitespace-tolerant; ein leeres/None-Feld matcht nie.
+    """
+    normalized_upn = user.upn.strip().lower()
+    dept_ids: set[int] = set()
+
+    for department in db.exec(select(Department)).all():
+        if not department.verantwortliche:
+            continue
+        eintraege = [
+            eintrag.strip().lower()
+            for eintrag in re.split(r"[,;\n]", department.verantwortliche)
+        ]
+        if normalized_upn in eintraege:
+            dept_ids.add(department.id)
+
+    return dept_ids

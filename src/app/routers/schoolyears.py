@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 
 from app.database import get_session
 from app.models import Schoolyear
+from app.services.auth_service import CurrentUser, require_roles
 
 router = APIRouter(prefix="/lehrjahre", tags=["lehrjahre"])
 templates = Jinja2Templates(directory=Path(__file__).resolve().parents[1] / "templates")
@@ -37,6 +38,7 @@ def create_schoolyear(
     start_year: Annotated[int, Form()],
     end_kw: Annotated[int, Form()],
     end_year: Annotated[int, Form()],
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
     db.add(Schoolyear(
         id=id, start_kw=start_kw, start_year=start_year,
@@ -61,6 +63,7 @@ def update_schoolyear(
     start_year: Annotated[int, Form()],
     end_kw: Annotated[int, Form()],
     end_year: Annotated[int, Form()],
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
     year = db.get(Schoolyear, year_id)
     year.start_kw = start_kw
@@ -72,7 +75,10 @@ def update_schoolyear(
 
 
 @router.delete("/{year_id}")
-def delete_schoolyear(year_id: str, db: DB):
+def delete_schoolyear(
+    year_id: str, db: DB,
+    user: CurrentUser = Depends(require_roles("admin")),
+):
     year = db.get(Schoolyear, year_id)
     db.delete(year)
     db.commit()

@@ -1,7 +1,7 @@
 import urllib.parse
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
@@ -18,6 +18,7 @@ from app.models import (
     Schoolyear,
     Trainee,
 )
+from app.services.auth_service import CurrentUser, allowed_dept_ids, require_roles
 from app.services.conflict_checker import ConflictKind, describe_conflict, find_conflicts
 from app.services.dept_history import visited_department_ids
 from app.utils.colors import department_color_map
@@ -216,6 +217,7 @@ def new_assignment(request: Request, db: DB):
 def create_assignment(
     request: Request,
     db: DB,
+    user: Annotated[CurrentUser, Depends(require_roles("orga", "admin"))],
     trainee_id: Annotated[int, Form()],
     schoolyear_id: Annotated[str, Form()],
     kw: Annotated[int, Form()],
@@ -266,6 +268,7 @@ def create_assignment(
 @router.post("/confirm", response_class=RedirectResponse)
 def confirm_assignments(
     db: DB,
+    user: Annotated[CurrentUser, Depends(require_roles("orga", "admin"))],
     trainee_id: Annotated[int, Form()],
     schoolyear_id: Annotated[str, Form()],
     kw: Annotated[int, Form()],
@@ -318,6 +321,7 @@ def edit_assignment(request: Request, assignment_id: int, db: DB):
 def update_assignment(
     assignment_id: int,
     db: DB,
+    user: Annotated[CurrentUser, Depends(require_roles("orga", "admin"))],
     trainee_id: Annotated[int, Form()],
     schoolyear_id: Annotated[str, Form()],
     kw: Annotated[int, Form()],
@@ -340,7 +344,11 @@ def update_assignment(
 
 
 @router.delete("/{assignment_id:int}")
-def delete_assignment(assignment_id: int, db: DB):
+def delete_assignment(
+    assignment_id: int,
+    db: DB,
+    user: Annotated[CurrentUser, Depends(require_roles("orga", "admin"))],
+):
     a = db.get(Assignment, assignment_id)
     db.delete(a)
     db.commit()
@@ -353,6 +361,7 @@ def delete_assignment(assignment_id: int, db: DB):
 def bulk_delete_assignments(
     request: Request,
     db: DB,
+    user: Annotated[CurrentUser, Depends(require_roles("admin"))],
     ids: Annotated[list[int], Form()] = [],
 ):
     """Löscht alle übergebenen Assignment-IDs (nur existierende). PRG-Redirect zurück."""
@@ -410,6 +419,15 @@ def cell_edit(request: Request, db: DB):
     # Visited dept ids excluding the current cell so the warning reflects other stints
     visited_ids = visited_department_ids(db, trainee_id, exclude_kw=kw, exclude_jahr=jahr)
 
+    # Ausbilder-Sonderlogik: darf nur bestaetigen, wenn ein Einsatz existiert UND
+    # dessen Abteilung zu seinen verantworteten Abteilungen gehoert (siehe Punkt 3).
+    user = getattr(request.state, "current_user", None)
+    allowed = bool(
+        existing is not None
+        and user is not None
+        and existing.abteilung_id in allowed_dept_ids(db, user)
+    )
+
     return templates.TemplateResponse(request, "_partials/cell_form.html", {
         "trainee_id": trainee_id,
         "trainee_name": f"{trainee.nachname}, {trainee.vorname}" if trainee else "",
@@ -421,6 +439,7 @@ def cell_edit(request: Request, db: DB):
         "typen": list(AssignmentTyp),
         "cell_conflicts": cell_conflicts,
         "visited_dept_ids": list(visited_ids),
+        "allowed": allowed,
     })
 
 
@@ -436,9 +455,8 @@ def cell_save(
     abteilung_id: Annotated[str, Form()] = "",
     notiz: Annotated[str, Form()] = "",
     bestaetigung: Annotated[str, Form()] = "",
+    feedback: Annotated[str, Form()] = "",
 ):
-    _abt_id = int(abteilung_id) if typ == AssignmentTyp.ABTEILUNG and abteilung_id else None
-
     existing = db.exec(
         select(Assignment).where(
             Assignment.trainee_id == trainee_id,
@@ -447,6 +465,26 @@ def cell_save(
         )
     ).first()
 
+    user = getattr(request.state, "current_user", None)
+
+    if user is not None and user.rolle == "ausbilder":
+        # Ausbilder: kein Neuanlegen, kein Typ-/Abteilungs-/KW-Wechsel -- die dafuer
+        # eingehenden Formwerte werden schlicht ignoriert (existing bleibt sonst
+        # unangetastet). Nur erlaubt fuer bestehende Einsaetze der eigenen Abteilung(en).
+        if existing is None or existing.abteilung_id not in allowed_dept_ids(db, user):
+            raise HTTPException(status_code=403, detail="Keine Berechtigung")
+
+        if bestaetigung:
+            existing.bestaetigung = bestaetigung
+        existing.notiz = notiz
+        if feedback:
+            existing.feedback = feedback
+        db.commit()
+
+        return _render_cell_response(request, db, trainee_id, schoolyear_id, kw, jahr)
+
+    _abt_id = int(abteilung_id) if typ == AssignmentTyp.ABTEILUNG and abteilung_id else None
+
     if existing:
         existing.typ = typ
         existing.abteilung_id = _abt_id
@@ -454,6 +492,8 @@ def cell_save(
         existing.source = AssignmentSource.MANUAL
         if bestaetigung:
             existing.bestaetigung = bestaetigung
+        if feedback:
+            existing.feedback = feedback
     else:
         db.add(Assignment(
             trainee_id=trainee_id,
@@ -465,6 +505,7 @@ def cell_save(
             notiz=notiz,
             source=AssignmentSource.MANUAL,
             bestaetigung=bestaetigung or "offen",
+            feedback=feedback or None,
         ))
     db.commit()
 
@@ -475,6 +516,7 @@ def cell_save(
 def cell_delete(
     request: Request,
     db: DB,
+    user: Annotated[CurrentUser, Depends(require_roles("orga", "admin"))],
     assignment_id: Annotated[int, Form()],
     trainee_id: Annotated[int, Form()],
     schoolyear_id: Annotated[str, Form()],
@@ -494,6 +536,7 @@ def cell_delete(
 def copy_assignment(
     request: Request,
     db: DB,
+    user: Annotated[CurrentUser, Depends(require_roles("orga", "admin"))],
     src_trainee_id: Annotated[int, Form()],
     src_kw: Annotated[int, Form()],
     src_jahr: Annotated[int, Form()],
@@ -556,6 +599,7 @@ def copy_assignment(
 def copy_block(
     request: Request,
     db: DB,
+    user: Annotated[CurrentUser, Depends(require_roles("orga", "admin"))],
     src_trainee_id: Annotated[int, Form()],
     src_weeks: Annotated[str, Form()],          # "8:2026,9:2026,10:2026"
     dst_trainee_id: Annotated[int, Form()],

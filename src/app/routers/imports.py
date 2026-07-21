@@ -22,6 +22,7 @@ from sqlmodel import Session, select
 
 from app.database import get_session
 from app.models import SchoolPlan, Schoolyear
+from app.services.auth_service import CurrentUser, require_roles
 from app.services.importer import (
     apply_assignments,
     apply_school_weeks,
@@ -39,7 +40,10 @@ DB = Annotated[Session, Depends(get_session)]
 # ── Import-Einstiegsseite ─────────────────────────────────────────────────────
 
 @import_page_router.get("/import", response_class=HTMLResponse)
-def import_index(request: Request):
+def import_index(
+    request: Request,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
+):
     """Einstiegsseite für den Einsatz-Import (eigener Sidebar-Reiter)."""
     schoolyear_id = request.query_params.get("schoolyear_id", "")
     return templates.TemplateResponse(request, "imports/index.html", {
@@ -71,7 +75,10 @@ async def _read_text(
 # ── Schulplan-Import ──────────────────────────────────────────────────────────
 
 @router.get("/schulplan/{plan_id}/dialog", response_class=HTMLResponse)
-def schulplan_import_dialog(request: Request, plan_id: int, db: DB):
+def schulplan_import_dialog(
+    request: Request, plan_id: int, db: DB,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
+):
     plan = db.get(SchoolPlan, plan_id)
     return templates.TemplateResponse(request, "imports/_dialog.html", {
         "mode": "schulplan",
@@ -87,6 +94,7 @@ async def schulplan_import_preview(
     db: DB,
     raw_text: Annotated[str | None, Form()] = None,
     csv_file: UploadFile | None = None,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
     text = await _read_text(raw_text, csv_file)
     parse_result = parse_school_weeks(text)
@@ -108,6 +116,7 @@ async def schulplan_import_apply(
     db: DB,
     raw_text: Annotated[str | None, Form()] = None,
     csv_file: UploadFile | None = None,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
     text = await _read_text(raw_text, csv_file)
     parse_result = parse_school_weeks(text)
@@ -132,6 +141,7 @@ def einsaetze_import_dialog(
     request: Request,
     db: DB,
     schoolyear_id: str = "",
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
     years = db.exec(select(Schoolyear).order_by(Schoolyear.start_year.desc())).all()
     if not schoolyear_id and years:
@@ -154,6 +164,7 @@ async def einsaetze_import_preview(
     raw_text: Annotated[str | None, Form()] = None,
     csv_file: UploadFile | None = None,
     start_kw: Annotated[str | None, Form()] = None,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
     text = await _read_text(raw_text, csv_file)
     parsed_start_kw: int | None = None
@@ -177,6 +188,7 @@ async def einsaetze_import_apply(
     raw_text: Annotated[str | None, Form()] = None,
     csv_file: UploadFile | None = None,
     start_kw: Annotated[str | None, Form()] = None,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
     text = await _read_text(raw_text, csv_file)
     parsed_start_kw: int | None = None

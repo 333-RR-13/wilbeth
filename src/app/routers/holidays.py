@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 
 from app.database import get_session
 from app.models import SchoolHoliday, Schoolyear
+from app.services.auth_service import CurrentUser, require_roles
 from app.services.importer import apply_holidays, parse_holidays
 
 router = APIRouter(prefix="/schulferien", tags=["schulferien"])
@@ -44,6 +45,7 @@ def create_holiday(
     start_year: Annotated[int, Form()],
     end_kw: Annotated[int, Form()],
     end_year: Annotated[int, Form()],
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
     db.add(SchoolHoliday(
         schoolyear_id=schoolyear_id, name=name,
@@ -72,6 +74,7 @@ def update_holiday(
     start_year: Annotated[int, Form()],
     end_kw: Annotated[int, Form()],
     end_year: Annotated[int, Form()],
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
     h = db.get(SchoolHoliday, holiday_id)
     h.schoolyear_id = schoolyear_id
@@ -85,7 +88,10 @@ def update_holiday(
 
 
 @router.delete("/{holiday_id}")
-def delete_holiday(holiday_id: int, db: DB):
+def delete_holiday(
+    holiday_id: int, db: DB,
+    user: CurrentUser = Depends(require_roles("admin")),
+):
     h = db.get(SchoolHoliday, holiday_id)
     db.delete(h)
     db.commit()
@@ -120,6 +126,7 @@ async def holiday_import_preview(
     schoolyear_id: Annotated[str, Form()],
     raw_text: Annotated[str | None, Form()] = None,
     csv_file: UploadFile | None = None,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
     text = await _read_text(raw_text, csv_file)
     parse_result = parse_holidays(text)
@@ -140,6 +147,7 @@ async def holiday_import_apply(
     schoolyear_id: Annotated[str, Form()],
     raw_text: Annotated[str | None, Form()] = None,
     csv_file: UploadFile | None = None,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
     text = await _read_text(raw_text, csv_file)
     parse_result = parse_holidays(text)

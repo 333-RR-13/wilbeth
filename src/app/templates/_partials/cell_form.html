@@ -1,3 +1,6 @@
+{% set cu = request.state.current_user if request.state is defined and request.state.current_user is defined else None %}
+{% set is_ausbilder = cu and cu.rolle == 'ausbilder' %}
+
 <div class="dialog-header">
   <h2 class="dialog-title">KW {{ kw }}/{{ jahr }} – {{ trainee_name }}</h2>
   <button type="button" class="dialog-close" onclick="document.getElementById('cell-edit-dialog').close()" aria-label="Schließen">&#x2715;</button>
@@ -13,6 +16,70 @@
   {% endfor %}
 </div>
 {% endif %}
+
+{% if is_ausbilder %}
+  {% if allowed %}
+  <form hx-post="/einsaetze/cell-save"
+        hx-target="#cell-{{ trainee_id }}-{{ kw }}-{{ jahr }}"
+        hx-swap="outerHTML">
+    <input type="hidden" name="trainee_id" value="{{ trainee_id }}">
+    <input type="hidden" name="schoolyear_id" value="{{ schoolyear_id }}">
+    <input type="hidden" name="kw" value="{{ kw }}">
+    <input type="hidden" name="jahr" value="{{ jahr }}">
+    <input type="hidden" name="typ" value="{{ existing.typ.value }}">
+    <input type="hidden" name="abteilung_id" value="{{ existing.abteilung_id }}">
+
+    {% set existing_dept = (depts | selectattr('id', 'equalto', existing.abteilung_id) | first) if existing.abteilung_id else None %}
+
+    <div class="form-grid" style="gap: 14px; margin-bottom: 16px;">
+      <div class="form-group">
+        <label>Typ</label>
+        <div>Abteilung</div>
+      </div>
+
+      <div class="form-group">
+        <label>Abteilung</label>
+        <div>{{ (existing_dept.code ~ ' – ' ~ existing_dept.name) if existing_dept else '–' }}</div>
+      </div>
+
+      <div class="form-group" id="cell-bestaetigung-group">
+        <label for="cell-bestaetigung">Bestätigung</label>
+        {% set _current_bestaetigung = (existing.bestaetigung if existing.bestaetigung else 'offen') %}
+        <select id="cell-bestaetigung" name="bestaetigung">
+          <option value="offen" {{ 'selected' if _current_bestaetigung == 'offen' else '' }}>Offen</option>
+          <option value="bestaetigt" {{ 'selected' if _current_bestaetigung == 'bestaetigt' else '' }}>Bestätigt</option>
+          <option value="abgelehnt" {{ 'selected' if _current_bestaetigung == 'abgelehnt' else '' }}>Abgelehnt</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="cell-notiz">Notiz</label>
+        <input type="text" id="cell-notiz" name="notiz"
+               value="{{ existing.notiz if existing else '' }}"
+               placeholder="z. B. Urlaub genehmigt am …">
+      </div>
+
+      <div class="form-group">
+        <label for="cell-feedback">Feedback zum Einsatz</label>
+        <textarea id="cell-feedback" name="feedback" rows="2"
+                  placeholder="Feedback zum Einsatz…">{{ existing.feedback if existing and existing.feedback else '' }}</textarea>
+      </div>
+    </div>
+
+    <div class="form-actions" style="padding-top: 0; border-top: none; margin-top: 0;">
+      <button type="submit" class="btn btn-primary btn-sm">Speichern</button>
+      <button type="button" class="btn btn-secondary btn-sm"
+              onclick="document.getElementById('cell-edit-dialog').close()">Abbrechen</button>
+    </div>
+  </form>
+  {% else %}
+  <p class="cell-conflict-why">Nur die verantwortlichen Ausbilder dieser Abteilung können bestätigen.</p>
+  <div class="form-actions" style="padding-top: 0; border-top: none; margin-top: 0;">
+    <button type="button" class="btn btn-secondary btn-sm"
+            onclick="document.getElementById('cell-edit-dialog').close()">Schließen</button>
+  </div>
+  {% endif %}
+{% else %}
 
 <form hx-post="/einsaetze/cell-save"
       hx-target="#cell-{{ trainee_id }}-{{ kw }}-{{ jahr }}"
@@ -71,6 +138,12 @@
              value="{{ existing.notiz if existing else '' }}"
              placeholder="z. B. Urlaub genehmigt am …">
     </div>
+
+    <div class="form-group" id="cell-feedback-group">
+      <label for="cell-feedback">Feedback zum Einsatz</label>
+      <textarea id="cell-feedback" name="feedback" rows="2"
+                placeholder="Feedback zum Einsatz…">{{ existing.feedback if existing and existing.feedback else '' }}</textarea>
+    </div>
   </div>
 
   <div class="form-actions" style="padding-top: 0; border-top: none; margin-top: 0;">
@@ -103,6 +176,8 @@
     document.getElementById('cell-abt-group').style.display = isAbt ? '' : 'none';
     var bestGroup = document.getElementById('cell-bestaetigung-group');
     if (bestGroup) bestGroup.style.display = isAbt ? '' : 'none';
+    var fbGroup = document.getElementById('cell-feedback-group');
+    if (fbGroup) fbGroup.style.display = isAbt ? '' : 'none';
     checkRepeatDept(document.getElementById('cell-abt'));
   }
 
@@ -119,3 +194,5 @@
   syncCellAbt(document.getElementById('cell-typ'));
 })();
 </script>
+
+{% endif %}

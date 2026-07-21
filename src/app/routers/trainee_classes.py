@@ -9,6 +9,7 @@ from sqlmodel import Session, select
 from app.database import get_session
 from app.models import Schoolyear, Trainee, TraineeClass, UnterrichtsTyp
 from app.models.trainee_class_membership import TraineeClassMembership
+from app.services.auth_service import CurrentUser, require_roles
 from app.services.membership_utils import beruf_langname, beruf_und_lehrjahr, upsert_membership
 from app.services.school_sync import sync_trainee
 from app.utils.kw import WEEKDAY_LABELS, format_weekdays, parse_weekdays
@@ -91,6 +92,7 @@ def create_class(
     wochentag: Annotated[list[str], Form()] = [],
     halbtag_wochentag: Annotated[str, Form()] = "",
     next_class_id: Annotated[str, Form()] = "",
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
     schul_wochentage, halbtag = _weekday_fields(unterrichts_typ, wochentag, halbtag_wochentag)
     db.add(TraineeClass(
@@ -149,6 +151,7 @@ def update_class(
     next_class_id: Annotated[str, Form()] = "",
     membership_year_id: Annotated[str, Form()] = "",
     mitglied: Annotated[list[str], Form()] = [],
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
     schul_wochentage, halbtag = _weekday_fields(unterrichts_typ, wochentag, halbtag_wochentag)
     cls = db.get(TraineeClass, class_id)
@@ -215,7 +218,10 @@ def update_class(
 
 
 @router.delete("/{class_id:int}")
-def delete_class(class_id: int, db: DB):
+def delete_class(
+    class_id: int, db: DB,
+    user: CurrentUser = Depends(require_roles("admin")),
+):
     cls = db.get(TraineeClass, class_id)
     db.delete(cls)
     db.commit()

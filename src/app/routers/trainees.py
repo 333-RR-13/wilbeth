@@ -20,6 +20,7 @@ from app.models import (
     TraineeWish,
 )
 from app.models.trainee_wish import prioritaet_label
+from app.services.auth_service import CurrentUser, require_roles
 from app.services.conflict_checker import find_conflicts
 from app.services.membership_utils import beruf_langname, beruf_und_lehrjahr, klasse_fuer, semester_label, upsert_membership
 from app.services.school_sync import sync_trainee
@@ -65,7 +66,10 @@ def upn_pflege(request: Request, db: DB):
 
 
 @router.post("/upn-pflege", response_class=RedirectResponse)
-async def upn_pflege_speichern(request: Request, db: DB):
+async def upn_pflege_speichern(
+    request: Request, db: DB,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
+):
     """Speichert die je Zeile eingetragenen UPN-Werte fuer alle aktiven Trainees."""
     form = await request.form()
     trainees = db.exec(
@@ -113,6 +117,7 @@ def create_trainee(
     aktiv: Annotated[str, Form()] = "",
     ausbildungsbeginn: Annotated[str, Form()] = "",
     upn: Annotated[str, Form()] = "",
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
     # klasse_id IST die Einstiegsklasse (Anker)
     klasse_id_int = int(klasse_id) if klasse_id else None
@@ -207,7 +212,10 @@ def trainee_detail(request: Request, trainee_id: int, db: DB):
 
 
 @router.post("/{trainee_id:int}/share-token", response_class=RedirectResponse)
-def generate_share_token(trainee_id: int, db: DB):
+def generate_share_token(
+    trainee_id: int, db: DB,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
+):
     t = db.get(Trainee, trainee_id)
     t.share_token = str(uuid.uuid4())
     db.commit()
@@ -215,7 +223,10 @@ def generate_share_token(trainee_id: int, db: DB):
 
 
 @router.post("/{trainee_id:int}/share-token/deaktivieren", response_class=RedirectResponse)
-def revoke_share_token(trainee_id: int, db: DB):
+def revoke_share_token(
+    trainee_id: int, db: DB,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
+):
     t = db.get(Trainee, trainee_id)
     t.share_token = None
     db.commit()
@@ -269,6 +280,7 @@ def update_trainee(
     aktiv: Annotated[str, Form()] = "",
     ausbildungsbeginn: Annotated[str, Form()] = "",
     upn: Annotated[str, Form()] = "",
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
     from datetime import date as _date
     t = db.get(Trainee, trainee_id)
@@ -300,7 +312,10 @@ def update_trainee(
 
 
 @router.post("/{trainee_id:int}/reaktivieren", response_class=RedirectResponse)
-def reaktivieren_trainee(trainee_id: int, db: DB):
+def reaktivieren_trainee(
+    trainee_id: int, db: DB,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
+):
     """Archivierter Azubi wird reaktiviert (aktiv=True)."""
     t = db.get(Trainee, trainee_id)
     t.aktiv = True
@@ -310,7 +325,10 @@ def reaktivieren_trainee(trainee_id: int, db: DB):
 
 
 @router.post("/{trainee_id:int}/loeschen", response_class=RedirectResponse)
-def loeschen_trainee(trainee_id: int, db: DB):
+def loeschen_trainee(
+    trainee_id: int, db: DB,
+    user: CurrentUser = Depends(require_roles("admin")),
+):
     """Endgueltiges Loeschen eines Trainees inkl. aller abhaengigen Zeilen.
 
     Explizites Vorab-Loeschen von Assignment, TraineeWish, TraineeClassMembership
@@ -345,7 +363,10 @@ def loeschen_trainee(trainee_id: int, db: DB):
 
 
 @router.delete("/{trainee_id:int}")
-def delete_trainee(trainee_id: int, db: DB):
+def delete_trainee(
+    trainee_id: int, db: DB,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
+):
     """HTMX-kompatibler DELETE-Endpoint fuer die Aktiv-Liste (direkte Aktion ohne Archiv)."""
     # Abhaengige Zeilen explizit loeschen
     for a in db.exec(select(Assignment).where(Assignment.trainee_id == trainee_id)).all():

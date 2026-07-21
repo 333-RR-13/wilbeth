@@ -1,10 +1,19 @@
-"""Tests fuer app.services.auth_service: resolve_role() + ensure_share_token()."""
+"""Tests fuer app.services.auth_service: resolve_role(), ensure_share_token(),
+require_roles() und allowed_dept_ids()."""
 
+import pytest
+from fastapi import HTTPException
 from sqlmodel import Session
 
 from app.config import settings
-from app.models import Trainee, TraineeRolle
-from app.services.auth_service import ensure_share_token, resolve_role
+from app.models import Department, Trainee, TraineeRolle
+from app.services.auth_service import (
+    CurrentUser,
+    allowed_dept_ids,
+    ensure_share_token,
+    require_roles,
+    resolve_role,
+)
 
 
 def _reset_groups(monkeypatch):
@@ -128,3 +137,83 @@ def test_ensure_share_token_keeps_existing(session: Session):
     token = ensure_share_token(session, trainee.id)
 
     assert token == "existing-token-123"
+
+
+# ── require_roles ────────────────────────────────────────────────────────────
+
+class _FakeState:
+    """Leerer Platzhalter fuer request.state (kein current_user-Attribut)."""
+
+
+class _FakeRequest:
+    """Minimaler Request-Stand-in: nur request.state.current_user wird genutzt."""
+
+    def __init__(self, current_user=None):
+        self.state = _FakeState()
+        if current_user is not None:
+            self.state.current_user = current_user
+
+
+def test_require_roles_allowed_role_passes():
+    user = CurrentUser(upn="orga@firma.de", name="Orga", rolle="orga")
+    dep = require_roles("orga", "admin")
+
+    result = dep(_FakeRequest(current_user=user))
+
+    assert result is user
+
+
+def test_require_roles_foreign_role_raises_403():
+    user = CurrentUser(upn="azubi@firma.de", name="Azubi", rolle="azubi")
+    dep = require_roles("orga", "admin")
+
+    with pytest.raises(HTTPException) as exc_info:
+        dep(_FakeRequest(current_user=user))
+
+    assert exc_info.value.status_code == 403
+
+
+def test_require_roles_missing_current_user_raises_403():
+    dep = require_roles("orga", "admin")
+
+    with pytest.raises(HTTPException) as exc_info:
+        dep(_FakeRequest())
+
+    assert exc_info.value.status_code == 403
+
+
+# ── allowed_dept_ids ─────────────────────────────────────────────────────────
+
+def test_allowed_dept_ids_matches_case_insensitive_across_separators(session: Session):
+    dept_comma = Department(
+        code="D1", name="Dept Comma",
+        verantwortliche="Anna.Azubi@Firma.de, other@firma.de",
+    )
+    dept_semicolon_newline = Department(
+        code="D2", name="Dept Semi/Newline",
+        verantwortliche="foo@firma.de;ANNA.AZUBI@FIRMA.DE\nbar@firma.de",
+    )
+    dept_no_match = Department(
+        code="D3", name="Dept No Match",
+        verantwortliche="jemand-anders@firma.de",
+    )
+    session.add_all([dept_comma, dept_semicolon_newline, dept_no_match])
+    session.commit()
+
+    user = CurrentUser(upn="  ANNA.AZUBI@FIRMA.DE  ", name="Anna", rolle="ausbilder")
+
+    result = allowed_dept_ids(session, user)
+
+    assert result == {dept_comma.id, dept_semicolon_newline.id}
+
+
+def test_allowed_dept_ids_empty_field_never_matches(session: Session):
+    dept_empty = Department(code="D4", name="Dept Empty", verantwortliche="")
+    session.add(dept_empty)
+    session.commit()
+
+    user = CurrentUser(upn="anna.azubi@firma.de", name="Anna", rolle="ausbilder")
+
+    result = allowed_dept_ids(session, user)
+
+    assert result == set()

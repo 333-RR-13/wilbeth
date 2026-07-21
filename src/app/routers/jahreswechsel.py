@@ -22,6 +22,7 @@ from sqlmodel import Session, select
 
 from app.database import get_session
 from app.models import Schoolyear, Trainee, TraineeClass, TraineeRolle
+from app.services.auth_service import CurrentUser, require_roles
 from app.services.membership_utils import klasse_fuer, next_class_for, upsert_membership
 
 router = APIRouter(prefix="/jahresabschluss", tags=["jahresabschluss"])
@@ -126,13 +127,20 @@ def _trainee_vorschau(
 
 
 @router.get("/", response_class=HTMLResponse)
-def jahresabschluss_form(request: Request, db: DB):
+def jahresabschluss_form(
+    request: Request, db: DB,
+    user: CurrentUser = Depends(require_roles("admin")),
+):
+    # order start_year ASC (nicht DESC): man schliesst chronologisch ab, also
+    # ist ohne expliziten ?schoolyear_id-Parameter das AELTESTE nicht-archivierte
+    # Jahr die richtige Vorauswahl (years[0] nach diesem Sortieren).
     years = db.exec(
         select(Schoolyear)
         .where(Schoolyear.archiviert == False)  # noqa: E712
-        .order_by(Schoolyear.start_year.desc())
+        .order_by(Schoolyear.start_year.asc())
     ).all()
-    selected_year_id = request.query_params.get("schoolyear_id", "")
+    default_year_id = years[0].id if years else ""
+    selected_year_id = request.query_params.get("schoolyear_id", default_year_id)
 
     absolventen: list[dict] = []
     trainee_rows: list[dict] = []
@@ -164,6 +172,7 @@ def jahresabschluss_form(request: Request, db: DB):
 async def jahresabschluss_abschliessen(
     request: Request,
     db: DB,
+    user: CurrentUser = Depends(require_roles("admin")),
 ):
     form = await request.form()
     schoolyear_id = form.get("schoolyear_id", "")
