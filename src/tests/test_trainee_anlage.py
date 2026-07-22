@@ -9,6 +9,8 @@ abgeleitete Einstiegsklasse, Sonderfall-Override.
 (f) Edit-Formular ist mit Beruf vorbelegt; Sonderfall vor-angehakt+aufgeklappt
     wenn die aktuelle Einstiegsklasse existiert und ihr LJ != 1 ist.
 """
+from datetime import date
+
 from sqlmodel import Session, select
 
 from app.models import Trainee, TraineeClass, TraineeRolle, UnterrichtsTyp
@@ -192,3 +194,54 @@ def test_edit_form_kein_sonderfall_bei_1lj(client, session: Session):
     checkbox_tag = r.text.split('id="sonderfall"')[1].split(">")[0]
     assert "checked" not in checkbox_tag
     assert "display:none;" in r.text.split("sonderfall-klasse-block")[1].split(">")[0]
+
+
+# ── (g) Trainee-Liste zeigt die BERECHNETE Klasse (nicht den rohen Anker) ─────
+
+def test_liste_zeigt_berechnete_klasse(client, session: Session):
+    """Anker Beginn 2024 + Einstieg 'FISI 1. LJ' -> Liste zeigt die fuers
+    laufende Jahr (2025-2026) berechnete Klasse 'FISI 2. LJ'."""
+    from app.models import Schoolyear
+
+    session.add(Schoolyear(id="2025-2026", start_kw=36, start_year=2025, end_kw=35, end_year=2026))
+    k1 = _add_class(session, "FISI 1. LJ")
+    _add_class(session, "FISI 2. LJ")
+    _add_class(session, "FISI 3. LJ")
+
+    t = Trainee(
+        vorname="Robin", nachname="Rechnet", rolle=TraineeRolle.AZUBI,
+        klasse_id=k1.id, ausbildungsbeginn=date(2024, 9, 1),
+    )
+    session.add(t)
+    session.commit()
+
+    r = client.get("/trainees/")
+    assert r.status_code == 200
+    zeile = r.text.split("Rechnet")[1].split("</tr>")[0]
+    assert "FISI 2. LJ" in zeile, "Liste muss die berechnete Klasse zeigen"
+    # Anker steht als Tooltip drin (Transparenz bei falschen Anker-Daten)
+    assert "Einstieg: FISI 1. LJ" in zeile
+
+
+def test_liste_doppelt_gezaehlter_anker_wird_sichtbar(client, session: Session):
+    """Fehlerhafte Daten (Beginn 2024 + Einstieg schon '2. LJ') zeigen in der
+    Liste die berechnete '3. LJ' - konsistent mit dem Jahresabschluss, statt
+    den Fehler mit dem rohen Anker zu verstecken."""
+    from app.models import Schoolyear
+
+    session.add(Schoolyear(id="2025-2026", start_kw=36, start_year=2025, end_kw=35, end_year=2026))
+    _add_class(session, "FISI 1. LJ")
+    k2 = _add_class(session, "FISI 2. LJ")
+    _add_class(session, "FISI 3. LJ")
+
+    t = Trainee(
+        vorname="Doppelt", nachname="Gezaehlt", rolle=TraineeRolle.AZUBI,
+        klasse_id=k2.id, ausbildungsbeginn=date(2024, 9, 1),
+    )
+    session.add(t)
+    session.commit()
+
+    r = client.get("/trainees/")
+    assert r.status_code == 200
+    zeile = r.text.split("Gezaehlt")[1].split("</tr>")[0]
+    assert "FISI 3. LJ" in zeile

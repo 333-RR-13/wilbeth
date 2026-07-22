@@ -34,6 +34,7 @@ from app.services.membership_utils import (
 )
 from app.services.school_sync import sync_trainee
 from app.utils.colors import department_color_map
+from app.utils.kw import iter_schoolyear_weeks
 
 router = APIRouter(prefix="/trainees", tags=["trainees"])
 templates = Jinja2Templates(directory=Path(__file__).resolve().parents[1] / "templates")
@@ -78,6 +79,23 @@ def _resolve_einstiegsklasse_id(
     return klasse.id, None
 
 
+def _aktuelles_schuljahr_id(db: Session) -> str:
+    """Nicht-archiviertes Schuljahr, in dem HEUTE liegt; Fallback: neuestes."""
+    years = db.exec(
+        select(Schoolyear)
+        .where(Schoolyear.archiviert == False)  # noqa: E712
+        .order_by(Schoolyear.start_year.desc())
+    ).all()
+    if not years:
+        return ""
+    iso = date.today().isocalendar()
+    today_key = (iso[1], iso[0])
+    for y in years:
+        if today_key in iter_schoolyear_weeks(y.start_kw, y.start_year, y.end_kw, y.end_year):
+            return y.id
+    return years[0].id
+
+
 @router.get("/", response_class=HTMLResponse)
 def list_trainees(request: Request, db: DB, status: str = "aktiv"):
     """Liste der Trainees mit Status-Filter: aktiv | archiviert | alle."""
@@ -89,9 +107,21 @@ def list_trainees(request: Request, db: DB, status: str = "aktiv"):
     # status == "alle": kein Filter
     trainees = db.exec(q).all()
     classes = {c.id: c for c in db.exec(select(TraineeClass)).all()}
+
+    # BERECHNETE Klasse fuers laufende Jahr anzeigen (konsistent mit Uebersicht
+    # und Jahresabschluss) - die rohe Einstiegsklasse ist nur der Anker und
+    # wuerde falsche Anker-Daten verstecken.
+    anzeige_jahr = _aktuelles_schuljahr_id(db)
+    klasse_map: dict[int, TraineeClass | None] = {}
+    for t in trainees:
+        kid = klasse_fuer(db, t, anzeige_jahr) if anzeige_jahr else t.klasse_id
+        klasse_map[t.id] = classes.get(kid) if kid else None
+
     return templates.TemplateResponse(request, "trainees/list.html", {
         "trainees": trainees,
         "classes": classes,
+        "klasse_map": klasse_map,
+        "anzeige_jahr": anzeige_jahr,
         "active_nav": "trainees",
         "status": status,
     })

@@ -42,7 +42,7 @@
     <thead>
       <tr>
         <th>Name</th>
-        <th>Klasse</th>
+        <th>Klasse{% if anzeige_jahr %} ({{ anzeige_jahr }}){% endif %}</th>
         <th>Rolle</th>
         <th>Status</th>
         <th></th>
@@ -53,8 +53,12 @@
       <tr id="row-t-{{ t.id }}" data-href="/trainees/{{ t.id }}">
         <td><a href="/trainees/{{ t.id }}" class="trainee-name-link"><strong>{{ t.nachname }}, {{ t.vorname }}</strong></a></td>
         <td class="td-muted">
-          {% if t.klasse_id and t.klasse_id in classes %}
-            {{ classes[t.klasse_id].name }}
+          {% set berechnete = klasse_map.get(t.id) %}
+          {% if berechnete %}
+            <span title="Einstieg: {{ classes[t.klasse_id].name if t.klasse_id and t.klasse_id in classes else '–' }}{% if t.ausbildungsbeginn %} · Beginn: {{ t.ausbildungsbeginn.strftime('%d.%m.%Y') }}{% endif %}">{{ berechnete.name }}</span>
+          {% elif t.klasse_id and t.klasse_id in classes %}
+            {# Anker vorhanden, aber berechnet keine Klasse (Absolvent / vor Beginn) #}
+            <span class="text-muted" title="Einstieg: {{ classes[t.klasse_id].name }}{% if t.ausbildungsbeginn %} · Beginn: {{ t.ausbildungsbeginn.strftime('%d.%m.%Y') }}{% endif %}">– (Abschluss/vor Beginn)</span>
           {% else %}
             <span class="text-muted">–</span>
           {% endif %}
