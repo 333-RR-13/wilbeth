@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Export / Import{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Export / Import</h1>
+    <p class="page-subtitle">Alle Stamm- und Bewegungsdaten sichern oder komplett ersetzen</p>
+  </div>
+</div>
+
+<div class="card" style="max-width:640px">
+  <div class="card-body">
+    <h2 style="margin-bottom:.5rem">Export</h2>
+    <p style="margin-bottom:1rem">
+      Lädt ein ZIP mit einer CSV-Datei je Tabelle herunter: Ausbildungsjahre, Klassen,
+      Abteilungskategorien, Abteilungen, Trainees, Schulpläne (inkl. Wochen), Schulferien,
+      Einsätze, Klassen-Mitgliedschaften, Wünsche und Einsatz-Vorschläge.
+    </p>
+    <a href="/daten/export" class="btn btn-secondary">ZIP herunterladen</a>
+  </div>
+</div>
+
+<div class="card" style="max-width:640px; margin-top:1.5rem">
+  <div class="card-body">
+    <h2 style="margin-bottom:.5rem">Import (Ersetzen)</h2>
+    <p style="margin-bottom:1rem; color:#b91c1c">
+      <strong>Achtung:</strong> Der Import ERSETZT alle vorhandenen Daten vollständig
+      durch den Inhalt der hochgeladenen ZIP-Datei. Es gibt kein Zurück, außer über
+      ein zuvor erstelltes Export-ZIP.
+    </p>
+    <form method="post" action="/daten/import" enctype="multipart/form-data">
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="zip_datei">ZIP-Datei <span class="required">*</span></label>
+          <input type="file" id="zip_datei" name="zip_datei" accept=".zip" required>
+        </div>
+        <div class="form-group">
+          <label class="form-check">
+            <input type="checkbox" name="bestaetigt" value="1" required>
+            Mir ist klar, dass ALLE vorhandenen Daten ersetzt werden
+          </label>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-danger">Importieren (ersetzen)</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

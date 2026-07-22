@@ -71,6 +71,7 @@ def test_detail_steckbrief_leer_zeigt_platzhalter(client, session: Session):
 
 def test_create_speichert_steckbrief(client, session: Session):
     """POST /trainees/ speichert das Steckbrief-Feld."""
+    _add_class(session, "FISI 1. LJ")
     r = client.post(
         "/trainees/",
         data={
@@ -79,6 +80,8 @@ def test_create_speichert_steckbrief(client, session: Session):
             "rolle": "AZUBI",
             "steckbrief": "Liebt Backend-Entwicklung.",
             "aktiv": "1",
+            "ausbildungsbeginn": "2025-09-01",
+            "beruf": "FISI",
         },
         follow_redirects=False,
     )
@@ -91,6 +94,7 @@ def test_create_speichert_steckbrief(client, session: Session):
 
 def test_update_speichert_steckbrief(client, session: Session):
     """POST /trainees/{id} aktualisiert das Steckbrief-Feld."""
+    _add_class(session, "FISI 1. LJ")
     t = Trainee(vorname="Udo", nachname="Update", rolle=TraineeRolle.AZUBI, steckbrief="alt")
     session.add(t)
     session.commit()
@@ -104,6 +108,8 @@ def test_update_speichert_steckbrief(client, session: Session):
             "rolle": "AZUBI",
             "steckbrief": "neuer Steckbrief-Text",
             "aktiv": "1",
+            "ausbildungsbeginn": "2025-09-01",
+            "beruf": "FISI",
         },
         follow_redirects=False,
     )

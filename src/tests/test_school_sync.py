@@ -252,7 +252,9 @@ def test_create_trainee_route_triggers_auto_assignment(client, session: Session)
             "vorname": "Felix",
             "nachname": "Fisch",
             "rolle": "AZUBI",
+            "sonderfall": "1",
             "klasse_id": str(klasse.id),
+            "ausbildungsbeginn": "2025-09-01",
         },
         follow_redirects=False,
     )

@@ -142,6 +142,14 @@
         </svg>
         Trainees
       </a>
+      {% if cu and cu.rolle == "admin" %}
+      <a href="/daten/" class="nav-link {% if active_nav == 'daten' %}active{% endif %}">
+        <svg viewBox="0 0 16 16" fill="currentColor">
+          <path d="M8 1v8.5l-3-3-.7.7L8 11l3.7-3.8-.7-.7-3 3V1H8zM2 13h12v2H2z"/>
+        </svg>
+        Export / Import
+      </a>
+      {% endif %}
     </nav>
 
     <div class="sidebar-footer">

@@ -13,6 +13,7 @@ from app.routers import (
     auto_plan,
     auth,
     ausbilder,
+    datenexport,
     departments,
     holidays,
     imports,
@@ -111,6 +112,7 @@ app.include_router(share.router)
 app.include_router(about.router)
 app.include_router(ausbilder.router)
 app.include_router(vorschlaege.router)
+app.include_router(datenexport.router)
 
 
 @app.on_event("startup")

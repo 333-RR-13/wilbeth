@@ -1,3 +1,4 @@
+import urllib.parse
 import uuid
 from datetime import date
 from typing import Annotated
@@ -22,7 +23,15 @@ from app.models import (
 from app.models.trainee_wish import prioritaet_label
 from app.services.auth_service import CurrentUser, require_roles
 from app.services.conflict_checker import find_conflicts
-from app.services.membership_utils import beruf_langname, beruf_und_lehrjahr, klasse_fuer, semester_label, upsert_membership
+from app.services.membership_utils import (
+    beruf_langname,
+    beruf_optionen,
+    beruf_und_lehrjahr,
+    einstiegsklasse_fuer_beruf,
+    klasse_fuer,
+    semester_label,
+    upsert_membership,
+)
 from app.services.school_sync import sync_trainee
 from app.utils.colors import department_color_map
 
@@ -30,6 +39,43 @@ router = APIRouter(prefix="/trainees", tags=["trainees"])
 templates = Jinja2Templates(directory=Path(__file__).resolve().parents[1] / "templates")
 templates.env.globals["prioritaet_label"] = prioritaet_label
 DB = Annotated[Session, Depends(get_session)]
+
+
+def _parse_ausbildungsbeginn(raw: str) -> tuple[date | None, str | None]:
+    """Parst das Pflichtfeld Ausbildungsbeginn.
+
+    Rueckgabe (wert, fehlertext); bei Erfolg ist fehlertext None.
+    """
+    if not raw:
+        return None, "Ausbildungsbeginn ist Pflicht"
+    try:
+        return date.fromisoformat(raw), None
+    except ValueError:
+        return None, "Ausbildungsbeginn ist ungueltig"
+
+
+def _resolve_einstiegsklasse_id(
+    db: Session, sonderfall: str, klasse_id: str, beruf: str,
+) -> tuple[int | None, str | None]:
+    """Ermittelt die Einstiegsklasse (Anker) aus Sonderfall- oder Beruf-Eingabe.
+
+    Sonderfall gesetzt -> klasse_id ist Pflicht (direkte Klassenwahl).
+    Sonst -> beruf ist Pflicht; die Einstiegsklasse wird ueber
+    einstiegsklasse_fuer_beruf() abgeleitet ("<Beruf> 1. LJ" bzw. DH-Kohorte).
+
+    Rueckgabe (klasse_id, fehlertext); bei Erfolg ist fehlertext None.
+    """
+    if sonderfall:
+        if not klasse_id:
+            return None, "Bei Sonderfall ist eine Klasse Pflicht"
+        return int(klasse_id), None
+    if not beruf:
+        return None, "Ausbildungsberuf ist Pflicht"
+    all_classes = list(db.exec(select(TraineeClass)).all())
+    klasse = einstiegsklasse_fuer_beruf(all_classes, beruf)
+    if klasse is None:
+        return None, f"Keine Klasse '{beruf} 1. LJ' vorhanden"
+    return klasse.id, None
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -99,6 +145,9 @@ def new_trainee(request: Request, db: DB):
         "years": years,
         "selected_year_id": default_year_id,
         "memberships": {},
+        "beruf_optionen": beruf_optionen(classes),
+        "beruf_selected": "",
+        "sonderfall_checked": False,
         "active_nav": "trainees",
     })
 
@@ -110,6 +159,8 @@ def create_trainee(
     nachname: Annotated[str, Form()],
     rolle: Annotated[TraineeRolle, Form()],
     klasse_id: Annotated[str, Form()] = "",
+    beruf: Annotated[str, Form()] = "",
+    sonderfall: Annotated[str, Form()] = "",
     membership_year_id: Annotated[str, Form()] = "",
     membership_klasse_id: Annotated[str, Form()] = "",
     notizen: Annotated[str, Form()] = "",
@@ -119,15 +170,18 @@ def create_trainee(
     upn: Annotated[str, Form()] = "",
     user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
-    # klasse_id IST die Einstiegsklasse (Anker)
-    klasse_id_int = int(klasse_id) if klasse_id else None
-    from datetime import date as _date
-    ausbildungsbeginn_parsed: _date | None = None
-    if ausbildungsbeginn:
-        try:
-            ausbildungsbeginn_parsed = _date.fromisoformat(ausbildungsbeginn)
-        except ValueError:
-            ausbildungsbeginn_parsed = None
+    ausbildungsbeginn_parsed, err = _parse_ausbildungsbeginn(ausbildungsbeginn)
+    if err:
+        return RedirectResponse(
+            f"/trainees/neu?msg=error&detail={urllib.parse.quote(err)}", status_code=303
+        )
+
+    klasse_id_int, err = _resolve_einstiegsklasse_id(db, sonderfall, klasse_id, beruf)
+    if err:
+        return RedirectResponse(
+            f"/trainees/neu?msg=error&detail={urllib.parse.quote(err)}", status_code=303
+        )
+
     t = Trainee(
         vorname=vorname,
         nachname=nachname,
@@ -255,6 +309,17 @@ def edit_trainee(request: Request, trainee_id: int, db: DB):
     # Klasse als Default vorwaehlen
     if selected_year_id and selected_year_id not in memberships and trainee.klasse_id:
         memberships[selected_year_id] = trainee.klasse_id
+
+    # Beruf-Vorbelegung + Sonderfall-Erkennung aus der aktuellen Einstiegsklasse
+    beruf_selected = ""
+    sonderfall_checked = False
+    if trainee.klasse_id:
+        aktuelle_klasse = next((c for c in classes if c.id == trainee.klasse_id), None)
+        if aktuelle_klasse is not None:
+            token, lehrjahr = beruf_und_lehrjahr(aktuelle_klasse.name)
+            beruf_selected = token
+            sonderfall_checked = lehrjahr != 1
+
     return templates.TemplateResponse(request, "trainees/form.html", {
         "trainee": trainee,
         "classes": classes,
@@ -262,6 +327,9 @@ def edit_trainee(request: Request, trainee_id: int, db: DB):
         "years": years,
         "selected_year_id": selected_year_id,
         "memberships": memberships,
+        "beruf_optionen": beruf_optionen(classes),
+        "beruf_selected": beruf_selected,
+        "sonderfall_checked": sonderfall_checked,
         "active_nav": "trainees",
     })
 
@@ -273,6 +341,8 @@ def update_trainee(
     nachname: Annotated[str, Form()],
     rolle: Annotated[TraineeRolle, Form()],
     klasse_id: Annotated[str, Form()] = "",
+    beruf: Annotated[str, Form()] = "",
+    sonderfall: Annotated[str, Form()] = "",
     membership_year_id: Annotated[str, Form()] = "",
     membership_klasse_id: Annotated[str, Form()] = "",
     notizen: Annotated[str, Form()] = "",
@@ -282,7 +352,20 @@ def update_trainee(
     upn: Annotated[str, Form()] = "",
     user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
-    from datetime import date as _date
+    ausbildungsbeginn_parsed, err = _parse_ausbildungsbeginn(ausbildungsbeginn)
+    if err:
+        return RedirectResponse(
+            f"/trainees/{trainee_id}/bearbeiten?msg=error&detail={urllib.parse.quote(err)}",
+            status_code=303,
+        )
+
+    klasse_id_int, err = _resolve_einstiegsklasse_id(db, sonderfall, klasse_id, beruf)
+    if err:
+        return RedirectResponse(
+            f"/trainees/{trainee_id}/bearbeiten?msg=error&detail={urllib.parse.quote(err)}",
+            status_code=303,
+        )
+
     t = db.get(Trainee, trainee_id)
     t.vorname = vorname
     t.nachname = nachname
@@ -291,16 +374,9 @@ def update_trainee(
     t.steckbrief = steckbrief
     t.aktiv = bool(aktiv)
     t.upn = upn.strip() or None
-    if ausbildungsbeginn:
-        try:
-            t.ausbildungsbeginn = _date.fromisoformat(ausbildungsbeginn)
-        except ValueError:
-            t.ausbildungsbeginn = None
-    else:
-        t.ausbildungsbeginn = None
-    # Einstiegsklasse (Anker) direkt aus dem Formularfeld uebernehmen
-    if klasse_id:
-        t.klasse_id = int(klasse_id)
+    t.ausbildungsbeginn = ausbildungsbeginn_parsed
+    # Einstiegsklasse (Anker) ueber Sonderfall/Beruf ermittelt
+    t.klasse_id = klasse_id_int
     # Optionaler Membership-Override fuer ein bestimmtes Schuljahr
     mem_klasse_int = int(membership_klasse_id) if membership_klasse_id else None
     if membership_year_id and mem_klasse_int:

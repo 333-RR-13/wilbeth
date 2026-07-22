@@ -278,19 +278,22 @@ def test_next_class_for_override(session: Session):
 
 
 def test_update_without_class_selection_preserves_klasse(client, session: Session):
-    """Speichern OHNE Klassenwahl soll die bestehende Klasse NICHT loeschen (Bug A)."""
+    """Speichern OHNE Sonderfall/explizite Klassenwahl leitet die Einstiegsklasse
+    ueber den (unveraenderten) Beruf ab -> bleibt die gleiche Klasse (Bug A)."""
     _add_year(session, SY_A, 2025)
     klasse = _add_class(session, "FISI 1. LJ")
     trainee = _add_trainee(session, "Preserve", klasse_id=klasse.id)
     session.commit()
 
-    # POST ohne membership_klasse_id (leere Auswahl)
+    # POST ohne Sonderfall/klasse_id, aber mit beruf (Regelfall) -> gleiche Klasse
     r = client.post(
         f"/trainees/{trainee.id}",
         data={
             "vorname": "Preserve",
             "nachname": "Test",
             "rolle": "AZUBI",
+            "beruf": "FISI",
+            "ausbildungsbeginn": "2025-09-01",
             "klasse_id": "",
             "membership_year_id": SY_A,
             "membership_klasse_id": "",  # keine Klasse gewaehlt

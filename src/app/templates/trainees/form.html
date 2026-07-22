@@ -39,38 +39,70 @@
         </select>
       </div>
 
-      {# ── Anker: Einstiegsklasse ──────────────────────────────────── #}
       <div class="form-group">
-        <label for="klasse_id">Einstiegsklasse (1. LJ / Start-Kohorte)</label>
-        <select id="klasse_id" name="klasse_id">
-          <option value="">– keine Klasse –</option>
-          {% for c in classes %}
-          <option value="{{ c.id }}"
-            {{ 'selected' if trainee and trainee.klasse_id == c.id else '' }}>
-            {{ c.name }}
-          </option>
+        <label for="ausbildungsbeginn">Ausbildungsbeginn <span class="required">*</span></label>
+        <input type="date" id="ausbildungsbeginn" name="ausbildungsbeginn" required
+               value="{{ trainee.ausbildungsbeginn.isoformat() if trainee and trainee.ausbildungsbeginn else '' }}">
+        <span class="form-hint">
+          Regelfall 01.09.; Ausnahme: 01.01. des Folgejahres (4 Monate verkürzt).
+        </span>
+      </div>
+
+      <div class="form-group">
+        <label for="beruf">Ausbildungsberuf <span class="required">*</span></label>
+        <select id="beruf" name="beruf" required>
+          <option value="">– bitte wählen –</option>
+          {% for token, langname in beruf_optionen %}
+          <option value="{{ token }}" {{ 'selected' if beruf_selected == token else '' }}>{{ langname }}</option>
           {% endfor %}
         </select>
         <span class="form-hint">
-          Die Klasse, mit der der Azubi / DH-Student seine Ausbildung <strong>begonnen</strong> hat.
-          In Kombination mit dem Ausbildungsbeginn wird daraus die aktuelle Klasse automatisch berechnet.
+          Daraus wird die Einstiegsklasse (1. LJ) automatisch abgeleitet.
         </span>
       </div>
+
+      {# ── Sonderfall: abweichende Klassenzuweisung ──────────────────── #}
+      <div class="form-group">
+        <label class="form-check">
+          <input type="checkbox" id="sonderfall" name="sonderfall" value="1"
+                 {{ 'checked' if sonderfall_checked else '' }}>
+          Sonderfall: abweichende Klassenzuweisung
+        </label>
+        <div id="sonderfall-klasse-block" class="form-group"
+             style="margin-top:12px; {{ '' if sonderfall_checked else 'display:none;' }}">
+          <label for="klasse_id">Klasse</label>
+          <select id="klasse_id" name="klasse_id">
+            <option value="">– keine Klasse –</option>
+            {% for c in classes %}
+            <option value="{{ c.id }}"
+              {{ 'selected' if trainee and trainee.klasse_id == c.id else '' }}>
+              {{ c.name }}
+            </option>
+            {% endfor %}
+          </select>
+          <span class="form-hint">
+            Nur bei Abweichung vom Regelfall (z. B. Wiederholer, Quereinsteiger, DH-Kohorte)
+            die tatsächliche Einstiegsklasse wählen.
+          </span>
+        </div>
+      </div>
+      <script>
+      (function () {
+        var cb = document.getElementById('sonderfall');
+        var block = document.getElementById('sonderfall-klasse-block');
+        if (cb && block) {
+          cb.addEventListener('change', function () {
+            block.style.display = cb.checked ? 'block' : 'none';
+          });
+        }
+      })();
+      </script>
 
       <div class="form-group">
         <label for="upn">UPN (Entra-Anmeldename)</label>
         <input type="text" id="upn" name="upn" placeholder="vorname.nachname@grenke.de"
                value="{{ trainee.upn if trainee and trainee.upn else '' }}">
         <span class="form-hint">für SSO-Login des Azubis; leer = kein SSO-Zugang</span>
-      </div>
-
-      <div class="form-group">
-        <label for="ausbildungsbeginn">Ausbildungsbeginn</label>
-        <input type="date" id="ausbildungsbeginn" name="ausbildungsbeginn"
-               value="{{ trainee.ausbildungsbeginn.isoformat() if trainee and trainee.ausbildungsbeginn else '' }}">
-        <span class="form-hint">
-          Zusammen mit der Einstiegsklasse wird hieraus die jeweilige Jahrgangsstufe automatisch ermittelt.
-        </span>
       </div>
 
       {# ── Membership-Override (nur für Ausnahmen) ─────────────────── #}

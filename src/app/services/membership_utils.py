@@ -211,6 +211,46 @@ def beruf_und_lehrjahr(name: str | None) -> tuple[str, int | None]:
     return (name, None)
 
 
+def beruf_optionen(classes: list[TraineeClass]) -> list[tuple[str, str]]:
+    """Leitet die distinkten Ausbildungsberufe aus den vorhandenen Klassen ab.
+
+    Klassen mit LJ-Muster (z. B. "FISI 2. LJ") liefern den Beruf-Token
+    ("FISI"); Klassen ohne LJ-Muster (z. B. "DHBW Cybersecurity", DH-Kohorten
+    ohne Jahrgangsstufen) liefern den vollen Klassennamen als Token.
+
+    Rueckgabe: [(token, beruf_langname(token)), ...] alphabetisch nach Langname
+    sortiert (fuer die Anzeige im Formular-Select).
+    """
+    tokens: set[str] = set()
+    for klasse in classes:
+        token, _lj = beruf_und_lehrjahr(klasse.name)
+        tokens.add(token)
+    return sorted(
+        ((token, beruf_langname(token)) for token in tokens),
+        key=lambda paar: paar[1],
+    )
+
+
+def einstiegsklasse_fuer_beruf(
+    classes: list[TraineeClass],
+    beruf_token: str,
+) -> TraineeClass | None:
+    """Ermittelt die Einstiegsklasse (Anker) fuer einen gewaehlten Beruf.
+
+    1. Klasse mit Name == "<token> 1. LJ" (Regelfall Azubi-Ausbildung).
+    2. Sonst Klasse mit Name == token (DH-Kohorte ohne LJ-Muster).
+    3. Kein Treffer -> None.
+    """
+    regel_name = f"{beruf_token} 1. LJ"
+    for klasse in classes:
+        if klasse.name == regel_name:
+            return klasse
+    for klasse in classes:
+        if klasse.name == beruf_token:
+            return klasse
+    return None
+
+
 def next_class_for(
     klasse: TraineeClass,
     all_classes: list[TraineeClass],

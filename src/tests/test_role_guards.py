@@ -11,7 +11,7 @@ POST /auth/dev-login mit rolle=ausbilder/orga/admin (siehe app/routers/auth.py).
 from sqlmodel import Session
 
 from app.config import settings
-from app.models import Department, Schoolyear, Trainee, TraineeRolle
+from app.models import Department, Schoolyear, Trainee, TraineeClass, TraineeRolle, UnterrichtsTyp
 
 
 def _login(client, monkeypatch, rolle: str) -> None:
@@ -93,10 +93,18 @@ def test_ausbilder_nav_ohne_auto_plan_import_jahresabschluss(client, session: Se
 # ── Orga: alles ausser Jahresabschluss + endgueltigem Loeschen ────────────
 
 def test_orga_post_trainees_erlaubt(client, session: Session, monkeypatch):
+    session.add(TraineeClass(
+        name="FISI 1. LJ", berufsschule="JD Schule", unterrichts_typ=UnterrichtsTyp.BLOCK_FEST,
+    ))
+    session.commit()
+
     _login(client, monkeypatch, "orga")
     r = client.post(
         "/trainees/",
-        data={"vorname": "Orga", "nachname": "Erstellt", "rolle": "AZUBI"},
+        data={
+            "vorname": "Orga", "nachname": "Erstellt", "rolle": "AZUBI",
+            "ausbildungsbeginn": "2025-09-01", "beruf": "FISI",
+        },
         follow_redirects=False,
     )
     assert r.status_code == 303

@@ -7,13 +7,21 @@
 """
 from sqlmodel import Session, select
 
-from app.models import Trainee, TraineeRolle
+from app.models import Trainee, TraineeClass, TraineeRolle, UnterrichtsTyp
 
 UPN = "vorname.nachname@grenke.de"
 
 
+def _add_class(session: Session, name: str = "FISI 1. LJ") -> TraineeClass:
+    c = TraineeClass(name=name, berufsschule="JD Schule", unterrichts_typ=UnterrichtsTyp.BLOCK_FEST)
+    session.add(c)
+    session.commit()
+    return c
+
+
 def test_create_speichert_upn(client, session: Session):
     """POST /trainees/ speichert das UPN-Feld (getrimmt)."""
+    _add_class(session)
     r = client.post(
         "/trainees/",
         data={
@@ -22,6 +30,8 @@ def test_create_speichert_upn(client, session: Session):
             "rolle": "AZUBI",
             "upn": f"  {UPN}  ",
             "aktiv": "1",
+            "ausbildungsbeginn": "2025-09-01",
+            "beruf": "FISI",
         },
         follow_redirects=False,
     )
@@ -34,6 +44,7 @@ def test_create_speichert_upn(client, session: Session):
 
 def test_create_ohne_upn_speichert_none(client, session: Session):
     """POST /trainees/ ohne UPN (leerer String) speichert None."""
+    _add_class(session)
     r = client.post(
         "/trainees/",
         data={
@@ -41,6 +52,8 @@ def test_create_ohne_upn_speichert_none(client, session: Session):
             "nachname": "Nurname",
             "rolle": "AZUBI",
             "aktiv": "1",
+            "ausbildungsbeginn": "2025-09-01",
+            "beruf": "FISI",
         },
         follow_redirects=False,
     )
@@ -53,6 +66,7 @@ def test_create_ohne_upn_speichert_none(client, session: Session):
 
 def test_update_aktualisiert_upn(client, session: Session):
     """POST /trainees/{id} aktualisiert das UPN-Feld."""
+    _add_class(session)
     t = Trainee(vorname="Udo", nachname="Update", rolle=TraineeRolle.AZUBI, upn="alt.upn@grenke.de")
     session.add(t)
     session.commit()
@@ -66,6 +80,8 @@ def test_update_aktualisiert_upn(client, session: Session):
             "rolle": "AZUBI",
             "upn": UPN,
             "aktiv": "1",
+            "ausbildungsbeginn": "2025-09-01",
+            "beruf": "FISI",
         },
         follow_redirects=False,
     )
@@ -77,6 +93,7 @@ def test_update_aktualisiert_upn(client, session: Session):
 
 def test_update_leere_upn_loescht_wert(client, session: Session):
     """POST /trainees/{id} mit leerem UPN-Feld setzt upn auf None."""
+    _add_class(session)
     t = Trainee(vorname="Ella", nachname="Entfernt", rolle=TraineeRolle.AZUBI, upn="alt.upn@grenke.de")
     session.add(t)
     session.commit()
@@ -90,6 +107,8 @@ def test_update_leere_upn_loescht_wert(client, session: Session):
             "rolle": "AZUBI",
             "upn": "",
             "aktiv": "1",
+            "ausbildungsbeginn": "2025-09-01",
+            "beruf": "FISI",
         },
         follow_redirects=False,
     )
