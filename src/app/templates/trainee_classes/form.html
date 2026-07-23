@@ -80,46 +80,49 @@
         <span class="form-hint">Klasse, in die die Mitglieder beim globalen Jahreswechsel übernommen werden. Leer = Abschluss.</span>
       </div>
 
-    {% if cls %}
-    <div class="form-group" style="margin-top: 24px;">
-      <h2 class="form-section-title">Mitglieder</h2>
-
-      <div class="form-group">
-        <label for="membership_year_id">Ausbildungsjahr</label>
-        <select id="membership_year_id" name="membership_year_id" onchange="reloadMemberships(this)">
-          <option value="">– kein Ausbildungsjahr –</option>
-          {% for y in years %}
-          <option value="{{ y.id }}" {{ 'selected' if y.id == selected_year_id else '' }}>{{ y.id }}</option>
-          {% endfor %}
-        </select>
-        <span class="form-hint">Mitglieder werden pro Ausbildungsjahr verwaltet.</span>
-      </div>
-
-      {% if trainees %}
-      <div class="member-list">
-        {% for t in trainees %}
-        <label class="member-row">
-          <input type="checkbox" name="mitglied" value="{{ t.id }}"
-                 {{ 'checked' if t.id in members_for_year else '' }}>
-          <span class="member-name">{{ t.nachname }}, {{ t.vorname }}</span>
-          {% if t.klasse_id and t.klasse_id != cls.id %}
-          <span class="member-other td-muted">(Standard-Klasse: {{ class_names.get(t.klasse_id, '?') }})</span>
-          {% endif %}
-        </label>
-        {% endfor %}
-      </div>
-      {% else %}
-      <p class="td-muted">Noch keine Auszubildenden angelegt.</p>
-      {% endif %}
-    </div>
-    {% endif %}
-
     <div class="form-actions">
       <button type="submit" class="btn btn-primary">Speichern</button>
       <a href="/klassen/" class="btn btn-secondary">Abbrechen</a>
     </div>
   </form>
 </div>
+
+{% if cls %}
+<div class="card" style="margin-top: 24px;">
+  <div class="card-body">
+    <h2 class="form-section-title">Mitglieder ({{ selected_year_id }})</h2>
+
+    <div class="form-group">
+      <label for="year_select">Ausbildungsjahr</label>
+      <select id="year_select" onchange="reloadMemberships(this)">
+        <option value="">– kein Ausbildungsjahr –</option>
+        {% for y in years %}
+        <option value="{{ y.id }}" {{ 'selected' if y.id == selected_year_id else '' }}>{{ y.id }}</option>
+        {% endfor %}
+      </select>
+      <span class="form-hint">
+        Mitgliedschaft ergibt sich aus Ausbildungsbeginn + Einstiegsklasse des Trainees;
+        Ausnahmen werden am Trainee gepflegt.
+      </span>
+    </div>
+
+    {% if members %}
+    <div class="member-list">
+      {% for t in members %}
+      <div class="member-row">
+        <span class="member-name"><a href="/trainees/{{ t.id }}">{{ t.nachname }}, {{ t.vorname }}</a></span>
+        {% if t.id in override_ids %}
+        <span class="badge badge-orange" title="Abweichende Zuweisung für dieses Jahr – gepflegt am Trainee">Ausnahme</span>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="td-muted">Keine Mitglieder für dieses Ausbildungsjahr.</p>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
 
 <script>
 function syncTageFest() {

@@ -61,6 +61,9 @@
           {% set berechnete = klasse_map.get(t.id) %}
           {% if berechnete %}
             <span title="Einstieg: {{ classes[t.klasse_id].name if t.klasse_id and t.klasse_id in classes else '–' }}{% if t.ausbildungsbeginn %} · Beginn: {{ t.ausbildungsbeginn.strftime('%d.%m.%Y') }}{% endif %}">{{ berechnete.name }}</span>
+            {% if t.id in override_ids %}
+            <span class="badge badge-orange" title="Abweichende Zuweisung für dieses Jahr – gepflegt am Trainee">Ausnahme</span>
+            {% endif %}
           {% elif t.klasse_id and t.klasse_id in classes %}
             {# Anker vorhanden, aber berechnet keine Klasse (Absolvent / vor Beginn) #}
             <span class="text-muted" title="Einstieg: {{ classes[t.klasse_id].name }}{% if t.ausbildungsbeginn %} · Beginn: {{ t.ausbildungsbeginn.strftime('%d.%m.%Y') }}{% endif %}">– (Abschluss/vor Beginn)</span>

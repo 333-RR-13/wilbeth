@@ -80,6 +80,9 @@
       <dt>Klasse</dt>
       <dd>
         {% if klasse %}{{ klasse.name }}{% else %}–{% endif %}
+        {% if ist_override %}
+        <span class="badge badge-orange" title="Abweichende Zuweisung für dieses Jahr – gepflegt am Trainee">Ausnahme</span>
+        {% endif %}
         {% if sem_label %}<span style="margin-left:6px; color: var(--text-muted); font-size:13px;">({{ sem_label }})</span>{% endif %}
       </dd>
       {% if sem_label %}

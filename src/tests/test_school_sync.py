@@ -6,7 +6,10 @@ Szenarios:
 3. Trainee verlaesst Klasse → sync_trainee entfernt seine AUTO BS-Eintraege.
 4. SchoolPlanWeek entfernen → sync_class loescht die AUTO-Eintraege.
 5. Route POST /trainees/ + Klasse mit Schulplan → AUTO-Eintrag wird angelegt.
-6. Route POST /klassen/{id} + neues Mitglied → AUTO-Eintrag wird angelegt.
+6. Route POST /klassen/{id} synchronisiert AUTO-Eintraege der aktuellen (ueber
+   den Anker berechneten) Mitglieder; eine Mitglieder-Pflege ueber diese Route
+   (Checkbox 'mitglied') gibt es nicht mehr - ein mitgeschicktes 'mitglied'-Feld
+   bleibt wirkungslos.
 7. UNI-Mapping: SchoolPlanWeek typ=UNI → AUTO-Eintrag typ=UNI.
 """
 
@@ -277,39 +280,68 @@ def test_create_trainee_route_triggers_auto_assignment(client, session: Session)
     assert auto_a[0].jahr == JAHR
 
 
-# ── 6. Route POST /klassen/{id} mit neuem Mitglied → AUTO angelegt ──────────
+# ── 6. Route POST /klassen/{id}: resynct bestehende Mitglieder, keine Pflege mehr ──
 
-def test_update_class_route_triggers_auto_for_new_member(client, session: Session):
+def test_update_class_route_resyncs_existing_members(client, session: Session):
+    """POST /klassen/{id} synct AUTO-Eintraege fuer die aktuell (per Anker)
+    zugeordneten Mitglieder t1/t2 - unabhaengig von einer Mitglieder-Pflege,
+    die es ueber diese Route nicht mehr gibt."""
     ids = _make_class_with_plan(session)
 
-    # Dritter Trainee ohne Klasse
-    t3 = Trainee(vorname="Clara", nachname="Citrus", rolle=TraineeRolle.AZUBI, klasse_id=None)
-    session.add(t3)
-    session.commit()
+    # Noch keine Assignments vorhanden (sync_class wurde bisher nie aufgerufen)
+    assert session.exec(select(Assignment)).all() == []
 
-    # POST /klassen/{id}: t1, t2 und t3 als Mitglieder eintragen
     r = client.post(
         f"/klassen/{ids['klasse_id']}",
         data={
             "name": "FISI 2. LJ",
             "berufsschule": "JD Schule",
             "unterrichts_typ": "BLOCK_FEST",
-            "mitglied": [str(ids["t1_id"]), str(ids["t2_id"]), str(t3.id)],
         },
         follow_redirects=False,
     )
     assert r.status_code == 303
 
-    # t3 muss jetzt AUTO-Eintrag haben
     session.expire_all()
-    auto_a = session.exec(
-        select(Assignment).where(
-            Assignment.trainee_id == t3.id,
-            Assignment.source == AssignmentSource.AUTO,
-        )
-    ).all()
-    assert len(auto_a) == 1
-    assert auto_a[0].typ == AssignmentTyp.BERUFSSCHULE
+    for tid in (ids["t1_id"], ids["t2_id"]):
+        auto_a = session.exec(
+            select(Assignment).where(
+                Assignment.trainee_id == tid,
+                Assignment.source == AssignmentSource.AUTO,
+            )
+        ).all()
+        assert len(auto_a) == 1
+        assert auto_a[0].typ == AssignmentTyp.BERUFSSCHULE
+
+
+def test_update_class_route_ignores_mitglied_param(client, session: Session):
+    """Ein (z. B. von einem alten Client) mitgeschicktes 'mitglied'-Feld hat
+    keine Wirkung mehr - es gibt keinen Mitglieder-Schreibpfad ueber diese Route."""
+    ids = _make_class_with_plan(session)
+
+    t3 = Trainee(vorname="Clara", nachname="Citrus", rolle=TraineeRolle.AZUBI, klasse_id=None)
+    session.add(t3)
+    session.commit()
+
+    r = client.post(
+        f"/klassen/{ids['klasse_id']}",
+        data={
+            "name": "FISI 2. LJ",
+            "berufsschule": "JD Schule",
+            "unterrichts_typ": "BLOCK_FEST",
+            "mitglied": [str(t3.id)],
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+
+    session.expire_all()
+    t3_check = session.get(Trainee, t3.id)
+    assert t3_check.klasse_id is None  # unveraendert
+
+    assert session.exec(
+        select(Assignment).where(Assignment.trainee_id == t3.id)
+    ).all() == []
 
 
 # ── 7. UNI-Mapping ───────────────────────────────────────────────────────────

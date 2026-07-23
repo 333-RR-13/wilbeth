@@ -17,9 +17,10 @@ from fastapi import APIRouter, Depends, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.database import get_session
+from app.models import TraineeClassMembership
 from app.services.auth_service import CurrentUser, require_roles
 from app.services.datenexport import export_zip, import_zip
 
@@ -31,10 +32,13 @@ DB = Annotated[Session, Depends(get_session)]
 @router.get("/", response_class=HTMLResponse)
 def daten_index(
     request: Request,
+    db: DB,
     user: CurrentUser = Depends(require_roles("admin")),
 ):
+    anzahl_ausnahmen = len(db.exec(select(TraineeClassMembership)).all())
     return templates.TemplateResponse(request, "datenexport/index.html", {
         "active_nav": "daten",
+        "anzahl_ausnahmen": anzahl_ausnahmen,
     })
 
 
@@ -76,4 +80,30 @@ async def daten_import(
 
     summary = ", ".join(f"{name}: {n}" for name, n in counts.items())
     detail = urllib.parse.quote(summary)
+    return RedirectResponse(f"/daten/?msg=created&detail={detail}", status_code=303)
+
+
+@router.post("/ausnahmen-loeschen", response_class=RedirectResponse)
+def ausnahmen_loeschen(
+    db: DB,
+    bestaetigt: Annotated[str, Form()] = "",
+    user: CurrentUser = Depends(require_roles("admin")),
+):
+    """Loescht ALLE Klassen-Ausnahmen (TraineeClassMembership) auf einmal.
+
+    Setzt alle Klassen-Zuweisungen auf die reine Anker-Berechnung (klasse_fuer)
+    zurueck - auch Jahresabschluss-Sonderfaelle (Wiederholer, Berufswechsel) gehen
+    dabei verloren. Nur mit gesetzter Bestaetigungs-Checkbox.
+    """
+    if not bestaetigt:
+        detail = urllib.parse.quote("Bestaetigung fehlt - Vorgang abgebrochen")
+        return RedirectResponse(f"/daten/?msg=error&detail={detail}", status_code=303)
+
+    overrides = db.exec(select(TraineeClassMembership)).all()
+    anzahl = len(overrides)
+    for m in overrides:
+        db.delete(m)
+    db.commit()
+
+    detail = urllib.parse.quote(f"{anzahl} Klassen-Ausnahme(n) geloescht")
     return RedirectResponse(f"/daten/?msg=created&detail={detail}", status_code=303)

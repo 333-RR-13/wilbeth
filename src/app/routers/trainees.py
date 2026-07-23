@@ -117,11 +117,25 @@ def list_trainees(request: Request, db: DB, status: str = "aktiv"):
         kid = klasse_fuer(db, t, anzeige_jahr) if anzeige_jahr else t.klasse_id
         klasse_map[t.id] = classes.get(kid) if kid else None
 
+    # Trainees, deren angezeigte Klasse fuers anzeige_jahr aus einem Override
+    # (statt der Berechnung) stammt - fuers "Ausnahme"-Badge.
+    override_ids: set[int] = set()
+    if anzeige_jahr:
+        override_ids = {
+            m.trainee_id
+            for m in db.exec(
+                select(TraineeClassMembership).where(
+                    TraineeClassMembership.schoolyear_id == anzeige_jahr,
+                )
+            ).all()
+        }
+
     return templates.TemplateResponse(request, "trainees/list.html", {
         "trainees": trainees,
         "classes": classes,
         "klasse_map": klasse_map,
         "anzeige_jahr": anzeige_jahr,
+        "override_ids": override_ids,
         "active_nav": "trainees",
         "status": status,
     })
@@ -167,14 +181,12 @@ async def upn_pflege_speichern(
 def new_trainee(request: Request, db: DB):
     classes = db.exec(select(TraineeClass).order_by(TraineeClass.name)).all()
     years = db.exec(select(Schoolyear).order_by(Schoolyear.start_year.desc())).all()
-    default_year_id = years[0].id if years else ""
     return templates.TemplateResponse(request, "trainees/form.html", {
         "trainee": None,
         "classes": classes,
         "rollen": list(TraineeRolle),
         "years": years,
-        "selected_year_id": default_year_id,
-        "memberships": {},
+        "overrides": [],
         "beruf_optionen": beruf_optionen(classes),
         "beruf_selected": "",
         "sonderfall_checked": False,
@@ -278,9 +290,20 @@ def trainee_detail(request: Request, trainee_id: int, db: DB):
     if schoolyear_id and trainee.rolle != TraineeRolle.AZUBI:
         sem_label = semester_label(db, trainee, schoolyear_id, "")
 
+    # Stammt die angezeigte Klasse aus einem Override (statt der Berechnung)?
+    ist_override = False
+    if schoolyear_id:
+        ist_override = db.exec(
+            select(TraineeClassMembership).where(
+                TraineeClassMembership.trainee_id == trainee_id,
+                TraineeClassMembership.schoolyear_id == schoolyear_id,
+            )
+        ).first() is not None
+
     return templates.TemplateResponse(request, "trainees/detail.html", {
         "trainee": trainee,
         "klasse": klasse,
+        "ist_override": ist_override,
         "sem_label": sem_label,
         "years": years,
         "depts": depts,
@@ -319,26 +342,17 @@ def revoke_share_token(
 
 @router.get("/{trainee_id:int}/bearbeiten", response_class=HTMLResponse)
 def edit_trainee(request: Request, trainee_id: int, db: DB):
-    from app.models.trainee_class_membership import TraineeClassMembership
     trainee = db.get(Trainee, trainee_id)
     classes = db.exec(select(TraineeClass).order_by(TraineeClass.name)).all()
     years = db.exec(select(Schoolyear).order_by(Schoolyear.start_year.desc())).all()
-    # Bestehende Memberships: year_id -> klasse_id
-    memberships = {
-        m.schoolyear_id: m.klasse_id
-        for m in db.exec(
-            select(TraineeClassMembership).where(
-                TraineeClassMembership.trainee_id == trainee_id
-            )
-        ).all()
-    }
-    # Default Lehrjahr: neuestes Jahr oder erstes mit Membership
-    default_year_id = years[0].id if years else ""
-    selected_year_id = request.query_params.get("year_id", default_year_id)
-    # Bug A: wenn fuer selected_year_id keine Membership, aber trainee.klasse_id gesetzt ->
-    # Klasse als Default vorwaehlen
-    if selected_year_id and selected_year_id not in memberships and trainee.klasse_id:
-        memberships[selected_year_id] = trainee.klasse_id
+    # Vorhandene Ausnahmen (Overrides) des Trainees, sortiert nach Jahr -
+    # dienen NUR der Anzeige/Loeschung; keine Vorauswahl irgendeiner Klasse.
+    overrides = db.exec(
+        select(TraineeClassMembership)
+        .where(TraineeClassMembership.trainee_id == trainee_id)
+        .order_by(TraineeClassMembership.schoolyear_id)
+    ).all()
+    classes_by_id = {c.id: c for c in classes}
 
     # Beruf-Vorbelegung + Sonderfall-Erkennung aus der aktuellen Einstiegsklasse
     beruf_selected = ""
@@ -355,10 +369,10 @@ def edit_trainee(request: Request, trainee_id: int, db: DB):
     return templates.TemplateResponse(request, "trainees/form.html", {
         "trainee": trainee,
         "classes": classes,
+        "classes_by_id": classes_by_id,
         "rollen": list(TraineeRolle),
         "years": years,
-        "selected_year_id": selected_year_id,
-        "memberships": memberships,
+        "overrides": overrides,
         "beruf_optionen": beruf_optionen(classes),
         "beruf_selected": beruf_selected,
         "sonderfall_checked": sonderfall_checked,
@@ -417,6 +431,30 @@ def update_trainee(
     db.commit()
     sync_trainee(db, trainee_id)
     return RedirectResponse(f"/trainees/{trainee_id}?msg=updated", status_code=303)
+
+
+@router.post("/{trainee_id:int}/ausnahme-loeschen", response_class=RedirectResponse)
+def ausnahme_loeschen(
+    trainee_id: int, db: DB,
+    schoolyear_id: Annotated[str, Form()],
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
+):
+    """Loescht eine einzelne Klassen-Ausnahme (Override) eines Trainees fuer ein Schuljahr.
+
+    Der Anker (trainee.klasse_id) bleibt unberuehrt - klasse_fuer() faellt danach
+    wieder auf die reine Berechnung zurueck.
+    """
+    membership = db.exec(
+        select(TraineeClassMembership).where(
+            TraineeClassMembership.trainee_id == trainee_id,
+            TraineeClassMembership.schoolyear_id == schoolyear_id,
+        )
+    ).first()
+    if membership is not None:
+        db.delete(membership)
+        db.commit()
+        sync_trainee(db, trainee_id)
+    return RedirectResponse(f"/trainees/{trainee_id}/bearbeiten?msg=updated", status_code=303)
 
 
 @router.post("/{trainee_id:int}/reaktivieren", response_class=RedirectResponse)

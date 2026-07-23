@@ -105,51 +105,70 @@
         <span class="form-hint">für SSO-Login des Azubis; leer = kein SSO-Zugang</span>
       </div>
 
-      {# ── Membership-Override (nur für Ausnahmen) ─────────────────── #}
+      {# ── Ausnahmen: abweichende Klassen-Zuweisung pro Jahr ────────── #}
       <details class="form-group">
         <summary style="cursor:pointer; font-weight:500; color: var(--text-secondary);">
-          Klassen-Override (nur für Ausnahmen)
+          Ausnahmen: abweichende Klassen-Zuweisung pro Jahr (Wiederholer etc.)
         </summary>
         <div style="margin-top: 12px; padding: 12px; border: 1px solid var(--border, #e5e7eb); border-radius: 6px;">
           <p class="form-hint" style="margin-bottom: 12px;">
-            Nur ausfüllen, wenn die automatische Berechnung nicht stimmt – z.&thinsp;B. bei
-            Wiederholern, Quereinsteigern oder anderen Sonderfällen. Der Override überschreibt
-            die berechnete Klasse für das gewählte Schuljahr.
+            Die Klassen-Zuordnung wird normalerweise automatisch aus Ausbildungsbeginn und
+            Einstiegsklasse berechnet. Nur bei Abweichungen (z.&thinsp;B. Wiederholer,
+            Quereinsteiger, Berufswechsel) hier eine Ausnahme für ein bestimmtes Schuljahr
+            eintragen.
           </p>
-          <div class="form-group">
-            <label for="membership_year_id">Schuljahr (Override)</label>
-            <select id="membership_year_id" name="membership_year_id">
-              <option value="">– kein Override –</option>
-              {% for y in years %}
-              <option value="{{ y.id }}" {{ 'selected' if y.id == selected_year_id else '' }}>{{ y.id }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="membership_klasse_id">Klasse (Override)</label>
-            <select id="membership_klasse_id" name="membership_klasse_id">
-              <option value="">– keine Klasse –</option>
-              {% for c in classes %}
-              <option value="{{ c.id }}"
-                {{ 'selected' if selected_year_id and memberships.get(selected_year_id) == c.id else '' }}>
-                {{ c.name }}
-              </option>
-              {% endfor %}
-            </select>
-          </div>
 
-          {% if trainee and memberships %}
+          {% if trainee %}
           <div class="form-group">
-            <label>Bestehende Overrides</label>
-            <div class="member-list">
-              {% for year_id, klasse_id in memberships.items() %}
-              <span class="badge badge-blue">{{ year_id }}</span>
-              {% for c in classes %}{% if c.id == klasse_id %}<span style="margin-left:4px">{{ c.name }}</span>{% endif %}{% endfor %}
-              <br>
-              {% endfor %}
+            <label>Bestehende Ausnahmen</label>
+            {% if overrides %}
+            <div class="table-wrapper">
+              <table>
+                <thead>
+                  <tr><th>Jahr</th><th>Klasse</th><th></th></tr>
+                </thead>
+                <tbody>
+                  {% for m in overrides %}
+                  <tr>
+                    <td class="mono">{{ m.schoolyear_id }}</td>
+                    <td>{{ classes_by_id.get(m.klasse_id).name if classes_by_id.get(m.klasse_id) else '?' }}</td>
+                    <td class="td-actions">
+                      <form method="post" action="/trainees/{{ trainee.id }}/ausnahme-loeschen"
+                            onsubmit="return confirm('Ausnahme für {{ m.schoolyear_id }} wirklich löschen?')">
+                        <input type="hidden" name="schoolyear_id" value="{{ m.schoolyear_id }}">
+                        <button type="submit" class="btn btn-ghost-danger btn-sm">Löschen</button>
+                      </form>
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
             </div>
+            {% else %}
+            <p class="td-muted">Keine Ausnahmen vorhanden.</p>
+            {% endif %}
           </div>
           {% endif %}
+
+          <div class="form-group">
+            <label for="membership_year_id">Schuljahr</label>
+            <select id="membership_year_id" name="membership_year_id">
+              <option value="">– Jahr wählen –</option>
+              {% for y in years %}
+              <option value="{{ y.id }}">{{ y.id }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="membership_klasse_id">Klasse</label>
+            <select id="membership_klasse_id" name="membership_klasse_id">
+              <option value="">– Klasse wählen –</option>
+              {% for c in classes %}
+              <option value="{{ c.id }}">{{ c.name }}</option>
+              {% endfor %}
+            </select>
+            <span class="form-hint">Beide Felder ausfüllen, um beim Speichern eine neue Ausnahme hinzuzufügen.</span>
+          </div>
         </div>
       </details>
 
