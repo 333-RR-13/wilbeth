@@ -151,6 +151,45 @@ def test_export_liefert_zip_mit_allen_tabellen(client, session: Session, monkeyp
     assert "Export" in trainees_csv
 
 
+def test_export_enthaelt_liesmich_mit_einstiegsklasse_hinweis(client, session: Session, monkeypatch):
+    """Export-ZIP enthaelt eine LIESMICH.txt, die klasse_id als Einstiegsklasse erklaert."""
+    _login(client, monkeypatch, "admin")
+
+    r = client.get("/daten/export")
+    assert r.status_code == 200
+
+    zf = zipfile.ZipFile(io.BytesIO(r.content))
+    assert "LIESMICH.txt" in zf.namelist()
+
+    liesmich = zf.read("LIESMICH.txt").decode("utf-8-sig")
+    assert "EINSTIEGSKLASSE" in liesmich
+    assert "memberships.csv" in liesmich
+
+
+def test_roundtrip_mit_liesmich_wird_beim_import_ignoriert(client, session: Session, monkeypatch):
+    """LIESMICH.txt im ZIP darf den Ersetzen-Import nicht stoeren."""
+    _login(client, monkeypatch, "admin")
+    ids = _build_full_dataset(session)
+
+    r = client.get("/daten/export")
+    zip_bytes = r.content
+    assert "LIESMICH.txt" in zipfile.ZipFile(io.BytesIO(zip_bytes)).namelist()
+
+    r = client.post(
+        "/daten/import",
+        data={"bestaetigt": "1"},
+        files={"zip_datei": ("export.zip", zip_bytes, "application/zip")},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    assert "msg=error" not in r.headers["location"]
+
+    session.expire_all()
+    trainee = session.get(Trainee, ids["trainee_id"])
+    assert trainee is not None
+    assert trainee.vorname == "Rita"
+
+
 # ── (e) Rollen-Guard ───────────────────────────────────────────────────────
 
 def test_orga_darf_nicht_auf_daten_index(client, session: Session, monkeypatch):

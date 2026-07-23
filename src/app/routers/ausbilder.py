@@ -33,6 +33,7 @@ from app.models import (
 )
 from app.services.auth_service import CurrentUser, allowed_dept_ids, require_roles
 from app.services.block_utils import apply_to_block, assignment_blocks
+from app.services.membership_utils import aktuelles_schuljahr_id
 from app.utils.kw import iter_schoolyear_weeks
 
 router = APIRouter(prefix="/meine-abteilung", tags=["meine-abteilung"])
@@ -56,18 +57,11 @@ def meine_abteilung(
         .order_by(Schoolyear.start_year.desc())
     ).all()
     schoolyear_id = request.query_params.get("schoolyear_id", "")
-    if not schoolyear_id and years:
+    if not schoolyear_id:
         # Default = das Ausbildungsjahr, in dem HEUTE liegt (nicht das neueste --
         # ein bereits angelegtes Folgejahr hat noch keine Einsaetze und wuerde
         # eine leere Seite zeigen). Fallback: neuestes nicht-archiviertes Jahr.
-        today_kw, today_year = date.today().isocalendar()[1], date.today().isocalendar()[0]
-        for y in years:
-            weeks = list(iter_schoolyear_weeks(y.start_kw, y.start_year, y.end_kw, y.end_year))
-            if (today_kw, today_year) in weeks:
-                schoolyear_id = y.id
-                break
-        else:
-            schoolyear_id = years[0].id
+        schoolyear_id = aktuelles_schuljahr_id(db)
 
     if not dept_ids:
         return templates.TemplateResponse(request, "ausbilder/meine_abteilung.html", {

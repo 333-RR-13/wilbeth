@@ -10,7 +10,12 @@ from app.database import get_session
 from app.models import Schoolyear, Trainee, TraineeClass, UnterrichtsTyp
 from app.models.trainee_class_membership import TraineeClassMembership
 from app.services.auth_service import CurrentUser, require_roles
-from app.services.membership_utils import beruf_langname, beruf_und_lehrjahr, klasse_fuer
+from app.services.membership_utils import (
+    aktuelles_schuljahr_id,
+    beruf_langname,
+    beruf_und_lehrjahr,
+    klasse_fuer,
+)
 from app.services.school_sync import sync_class
 from app.utils.kw import WEEKDAY_LABELS, format_weekdays, parse_weekdays
 
@@ -77,7 +82,7 @@ def new_class(request: Request, db: DB):
     return templates.TemplateResponse(request, "trainee_classes/form.html", {
         "cls": None, "typen": list(UnterrichtsTyp), "active_nav": "klassen",
         "weekday_labels": WEEKDAY_LABELS, "selected_weekdays": [],
-        "years": years, "selected_year_id": years[0].id if years else "",
+        "years": years, "selected_year_id": aktuelles_schuljahr_id(db),
         "members": [], "override_ids": set(), "all_classes": [],
     })
 
@@ -111,8 +116,10 @@ def edit_class(request: Request, class_id: int, db: DB):
     cls = db.get(TraineeClass, class_id)
     all_classes = db.exec(select(TraineeClass)).all()
     years = db.exec(select(Schoolyear).order_by(Schoolyear.start_year.desc())).all()
-    # Ausgewaehltes Lehrjahr fuer Mitglieder-Anzeige
-    default_year_id = years[0].id if years else ""
+    # Ausgewaehltes Lehrjahr fuer Mitglieder-Anzeige (Default = laufendes Jahr,
+    # nicht das neueste - sonst zeigt die Mitglieder-Liste kommentarlos ein
+    # bereits angelegtes Folgejahr).
+    default_year_id = aktuelles_schuljahr_id(db)
     selected_year_id = request.query_params.get("year_id", default_year_id)
 
     # BERECHNETE Mitglieder fuers gewaehlte Lehrjahr: alle aktiven Trainees,

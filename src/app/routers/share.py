@@ -31,7 +31,7 @@ from app.models import (
 )
 from app.models.trainee_wish import prioritaet_label
 from app.routers.assignments import _apply_assignments, _resolve_range
-from app.services.membership_utils import beruf_und_lehrjahr
+from app.services.membership_utils import aktuelles_schuljahr_id, beruf_und_lehrjahr
 from app.utils.colors import department_color_map
 from app.utils.kw import format_weekdays, iter_schoolyear_weeks, iter_kw_range, kw_to_monday
 
@@ -84,8 +84,9 @@ def my_plan(request: Request, token: str, db: DB):
     if sy is None:
         _t = date.today().isocalendar()
         sy = _schoolyear_for_week(db, _t.week, _t.year)
-    if sy is None and years_all:
-        sy = years_all[0]
+    if sy is None:
+        fallback_id = aktuelles_schuljahr_id(db)
+        sy = db.get(Schoolyear, fallback_id) if fallback_id else None
 
     # Find schoolyears that have assignments for this trainee (for year-switch links)
     all_assignments = db.exec(
@@ -159,12 +160,18 @@ def my_class(request: Request, token: str, db: DB):
             "trainees": [], "highlight_id": trainee.id,
         })
 
-    # Lehrjahr: Query-Param, sonst das mit dem heutigen Datum, sonst neuestes
+    # Lehrjahr: Query-Param, sonst das mit dem heutigen Datum, sonst laufendes
+    # Jahr (Helper), sonst als letzte Sicherheit das neueste ueberhaupt.
     selected = request.query_params.get("schoolyear_id", "")
     sy = db.get(Schoolyear, selected) if selected else None
     if sy is None:
         _t = date.today().isocalendar()
-        sy = _schoolyear_for_week(db, _t.week, _t.year) or years[0]
+        sy = _schoolyear_for_week(db, _t.week, _t.year)
+    if sy is None:
+        fallback_id = aktuelles_schuljahr_id(db)
+        sy = db.get(Schoolyear, fallback_id) if fallback_id else None
+    if sy is None:
+        sy = years[0]
 
     classmates = db.exec(
         select(Trainee).where(Trainee.klasse_id == klasse.id)
@@ -425,8 +432,9 @@ def uebersicht_page(request: Request, token: str, db: DB):
     if sy is None:
         _t = date.today().isocalendar()
         sy = _schoolyear_for_week(db, _t.week, _t.year)
-    if sy is None and years:
-        sy = years[0]
+    if sy is None:
+        fallback_id = aktuelles_schuljahr_id(db)
+        sy = db.get(Schoolyear, fallback_id) if fallback_id else None
 
     all_trainees = db.exec(
         select(Trainee)

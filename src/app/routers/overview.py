@@ -21,7 +21,12 @@ from app.models import (
     UnterrichtsTyp,
 )
 from app.services.conflict_checker import describe_conflict, find_conflicts
-from app.services.membership_utils import beruf_und_lehrjahr, klasse_fuer, semester_label
+from app.services.membership_utils import (
+    aktuelles_schuljahr_id,
+    beruf_und_lehrjahr,
+    klasse_fuer,
+    semester_label,
+)
 from app.services.dept_history import visited_departments
 from app.utils.colors import department_color_map
 from app.utils.kw import format_weekdays, iter_schoolyear_weeks, kw_to_monday
@@ -173,8 +178,8 @@ def overview(request: Request, db: DB):
         if c.unterrichts_typ == UnterrichtsTyp.TAGE_FEST and c.schul_wochentage
     }
 
-    if not schoolyear_id and years:
-        schoolyear_id = years[0].id
+    if not schoolyear_id:
+        schoolyear_id = aktuelles_schuljahr_id(db)
 
     year = db.get(Schoolyear, schoolyear_id) if schoolyear_id else None
 

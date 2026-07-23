@@ -18,6 +18,7 @@ from app.database import get_session
 from app.models import Department, Schoolyear, Trainee, TraineeClass
 from app.services.auth_service import CurrentUser, require_roles
 from app.services.auto_plan import apply_auto_plan, plan_assignments
+from app.services.membership_utils import aktuelles_schuljahr_id
 
 router = APIRouter(tags=["auto_plan"])
 templates = Jinja2Templates(directory=Path(__file__).resolve().parents[1] / "templates")
@@ -55,8 +56,8 @@ def auto_plan_index(
     years = db.exec(select(Schoolyear).order_by(Schoolyear.start_year.desc())).all()
     classes = db.exec(select(TraineeClass).order_by(TraineeClass.name)).all()
 
-    if not schoolyear_id and years:
-        schoolyear_id = years[0].id
+    if not schoolyear_id:
+        schoolyear_id = aktuelles_schuljahr_id(db)
 
     trainees = db.exec(
         select(Trainee)

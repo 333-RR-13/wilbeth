@@ -9,6 +9,7 @@ from app.models.schoolyear import Schoolyear
 from app.models.trainee import Trainee, TraineeRolle
 from app.models.trainee_class import TraineeClass
 from app.models.trainee_class_membership import TraineeClassMembership
+from app.utils.kw import iter_schoolyear_weeks
 
 # Klassennamen folgen der Konvention "<Beruf> <n>. LJ" (z. B. "FISI 2. LJ").
 _LJ_RE = re.compile(r"^(?P<beruf>.+?)\s*(?P<lj>\d)\.\s*LJ\s*$")
@@ -42,6 +43,31 @@ def _start_year(d: date | None) -> int | None:
     if d is None:
         return None
     return d.year if d.month >= 8 else d.year - 1
+
+
+def aktuelles_schuljahr_id(db: Session) -> str:
+    """Nicht-archiviertes Schuljahr, in dem HEUTE liegt (per ISO-KW/Jahr).
+
+    Fallback: neuestes nicht-archiviertes Schuljahr. "" wenn keins existiert.
+
+    Zentrale Quelle fuer den "kein Jahr ausgewaehlt"-Default: das neueste Jahr
+    (start_year.desc() -> erstes Element) ist NICHT automatisch das richtige
+    Standardjahr, sobald ein Folgejahr bereits angelegt aber noch nicht das
+    laufende ist -- sonst zeigen Default-Ansichten kommentarlos die Zukunft.
+    """
+    years = db.exec(
+        select(Schoolyear)
+        .where(Schoolyear.archiviert == False)  # noqa: E712
+        .order_by(Schoolyear.start_year.desc())
+    ).all()
+    if not years:
+        return ""
+    iso = date.today().isocalendar()
+    today_key = (iso[1], iso[0])
+    for y in years:
+        if today_key in iter_schoolyear_weeks(y.start_kw, y.start_year, y.end_kw, y.end_year):
+            return y.id
+    return years[0].id
 
 
 def klasse_fuer(db: Session, trainee: Trainee, schoolyear_id: str) -> int | None:

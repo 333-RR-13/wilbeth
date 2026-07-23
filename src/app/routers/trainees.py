@@ -24,6 +24,7 @@ from app.models.trainee_wish import prioritaet_label
 from app.services.auth_service import CurrentUser, require_roles
 from app.services.conflict_checker import find_conflicts
 from app.services.membership_utils import (
+    aktuelles_schuljahr_id,
     beruf_langname,
     beruf_optionen,
     beruf_und_lehrjahr,
@@ -34,7 +35,6 @@ from app.services.membership_utils import (
 )
 from app.services.school_sync import sync_trainee
 from app.utils.colors import department_color_map
-from app.utils.kw import iter_schoolyear_weeks
 
 router = APIRouter(prefix="/trainees", tags=["trainees"])
 templates = Jinja2Templates(directory=Path(__file__).resolve().parents[1] / "templates")
@@ -79,23 +79,6 @@ def _resolve_einstiegsklasse_id(
     return klasse.id, None
 
 
-def _aktuelles_schuljahr_id(db: Session) -> str:
-    """Nicht-archiviertes Schuljahr, in dem HEUTE liegt; Fallback: neuestes."""
-    years = db.exec(
-        select(Schoolyear)
-        .where(Schoolyear.archiviert == False)  # noqa: E712
-        .order_by(Schoolyear.start_year.desc())
-    ).all()
-    if not years:
-        return ""
-    iso = date.today().isocalendar()
-    today_key = (iso[1], iso[0])
-    for y in years:
-        if today_key in iter_schoolyear_weeks(y.start_kw, y.start_year, y.end_kw, y.end_year):
-            return y.id
-    return years[0].id
-
-
 @router.get("/", response_class=HTMLResponse)
 def list_trainees(request: Request, db: DB, status: str = "aktiv"):
     """Liste der Trainees mit Status-Filter: aktiv | archiviert | alle."""
@@ -111,7 +94,7 @@ def list_trainees(request: Request, db: DB, status: str = "aktiv"):
     # BERECHNETE Klasse fuers laufende Jahr anzeigen (konsistent mit Uebersicht
     # und Jahresabschluss) - die rohe Einstiegsklasse ist nur der Anker und
     # wuerde falsche Anker-Daten verstecken.
-    anzeige_jahr = _aktuelles_schuljahr_id(db)
+    anzeige_jahr = aktuelles_schuljahr_id(db)
     klasse_map: dict[int, TraineeClass | None] = {}
     for t in trainees:
         kid = klasse_fuer(db, t, anzeige_jahr) if anzeige_jahr else t.klasse_id
@@ -278,8 +261,10 @@ def trainee_detail(request: Request, trainee_id: int, db: DB):
     ).all()
 
     # ── Visitenkarte ────────────────────────────────────────────────
-    # Klasse ueber klasse_fuer ermitteln (neuestes Schuljahr = berechneter Anker)
-    schoolyear_id = years_list[0].id if years_list else None
+    # Klasse ueber klasse_fuer ermitteln (laufendes Schuljahr = berechneter Anker;
+    # NICHT das neueste Jahr - ein bereits angelegtes Folgejahr wuerde sonst
+    # kommentarlos die Zukunft zeigen, siehe aktuelles_schuljahr_id()).
+    schoolyear_id = aktuelles_schuljahr_id(db) or None
     klasse_id = klasse_fuer(db, trainee, schoolyear_id) if schoolyear_id else trainee.klasse_id
     klasse = db.get(TraineeClass, klasse_id) if klasse_id else None
     # Ausbildungsberuf ausgeschrieben

@@ -120,8 +120,65 @@ def _has_integer_pk(model: type) -> bool:
     return ann is int
 
 
+# Erklaerungstext fuers Export-ZIP. import_zip() liest ausschliesslich die in
+# TABELLEN_REGISTRY gelisteten *.csv-Dateien (siehe Schritt 3 dort) und
+# ueberspringt jede andere Datei im ZIP automatisch -- LIESMICH.txt wird beim
+# Wieder-Import also stillschweigend ignoriert.
+_LIESMICH_TEXT = """\
+WILBETH – DATENEXPORT
+=====================
+
+Zweck dieses ZIPs
+-----------------
+Dieses ZIP enthaelt eine vollstaendige Datensicherung aller Wilbeth-Stamm-
+und Bewegungsdaten (eine CSV-Datei je Tabelle). Es dient zwei Zwecken:
+
+  1. Backup / Archivierung.
+  2. Wieder-Einspielen ueber den "Ersetzen"-Import: dabei werden ALLE
+     Tabellen in der App durch den Inhalt dieses ZIPs ERSETZT (kein
+     Zusammenfuehren, kein Teil-Import).
+
+Diese LIESMICH.txt ist nur zur Information. Sie ist keine Tabelle und wird
+vom Import automatisch uebersprungen (unbekannte Dateien im ZIP werden beim
+Ersetzen-Import ignoriert).
+
+Wichtigste Spalten je Datei
+----------------------------
+- schoolyears.csv           Ausbildungsjahre (id, Start/Ende als KW+Jahr,
+                             archiviert-Flag).
+- klassen.csv                Klassen (id, name, Unterrichtstyp, Schultage,
+                             next_class_id = Nachfolgeklasse beim
+                             Jahreswechsel).
+- abteilungskategorien.csv   Abteilungs-Kategorien.
+- abteilungen.csv            Abteilungen (Code, Name, Verantwortliche, ...).
+- trainees.csv               Trainees/Azubis/DH-Studenten. Wichtigste Spalte:
+                             ausbildungsbeginn (Startdatum) und
+
+                             *** klasse_id = EINSTIEGSKLASSE (Anker) ***
+                             Das ist die Klasse BEIM AUSBILDUNGSSTART, NICHT
+                             die aktuelle Klasse! Die IDs sind in klassen.csv
+                             nachschlagbar. Die aktuelle Klasse wird von
+                             Wilbeth immer live aus ausbildungsbeginn +
+                             Einstiegsklasse berechnet und steht bewusst in
+                             KEINER CSV-Datei.
+
+- schulplaene.csv            Schulplaene je Klasse/Ausbildungsjahr.
+- schulplan_wochen.csv       Einzelne Schulwochen je Schulplan.
+- ferien.csv                 Schulferien.
+- einsaetze.csv              Einsaetze/Belegungen je Trainee und Woche.
+- memberships.csv            AUSNAHME-Zuweisungen (Overrides): eine Zeile nur
+                             dann, wenn ein Trainee in einem bestimmten
+                             Ausbildungsjahr abweichend von der berechneten
+                             Klasse eingeordnet wurde (z. B. Wiederholer,
+                             Klassenwechsel). Im Normalfall ist diese Datei
+                             LEER.
+- wuensche.csv               Abteilungs-Wuensche der Trainees.
+- vorschlaege.csv            Einsatzvorschlaege von Ausbildern.
+"""
+
+
 def export_zip(db: Session) -> bytes:
-    """Exportiert alle Registry-Tabellen als ZIP (eine CSV je Tabelle)."""
+    """Exportiert alle Registry-Tabellen als ZIP (eine CSV je Tabelle) + LIESMICH.txt."""
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
         for dateiname, model in TABELLEN_REGISTRY:
@@ -134,6 +191,7 @@ def export_zip(db: Session) -> bytes:
                 writer.writerow([_serialize(getattr(row, f)) for f in felder])
             # utf-8-sig: BOM, damit Excel die CSV korrekt als UTF-8 erkennt.
             zf.writestr(f"{dateiname}.csv", out.getvalue().encode("utf-8-sig"))
+        zf.writestr("LIESMICH.txt", _LIESMICH_TEXT.encode("utf-8-sig"))
     return buffer.getvalue()
 
 

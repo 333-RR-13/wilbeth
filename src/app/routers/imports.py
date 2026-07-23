@@ -29,6 +29,7 @@ from app.services.importer import (
     parse_assignments_auto,
     parse_school_weeks,
 )
+from app.services.membership_utils import aktuelles_schuljahr_id
 
 router = APIRouter(prefix="/imports", tags=["imports"])
 # Separater Router ohne Prefix fuer die /import-Einstiegsseite
@@ -144,8 +145,8 @@ def einsaetze_import_dialog(
     user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
     years = db.exec(select(Schoolyear).order_by(Schoolyear.start_year.desc())).all()
-    if not schoolyear_id and years:
-        schoolyear_id = years[0].id
+    if not schoolyear_id:
+        schoolyear_id = aktuelles_schuljahr_id(db)
     schoolyear = db.get(Schoolyear, schoolyear_id) if schoolyear_id else None
     default_start_kw = schoolyear.start_kw if schoolyear else None
     return templates.TemplateResponse(request, "imports/_dialog.html", {
