@@ -2,6 +2,9 @@
 {% block title %}Klassen{% endblock %}
 
 {% block content %}
+{% set cu = request.state.current_user if request.state is defined and request.state.current_user is defined else None %}
+{% set can_edit = cu and cu.rolle in ('orga', 'admin') %}
+{% set is_admin = cu and cu.rolle == 'admin' %}
 <style>
   .beruf-section {
     margin-bottom: 2rem;
@@ -22,10 +25,12 @@
     <h1 class="page-title">Klassen</h1>
     <p class="page-subtitle">{{ classes | length }} Klasse{{ 'n' if classes | length != 1 else '' }}</p>
   </div>
+  {% if can_edit %}
   <a href="/klassen/neu" class="btn btn-primary">
     <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2Z"/></svg>
     Klasse anlegen
   </a>
+  {% endif %}
 </div>
 
 {% if not classes %}
@@ -69,7 +74,10 @@
             {% endif %}
           </td>
           <td class="td-actions">
+            {% if can_edit %}
             <a href="/klassen/{{ c.id }}/bearbeiten" class="btn btn-ghost btn-sm">Bearbeiten</a>
+            {% endif %}
+            {% if is_admin %}
             <button class="btn btn-ghost-danger btn-sm"
                     hx-delete="/klassen/{{ c.id }}"
                     hx-target="#row-c-{{ c.id }}"
@@ -77,6 +85,7 @@
                     hx-confirm="Klasse '{{ c.name }}' wirklich löschen?">
               Löschen
             </button>
+            {% endif %}
           </td>
         </tr>
         {% endfor %}

@@ -3,8 +3,9 @@
 
 {% block content %}
 {% set cu = request.state.current_user if request.state is defined and request.state.current_user is defined else None %}
-{% set show_bulk = not (cu and cu.rolle == 'ausbilder') %}
-{% set total_cols = 8 if show_bulk else 7 %}
+{% set can_edit = cu and cu.rolle in ('orga', 'admin') %}
+{% set is_admin = cu and cu.rolle == 'admin' %}
+{% set total_cols = 8 if is_admin else 7 %}
 <style>
   .bulk-bar {
     display: flex;
@@ -48,7 +49,7 @@
     <h1 class="page-title">Einsätze</h1>
     <p class="page-subtitle">{{ assignments | length }} Einträge</p>
   </div>
-  {% if show_bulk %}
+  {% if can_edit %}
   <a href="/einsaetze/neu" class="btn btn-primary">
     <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2Z"/></svg>
     Einsatz anlegen
@@ -74,12 +75,17 @@
   <button type="submit" class="btn btn-secondary">Filtern</button>
 </form>
 
-{# Bulk-Delete-Formular umschließt Tabelle und Aktionsleiste #}
+{# Bulk-Delete-Formular (admin-only) umschließt Tabelle und Aktionsleiste;
+   fuer alle anderen Rollen nur ein neutraler Container. #}
+{% if is_admin %}
 <form id="bulk-form"
       method="post"
       action="/einsaetze/bulk-delete{% if selected_year or selected_trainee %}?{% if selected_year %}schoolyear_id={{ selected_year }}{% endif %}{% if selected_year and selected_trainee %}&{% endif %}{% if selected_trainee %}trainee_id={{ selected_trainee }}{% endif %}{% endif %}">
+{% else %}
+<div id="einsaetze-tabelle">
+{% endif %}
 
-  {% if show_bulk %}
+  {% if is_admin %}
   <div class="bulk-bar">
     <button type="button" id="btn-bulk-delete"
             class="btn-danger-outline"
@@ -94,7 +100,7 @@
     <table>
       <thead>
         <tr>
-          {% if show_bulk %}
+          {% if is_admin %}
           <th class="cb-cell">
             <input type="checkbox" id="cb-all" title="Alle auswählen">
           </th>
@@ -112,7 +118,7 @@
         {% for a in assignments %}
         {% set t = trainee_map.get(a.trainee_id) %}
         <tr id="row-a-{{ a.id }}" data-href="/einsaetze/{{ a.id }}/bearbeiten">
-          {% if show_bulk %}
+          {% if is_admin %}
           <td class="cb-cell">
             <input type="checkbox" class="row-cb" name="ids" value="{{ a.id }}">
           </td>
@@ -149,7 +155,7 @@
           </td>
           <td class="td-actions">
             <a href="/einsaetze/{{ a.id }}/bearbeiten" class="btn btn-ghost btn-sm">Bearbeiten</a>
-            {% if show_bulk %}
+            {% if can_edit %}
             <button class="btn btn-ghost-danger btn-sm"
                     hx-delete="/einsaetze/{{ a.id }}"
                     hx-target="#row-a-{{ a.id }}"
@@ -166,9 +172,13 @@
       </tbody>
     </table>
   </div>
+{% if is_admin %}
 </form>
+{% else %}
+</div>
+{% endif %}
 
-{% if show_bulk %}
+{% if is_admin %}
 <script>
 (function () {
   const cbAll = document.getElementById('cb-all');

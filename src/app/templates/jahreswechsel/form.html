@@ -28,6 +28,41 @@
   </form>
 </div>
 
+{% if archivierte_jahre %}
+<div class="form-card form-card-fluid" style="margin-top: 24px;">
+  <h2 class="form-section-title">Archivierte Jahre</h2>
+  <p class="page-subtitle" style="margin-bottom: 12px;">
+    Sicherheitsnetz: ein versehentlich abgeschlossenes Jahr kann hier wieder aktiviert werden.
+  </p>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Ausbildungsjahr</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for y in archivierte_jahre %}
+        <tr>
+          <td><span class="mono">{{ y.id }}</span></td>
+          <td class="td-actions">
+            <form method="post" action="/jahresabschluss/reaktivieren" style="display:inline">
+              <input type="hidden" name="schoolyear_id" value="{{ y.id }}">
+              <button type="submit" class="btn btn-ghost btn-sm"
+                      onclick="return confirm('Ausbildungsjahr {{ y.id }} wieder reaktivieren?')">
+                Reaktivieren
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
 {% if selected_year_id %}
 
 {% if folgejahr_fehlt %}

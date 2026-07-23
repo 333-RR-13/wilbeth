@@ -2,11 +2,15 @@
 {% block title %}Trainees{% endblock %}
 
 {% block content %}
+{% set cu = request.state.current_user if request.state is defined and request.state.current_user is defined else None %}
+{% set can_edit = cu and cu.rolle in ('orga', 'admin') %}
+{% set is_admin = cu and cu.rolle == 'admin' %}
 <div class="page-header">
   <div>
     <h1 class="page-title">Trainees</h1>
     <p class="page-subtitle">{{ trainees | length }} Person{{ 'en' if trainees | length != 1 else '' }}</p>
   </div>
+  {% if can_edit %}
   <div class="btn-group">
     <a href="/trainees/upn-pflege" class="btn btn-secondary">UPN-Pflege</a>
     <a href="/trainees/neu" class="btn btn-primary">
@@ -14,6 +18,7 @@
       Trainee anlegen
     </a>
   </div>
+  {% endif %}
 </div>
 
 {# ── Status-Filter-Tabs ───────────────────────────────────────────────────── #}
@@ -84,16 +89,21 @@
         <td class="td-actions">
           <a href="/trainees/{{ t.id }}/bearbeiten" class="btn btn-ghost btn-sm">Bearbeiten</a>
           {% if not t.aktiv %}
-          {# Archivierte Azubis: Reaktivieren + Endgültig löschen #}
+          {# Archivierte Azubis: Reaktivieren (orga/admin) + Endgültig löschen (admin-only) #}
+          {% if can_edit %}
           <form method="post" action="/trainees/{{ t.id }}/reaktivieren" style="display:inline">
             <button type="submit" class="btn btn-ghost btn-sm">Reaktivieren</button>
           </form>
+          {% endif %}
+          {% if is_admin %}
           <form method="post" action="/trainees/{{ t.id }}/loeschen" style="display:inline"
                 onsubmit="return confirm('{{ t.nachname }}, {{ t.vorname }} endgültig löschen? Diese Aktion entfernt auch alle Einsätze, Wünsche und Klassenmitgliedschaften und kann nicht rückgängig gemacht werden.')">
             <button type="submit" class="btn btn-ghost-danger btn-sm">Endgültig löschen</button>
           </form>
+          {% endif %}
           {% else %}
-          {# Aktive Azubis: HTMX-Delete (Sofort-Entfernung ohne Archiv) #}
+          {# Aktive Azubis: HTMX-Delete (Sofort-Entfernung ohne Archiv, orga/admin) #}
+          {% if can_edit %}
           <button class="btn btn-ghost-danger btn-sm"
                   hx-delete="/trainees/{{ t.id }}"
                   hx-target="#row-t-{{ t.id }}"
@@ -101,6 +111,7 @@
                   hx-confirm="{{ t.nachname }}, {{ t.vorname }} wirklich löschen?">
             Löschen
           </button>
+          {% endif %}
           {% endif %}
         </td>
       </tr>

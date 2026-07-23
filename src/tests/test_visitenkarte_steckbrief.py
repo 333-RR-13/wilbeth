@@ -179,7 +179,9 @@ def test_jahresabschluss_nicht_archivierbares_jahr_liefert_fehler(client, sessio
 
 
 def test_jahresabschluss_formular_zeigt_nur_nicht_archivierte(client, session: Session):
-    """GET /jahresabschluss/ zeigt nur nicht-archivierte Jahre in der Auswahl."""
+    """GET /jahresabschluss/ zeigt nur nicht-archivierte Jahre in der Auswahl
+    (die Dropdown-Auswahl zum Abschliessen). Archivierte Jahre tauchen separat
+    in der 'Archivierte Jahre'-Sektion auf (Reaktivieren-Sicherheitsnetz)."""
     aktiv = _add_year(session, SY_A, 2025)
     archiv = _add_year(session, SY_B, 2026)
     archiv.archiviert = True
@@ -188,8 +190,12 @@ def test_jahresabschluss_formular_zeigt_nur_nicht_archivierte(client, session: S
 
     r = client.get("/jahresabschluss/")
     assert r.status_code == 200
-    assert SY_A in r.text
-    assert SY_B not in r.text
+    select_block = r.text.split('id="schoolyear_id"')[1].split("</select>")[0]
+    assert SY_A in select_block
+    assert SY_B not in select_block
+    # Archivierte Sektion zeigt das archivierte Jahr separat an
+    assert "Archivierte Jahre" in r.text
+    assert SY_B in r.text
 
 
 def test_jahresabschluss_vorschau_absolventen(client, session: Session):

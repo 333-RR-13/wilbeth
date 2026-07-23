@@ -2,6 +2,9 @@
 {% block title %}Schulferien{% endblock %}
 
 {% block content %}
+{% set cu = request.state.current_user if request.state is defined and request.state.current_user is defined else None %}
+{% set can_edit = cu and cu.rolle in ('orga', 'admin') %}
+{% set is_admin = cu and cu.rolle == 'admin' %}
 <style>
 .holiday-import-dialog {
   border: none;
@@ -55,6 +58,7 @@
     <h1 class="page-title">Schulferien</h1>
     <p class="page-subtitle">Ferienzeiträume pro Lehrjahr (Baden-Württemberg)</p>
   </div>
+  {% if can_edit %}
   <div style="display:flex;gap:.5rem;align-items:center">
     <button type="button" class="btn btn-secondary"
             hx-get="/schulferien/import/dialog"
@@ -69,6 +73,7 @@
       Ferien anlegen
     </a>
   </div>
+  {% endif %}
 </div>
 
 {% if request.query_params.get('msg') %}
@@ -102,7 +107,10 @@
           {% endif %}
         </td>
         <td class="td-actions">
+          {% if can_edit %}
           <a href="/schulferien/{{ h.id }}/bearbeiten" class="btn btn-ghost btn-sm">Bearbeiten</a>
+          {% endif %}
+          {% if is_admin %}
           <button class="btn btn-ghost-danger btn-sm"
                   hx-delete="/schulferien/{{ h.id }}"
                   hx-target="#row-h-{{ h.id }}"
@@ -110,6 +118,7 @@
                   hx-confirm="'{{ h.name }}' wirklich löschen?">
             Löschen
           </button>
+          {% endif %}
         </td>
       </tr>
       {% else %}

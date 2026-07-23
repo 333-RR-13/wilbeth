@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+{% block title %}Hilfe{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">How to Wilbeth</h1>
+    <p class="page-subtitle">
+      Kurzanleitung für deine Rolle:
+      {%- if user.rolle == "admin" %} Admin
+      {%- elif user.rolle == "orga" %} Orga
+      {%- else %} Ausbilder
+      {%- endif %}
+    </p>
+  </div>
+</div>
+
+<nav class="hilfe-toc" aria-label="Inhaltsverzeichnis">
+  <a href="#anmelden-rollen">Anmelden &amp; Rollen</a>
+  <a href="#uebersicht-bedienen">Übersicht bedienen</a>
+  {% if user.rolle in ("ausbilder", "orga", "admin") %}
+  <a href="#meine-abteilung">Meine Abteilung</a>
+  {% endif %}
+  {% if user.rolle in ("orga", "admin") %}
+  <a href="#stammdaten">Stammdaten &amp; Erst-Einrichtung</a>
+  <a href="#trainee-anlegen">Trainee anlegen</a>
+  <a href="#planen">Planen</a>
+  {% endif %}
+  {% if user.rolle == "admin" %}
+  <a href="#jahresabschluss">Jahresabschluss</a>
+  <a href="#datensicherung">Datensicherung</a>
+  {% endif %}
+</nav>
+
+<!-- ── Alle Staff-Rollen ─────────────────────────────────────────── -->
+<section class="hilfe-section" id="anmelden-rollen">
+  <h2 class="form-section-title">Anmelden &amp; Rollen</h2>
+  <p>
+    Anmeldung mit deinem normalen Firmen-Account (Microsoft-Login) – Wilbeth erkennt
+    deine Rolle danach automatisch aus der Gruppenmitgliedschaft (bzw. bei Azubis über
+    den gepflegten UPN).
+  </p>
+  <table class="hilfe-table">
+    <thead><tr><th>Rolle</th><th>Landet auf</th><th>Kann</th></tr></thead>
+    <tbody>
+      <tr><td>Azubi</td><td>eigenem Plan</td><td>Plan sehen, Urlaub eintragen, Wünsche abgeben, Kalender abonnieren</td></tr>
+      <tr><td>Ausbilder</td><td>„Meine Abteilung"</td><td>alles ansehen; Einsätze der eigenen Abteilung bestätigen, kommentieren, vorschlagen</td></tr>
+      <tr><td>Orga</td><td>Übersicht</td><td>planen + Stammdaten pflegen</td></tr>
+      <tr><td>Admin</td><td>Übersicht</td><td>alles, inkl. Jahresabschluss und Datensicherung</td></tr>
+    </tbody>
+  </table>
+  <p class="hilfe-hint">
+    „Kein Zugriff"? Bei Azubis fehlt meist der UPN (Orga Bescheid geben), bei Mitarbeitenden
+    die Gruppen-Mitgliedschaft. Nach Gruppen-Änderungen einmal ab- und wieder anmelden.
+  </p>
+</section>
+
+<section class="hilfe-section" id="uebersicht-bedienen">
+  <h2 class="form-section-title">Übersicht bedienen</h2>
+  <ul class="hilfe-list">
+    <li><strong>Klick</strong> = Zelle auswählen · <strong>Doppelklick</strong> = Einsatz öffnen/anlegen</li>
+    <li><strong>Shift-Klick</strong> = Bereich wählen · <strong>Strg-Klick</strong> = einzelne Zellen dazuwählen</li>
+    <li><strong>Ziehen</strong> = Einsatz kopieren · <strong>Strg+C / Strg+V</strong> = Block kopieren</li>
+    <li>Filter oben: Jahr, Klasse, Abteilung, <strong>Halbjahr</strong> (H1 = KW 36–10, H2 = KW 11–35), Wochen-Fenster (scrollbar)</li>
+    <li><strong>Rote Zellen</strong> = Konflikte; rechte Spalte zeigt, wo der Azubi schon war</li>
+  </ul>
+</section>
+
+<!-- ── Ausbilder (+ Orga/Admin) ──────────────────────────────────── -->
+{% if user.rolle in ("ausbilder", "orga", "admin") %}
+<section class="hilfe-section" id="meine-abteilung">
+  <h2 class="form-section-title">Meine Abteilung</h2>
+  <p>
+    Nach dem Login siehst du je verantworteter Abteilung die anstehenden Einsätze als
+    <strong>Blöcke</strong> (z. B. „Jäger, Jonas — KW 38–41 — offen").
+  </p>
+  <ul class="hilfe-list">
+    <li><strong>Bestätigen / Ablehnen</strong> pro Block – ein Klick für alle Wochen des Blocks</li>
+    <li><strong>Anmerkung/Feedback</strong> direkt am Block hinterlegen, z. B. nach dem Einsatz</li>
+    <li>Status erscheint als farbiger Punkt in der großen Übersicht (gelb = offen, grün = bestätigt, rot = abgelehnt)</li>
+    <li><strong>Einsatz vorschlagen</strong>: unten auf der Seite Azubi + Zeitraum (KW von–bis) + Kommentar einreichen – Orga prüft ihn, Status siehst du in „Meine Vorschläge"</li>
+  </ul>
+  <p class="hilfe-hint">
+    Du siehst keine Abteilung? Dann fehlt dein UPN im Feld <strong>„Verantwortliche Ausbilder"</strong>
+    der Abteilung – Orga/Admin trägt ihn unter Abteilungen → Bearbeiten ein.
+  </p>
+</section>
+{% endif %}
+
+<!-- ── Orga + Admin ──────────────────────────────────────────────── -->
+{% if user.rolle in ("orga", "admin") %}
+<section class="hilfe-section" id="stammdaten">
+  <h2 class="form-section-title">Stammdaten &amp; Erst-Einrichtung</h2>
+  <p>Reihenfolge beim Aufbau eines neuen Ausbildungsjahres beachten:</p>
+  <ol class="hilfe-list hilfe-list-ol">
+    <li><strong>Ausbildungsjahr</strong> anlegen (z. B. 2025-2026, KW 36–35)</li>
+    <li><strong>Klassen</strong> anlegen – Namenskonvention wichtig: <strong>„FISI 1. LJ", „FISI 2. LJ", …</strong> (daraus berechnet Wilbeth die Progression)</li>
+    <li><strong>Abteilungen</strong> (+ Kategorien, Verantwortliche-UPNs, Beschreibung)</li>
+    <li><strong>Schulpläne</strong> je Klasse/Jahr und <strong>Schulferien</strong></li>
+    <li><strong>Trainees</strong> anlegen (siehe unten)</li>
+  </ol>
+</section>
+
+<section class="hilfe-section" id="trainee-anlegen">
+  <h2 class="form-section-title">Trainee anlegen</h2>
+  <ul class="hilfe-list">
+    <li><strong>Ausbildungsbeginn</strong> (Pflicht) und <strong>Ausbildungsberuf</strong> (Pflicht) – daraus setzt Wilbeth die Einstiegsklasse automatisch auf „‹Beruf› 1. LJ"</li>
+    <li>Merkregel: <em>Einstiegsklasse = Klasse beim Start, nie die heutige</em> – Wilbeth berechnet die Klasse für jedes Jahr selbst</li>
+    <li><strong>Sonderfall-Häkchen</strong> nur für echte Ausnahmen (z. B. Einstieg direkt im 2. LJ)</li>
+    <li><strong>UPN-Pflege</strong> (Button auf der Trainee-Liste) danach nicht vergessen – ohne UPN kein SSO-Login für den Azubi (Share-Link funktioniert als Fallback)</li>
+  </ul>
+</section>
+
+<section class="hilfe-section" id="planen">
+  <h2 class="form-section-title">Planen</h2>
+  <ul class="hilfe-list">
+    <li><strong>Auto-Plan</strong>: verteilt offene Wochen nach den Azubi-Wünschen (Muss/Sollte/Kann) – Vorschau, dann übernehmen</li>
+    <li><strong>Import</strong>: Excel-Matrix oder CSV (mit/ohne KW-Kopfzeile)</li>
+    <li><strong>Vorschläge-Inbox</strong>: eingereichte Ausbilder-Vorschläge annehmen (legt Einsätze in freien Wochen direkt als „bestätigt" an) oder ablehnen (mit Kommentar)</li>
+  </ul>
+</section>
+{% endif %}
+
+<!-- ── Nur Admin ─────────────────────────────────────────────────── -->
+{% if user.rolle == "admin" %}
+<section class="hilfe-section" id="jahresabschluss">
+  <h2 class="form-section-title">Jahresabschluss</h2>
+  <p>Einmal pro Jahr, nur Admin:</p>
+  <p>
+    Ältestes offenes Jahr ist vorausgewählt → pro Azubi Standard („rückt auf") oder
+    <strong>Sonderfall</strong> wählen (wiederholt / wechselt zu Klasse / Abbruch) → abschließen.
+    Das Jahr wird archiviert, <strong>Absolventen wandern automatisch ins Trainee-Archiv</strong>
+    (reaktivierbar).
+  </p>
+  <p class="hilfe-hint">Archivieren ist derzeit nicht per Klick umkehrbar – Jahr vorher prüfen.</p>
+</section>
+
+<section class="hilfe-section" id="datensicherung">
+  <h2 class="form-section-title">Datensicherung</h2>
+  <p>
+    Kompletten Datenbestand als <strong>Export-ZIP</strong> (CSV je Tabelle) exportieren, in
+    Excel korrigieren, dann wieder importieren – der <strong>Ersetzen-Import</strong> tauscht den
+    gesamten Bestand aus (mit Bestätigungs-Häkchen; bei Fehlern passiert gar nichts).
+    Ideal für Massen-Korrekturen, z. B. Ausbildungsbeginn-Daten.
+  </p>
+</section>
+{% endif %}
+
+<style>
+  .hilfe-toc {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 24px;
+  }
+  .hilfe-toc a {
+    padding: 6px 12px;
+    border-radius: var(--radius-pill);
+    background: var(--accent-light);
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+  }
+  .hilfe-toc a:hover { text-decoration: underline; }
+
+  .hilfe-section {
+    background: var(--surface);
+    box-shadow: var(--shadow-card);
+    border-radius: var(--radius-md);
+    padding: 24px 28px;
+    margin-bottom: 18px;
+    max-width: 760px;
+  }
+  .hilfe-section h2 { scroll-margin-top: 16px; }
+  .hilfe-section p { color: var(--text-secondary); line-height: 1.6; margin: 8px 0; }
+  .hilfe-section p:first-of-type { margin-top: 0; }
+
+  .hilfe-list { margin: 8px 0 0; padding-left: 20px; }
+  .hilfe-list li { color: var(--text-secondary); line-height: 1.6; margin: 6px 0; }
+  .hilfe-list strong { color: var(--text-primary); }
+  .hilfe-list-ol { padding-left: 22px; }
+
+  .hilfe-hint {
+    margin-top: 14px;
+    padding: 10px 14px;
+    border-radius: var(--radius);
+    background: var(--accent-light);
+    color: var(--accent);
+    font-size: 13px;
+  }
+
+  .hilfe-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+    font-size: 13.5px;
+  }
+  .hilfe-table th, .hilfe-table td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-secondary);
+  }
+  .hilfe-table th { color: var(--text-primary); font-weight: 600; }
+  .hilfe-table td:first-child { color: var(--text-primary); font-weight: 500; }
+</style>
+{% endblock %}

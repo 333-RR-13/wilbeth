@@ -2,11 +2,15 @@
 {% block title %}Abteilungen{% endblock %}
 
 {% block content %}
+{% set cu = request.state.current_user if request.state is defined and request.state.current_user is defined else None %}
+{% set can_edit = cu and cu.rolle in ('orga', 'admin') %}
+{% set is_admin = cu and cu.rolle == 'admin' %}
 <div class="page-header">
   <div>
     <h1 class="page-title">Abteilungen</h1>
     <p class="page-subtitle">{{ departments | length }} Abteilung{{ 'en' if departments | length != 1 else '' }}</p>
   </div>
+  {% if can_edit %}
   <div style="display:flex;gap:.5rem;align-items:center;">
     <a href="/abteilungen/kategorien" class="btn btn-secondary">Kategorien verwalten</a>
     <a href="/abteilungen/neu" class="btn btn-primary">
@@ -14,6 +18,7 @@
       Abteilung anlegen
     </a>
   </div>
+  {% endif %}
 </div>
 
 <div class="table-wrapper">
@@ -65,7 +70,10 @@
           {% endif %}
         </td>
         <td class="td-actions">
+          {% if can_edit %}
           <a href="/abteilungen/{{ d.id }}/bearbeiten" class="btn btn-ghost btn-sm">Bearbeiten</a>
+          {% endif %}
+          {% if is_admin %}
           <button class="btn btn-ghost-danger btn-sm"
                   hx-delete="/abteilungen/{{ d.id }}"
                   hx-target="#row-d-{{ d.id }}"
@@ -73,6 +81,7 @@
                   hx-confirm="Abteilung '{{ d.code }}' wirklich löschen?">
             Löschen
           </button>
+          {% endif %}
         </td>
       </tr>
       {% else %}

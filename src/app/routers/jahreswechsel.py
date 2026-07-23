@@ -142,6 +142,14 @@ def jahresabschluss_form(
     default_year_id = years[0].id if years else ""
     selected_year_id = request.query_params.get("schoolyear_id", default_year_id)
 
+    # Admin-Sicherheitsnetz: archivierte Jahre koennen ueber /reaktivieren
+    # wieder aktiviert werden (z. B. versehentlicher Abschluss).
+    archivierte_jahre = db.exec(
+        select(Schoolyear)
+        .where(Schoolyear.archiviert == True)  # noqa: E712
+        .order_by(Schoolyear.start_year.desc())
+    ).all()
+
     absolventen: list[dict] = []
     trainee_rows: list[dict] = []
     folgejahr_fehlt = False
@@ -164,6 +172,7 @@ def jahresabschluss_form(
         "trainee_rows": trainee_rows,
         "folgejahr_fehlt": folgejahr_fehlt,
         "all_classes": all_classes,
+        "archivierte_jahre": archivierte_jahre,
         "active_nav": "jahreswechsel",
     })
 
@@ -255,5 +264,34 @@ async def jahresabschluss_abschliessen(
     detail = f"{count_archiviert}+archiviert,+{count_overrides}+Overrides"
     return RedirectResponse(
         f"/jahresabschluss/?msg=created&detail={detail}",
+        status_code=303,
+    )
+
+
+@router.post("/reaktivieren", response_class=RedirectResponse)
+async def jahresabschluss_reaktivieren(
+    request: Request,
+    db: DB,
+    user: CurrentUser = Depends(require_roles("admin")),
+):
+    """Admin-Sicherheitsnetz: ein versehentlich archiviertes Jahr wieder
+    aktivieren (archiviert=False), z. B. nach einem falschen Jahresabschluss.
+    """
+    form = await request.form()
+    schoolyear_id = form.get("schoolyear_id", "")
+
+    year = db.get(Schoolyear, schoolyear_id) if schoolyear_id else None
+    if year is None:
+        return RedirectResponse(
+            "/jahresabschluss/?msg=error&detail=Ausbildungsjahr+nicht+gefunden",
+            status_code=303,
+        )
+
+    year.archiviert = False
+    db.add(year)
+    db.commit()
+
+    return RedirectResponse(
+        f"/jahresabschluss/?msg=updated&detail=Jahr+{schoolyear_id}+reaktiviert",
         status_code=303,
     )

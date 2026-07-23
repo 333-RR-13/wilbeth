@@ -2,15 +2,20 @@
 {% block title %}Schulpläne{% endblock %}
 
 {% block content %}
+{% set cu = request.state.current_user if request.state is defined and request.state.current_user is defined else None %}
+{% set can_edit = cu and cu.rolle in ('orga', 'admin') %}
+{% set is_admin = cu and cu.rolle == 'admin' %}
 <div class="page-header">
   <div>
     <h1 class="page-title">Schulpläne</h1>
     <p class="page-subtitle">{{ plans | length }} Plan{{ 'e' if plans | length != 1 else '' }}</p>
   </div>
+  {% if can_edit %}
   <a href="/schulplaene/neu" class="btn btn-primary">
     <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2Z"/></svg>
     Plan anlegen
   </a>
+  {% endif %}
 </div>
 
 <div class="table-wrapper">
@@ -44,6 +49,7 @@
         <td class="td-muted">{{ week_counts.get(p.id, 0) }}</td>
         <td class="td-actions">
           <a href="/schulplaene/{{ p.id }}" class="btn btn-ghost btn-sm">Details</a>
+          {% if is_admin %}
           <button class="btn btn-ghost-danger btn-sm"
                   hx-delete="/schulplaene/{{ p.id }}"
                   hx-target="#row-sp-{{ p.id }}"
@@ -51,6 +57,7 @@
                   hx-confirm="Plan für {{ cls.name if cls else 'diese Klasse' }} wirklich löschen?">
             Löschen
           </button>
+          {% endif %}
         </td>
       </tr>
       {% else %}

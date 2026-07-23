@@ -177,6 +177,27 @@ def test_edit_form_vorbelegt_beruf_und_sonderfall_bei_2lj(client, session: Sessi
     assert "display:none;" not in r.text.split("sonderfall-klasse-block")[1].split(">")[0]
 
 
+def test_edit_form_kein_sonderfall_bei_dh_kohorte(client, session: Session):
+    """DH-Kohorte (kein 'n. LJ'-Muster, lj is None) ist ueber den Beruf
+    ableitbar - KEIN Sonderfall. Edit-Formular: Checkbox nicht angehakt,
+    beruf-Select mit dem Kohortennamen vorbelegt."""
+    from datetime import date
+    dh = _add_class(session, "DHBW Cybersecurity")
+    t = Trainee(
+        vorname="Doro", nachname="Dual", rolle=TraineeRolle.DH_STUDENT,
+        klasse_id=dh.id, ausbildungsbeginn=date(2025, 9, 1),
+    )
+    session.add(t)
+    session.commit()
+
+    r = client.get(f"/trainees/{t.id}/bearbeiten")
+    assert r.status_code == 200
+    assert '<option value="DHBW Cybersecurity" selected>' in r.text
+    checkbox_tag = r.text.split('id="sonderfall"')[1].split(">")[0]
+    assert "checked" not in checkbox_tag, "DH-Kohorte darf NICHT als Sonderfall angehakt sein"
+    assert "display:none;" in r.text.split("sonderfall-klasse-block")[1].split(">")[0]
+
+
 def test_edit_form_kein_sonderfall_bei_1lj(client, session: Session):
     """Bei Einstiegsklasse im 1. LJ bleibt Sonderfall unangehakt+eingeklappt."""
     from datetime import date

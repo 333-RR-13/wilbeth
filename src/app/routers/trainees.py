@@ -348,7 +348,9 @@ def edit_trainee(request: Request, trainee_id: int, db: DB):
         if aktuelle_klasse is not None:
             token, lehrjahr = beruf_und_lehrjahr(aktuelle_klasse.name)
             beruf_selected = token
-            sonderfall_checked = lehrjahr != 1
+            # DH-Kohorten (lj is None) sind ueber den Beruf ableitbar - kein
+            # Sonderfall. Nur ein abweichendes LJ (lj != 1) ist ein Sonderfall.
+            sonderfall_checked = lehrjahr is not None and lehrjahr != 1
 
     return templates.TemplateResponse(request, "trainees/form.html", {
         "trainee": trainee,
