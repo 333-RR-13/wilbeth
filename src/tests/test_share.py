@@ -414,6 +414,13 @@ def test_ueber_page_renders_in_share_layout(client, session):
     # Share-Layout: eigener Name erscheint im Sidebar-Header
     assert "Anton" in r.text
     assert "Altmann" in r.text
+    # Inhalt ist identisch mit der Planer-Seite (gemeinsames Partial):
+    # die Sage der Drei Bethen, nicht mehr der alte Kurztext
+    assert "Drei Bethen" in r.text
+    assert "Wilbeth ist diese App" in r.text
+    # Der Abschluss-Link fuehrt auf den eigenen Plan, nicht auf /overview
+    assert f'href="/mein-plan/{TOKEN}"' in r.text
+    assert 'href="/overview"' not in r.text
 
 
 # ── Abteilungsliste ──────────────────────────────────────────────

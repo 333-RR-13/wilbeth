@@ -108,6 +108,12 @@
   border-radius: var(--radius-md, 8px);
   box-shadow: var(--shadow-card, rgba(0,0,0,0.08) 0px 0px 0px 1px, rgba(0,0,0,0.04) 0px 2px 4px);
 }
+/* WICHTIG: display:flex oben wuerde das hidden-Attribut ueberstimmen
+   (Author-CSS schlaegt das UA-Default display:none) - Panel startet sonst
+   dauerhaft sichtbar und ueberlagert die Tabelle. */
+.kt-filter-panel[hidden] {
+  display: none;
+}
 
 .kt-filter-tree {
   overflow-y: auto;
