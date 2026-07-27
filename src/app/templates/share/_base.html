@@ -37,6 +37,13 @@
         </svg>
         Meine Klasse
       </a>
+      <a href="/mein-plan/{{ token }}/jahrgang"
+         class="nav-link {% if active == 'jahrgang' %}active{% endif %}">
+        <svg viewBox="0 0 16 16" fill="currentColor">
+          <path d="M8 1 1 4.5 8 8l7-3.5L8 1zM1.5 7.2 8 10.5l6.5-3.3V9L8 12.3 1.5 9V7.2zm0 4L8 14.5 14.5 11.2V13L8 16.3 1.5 13v-1.8z"/>
+        </svg>
+        Mein Jahrgang
+      </a>
       <a href="/mein-plan/{{ token }}/urlaub"
          class="nav-link {% if active == 'urlaub' %}active{% endif %}">
         <svg viewBox="0 0 16 16" fill="currentColor">
@@ -56,7 +63,7 @@
         <svg viewBox="0 0 16 16" fill="currentColor">
           <path d="M1 1h6v6H1zm8 0h6v6H9zM1 9h6v6H1zm8 0h6v6H9z"/>
         </svg>
-        Übersicht
+        Alle Azubis &amp; Studis
       </a>
       <a href="/mein-plan/{{ token }}/abteilungen"
          class="nav-link {% if active == 'abteilungen' %}active{% endif %}">
@@ -75,7 +82,7 @@
     </nav>
 
     <div class="sidebar-footer">
-      <a href="/ueber-wilbeth" class="nav-link">
+      <a href="/mein-plan/{{ token }}/ueber" class="nav-link {% if active == 'ueber' %}active{% endif %}">
         <svg viewBox="0 0 16 16" fill="currentColor">
           <path d="M13.6 10.4a6.4 6.4 0 0 1-8-8 6.5 6.5 0 1 0 8 8z"/>
           <circle cx="11.5" cy="3.5" r="1"/>

@@ -1,18 +1,27 @@
 {% extends "share/_base.html" %}
-{% block title %}Alle Azubis &amp; Studis{% endblock %}
+{% block title %}Mein Jahrgang{% endblock %}
 
 {% block content %}
 <div class="page-header">
   <div>
-    <h1 class="page-title">Alle Azubis &amp; Studis</h1>
-    <p class="page-subtitle">Alle aktiven Auszubildenden und Studierenden</p>
+    <h1 class="page-title">Mein Jahrgang</h1>
+    <p class="page-subtitle">
+      {% if my_start %}Startjahrgang {{ my_start }} — alle Berufe &amp; Studiengänge{% else %}–{% endif %}
+    </p>
   </div>
 </div>
+
+{% if my_start is none %}
+<div class="card card-body" style="text-align:center; color:var(--text-muted)">
+  Für dich ist kein Ausbildungsbeginn hinterlegt — daher gibt es hier keine Jahrgangsansicht.
+</div>
+
+{% else %}
 
 {% if years | length > 1 %}
 <div class="share-year-links">
   {% for y in years %}
-  <a href="/mein-plan/{{ token }}/uebersicht?schoolyear_id={{ y.id }}"
+  <a href="/mein-plan/{{ token }}/jahrgang?schoolyear_id={{ y.id }}"
      class="share-year-link {{ 'active' if y.id == selected_year else '' }}">{{ y.id }}</a>
   {% endfor %}
 </div>
@@ -45,7 +54,7 @@
 </section>
 {% else %}
 <div class="card card-body" style="text-align:center; color:var(--text-muted)">
-  Keine aktiven Auszubildenden vorhanden.
+  Keine aktiven Trainees in deinem Jahrgang gefunden.
 </div>
 {% endfor %}
 
@@ -53,6 +62,8 @@
 <div class="card card-body" style="text-align:center; color:var(--text-muted)">
   Kein Schuljahr ausgewählt oder keine Daten vorhanden.
 </div>
+{% endif %}
+
 {% endif %}
 
 <style>

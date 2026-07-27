@@ -1,4 +1,6 @@
 """Tests fuer den Azubi-Self-Service unter /mein-plan/{token}."""
+from datetime import date
+
 from sqlmodel import Session, select
 
 from app.models import (
@@ -65,12 +67,14 @@ def test_my_plan_sidebar_links(client, session):
     _setup(session)
     r = client.get(f"/mein-plan/{TOKEN}")
     assert r.status_code == 200
-    # Linke Bar verlinkt alle Bereiche + Über Wilbeth
+    # Linke Bar verlinkt alle Bereiche + Über Wilbeth (share-eigene Route, nicht
+    # mehr /ueber-wilbeth hinter dem Planer-Auth-Guard, siehe Fix e)
     for href in [
         f"/mein-plan/{TOKEN}/klasse",
+        f"/mein-plan/{TOKEN}/jahrgang",
         f"/mein-plan/{TOKEN}/urlaub",
         f"/mein-plan/{TOKEN}/wuensche",
-        "/ueber-wilbeth",
+        f"/mein-plan/{TOKEN}/ueber",
     ]:
         assert href in r.text
     # Einzeilen-Matrix mit KW-Headern
@@ -235,10 +239,181 @@ def test_uebersicht_page_renders(client, session):
     assert "Altmann" in r.text
     # Zweiter Trainee ebenfalls sichtbar
     assert "Buehler" in r.text
-    # Nav-Link aktiv
-    assert "Übersicht" in r.text
+    # Nav-Link/Titel umbenannt (Fix Paket B, Punkt d)
+    assert "Alle Azubis &amp; Studis" in r.text
     # Matrix-Kopfzeile vorhanden (KW-Header)
     assert "th-kw-num" in r.text
+
+
+# ── Meine Klasse: berechnete Klasse statt Anker/Beruf (Paket B, Bugs 1+2) ──
+
+def _setup_progression(session: Session) -> dict:
+    """FISI-Klassenkette 1./2. LJ + zwei Trainees mit demselben Anker ('FISI 1. LJ')
+    aber unterschiedlichem Ausbildungsbeginn:
+    - 'me' (TOKEN) startete 2024 -> ist im Schuljahr 2025-2026 rechnerisch im 2. LJ.
+    - 'juenger' startete erst 2025 -> ist im Schuljahr 2025-2026 noch im 1. LJ.
+    Regressionsfall fuer Bug 1: die alte Route matchte Klassenkameraden ueber den
+    GEMEINSAMEN Anker (trainee.klasse_id) statt ueber die berechnete Klasse und
+    haette 'juenger' faelschlich als Klassenkamerad von 'me' gezeigt.
+    """
+    session.add(Schoolyear(id=SY, start_kw=36, start_year=2025, end_kw=35, end_year=2026))
+    k1 = TraineeClass(name="FISI 1. LJ", berufsschule="JD", unterrichts_typ=UnterrichtsTyp.BLOCK_FEST)
+    k2 = TraineeClass(name="FISI 2. LJ", berufsschule="JD", unterrichts_typ=UnterrichtsTyp.BLOCK_FEST)
+    session.add_all([k1, k2])
+    session.flush()
+
+    me = Trainee(
+        vorname="Anton", nachname="Altmann", rolle=TraineeRolle.AZUBI,
+        klasse_id=k1.id, ausbildungsbeginn=date(2024, 9, 1), share_token=TOKEN,
+    )
+    juenger = Trainee(
+        vorname="Berta", nachname="Buehler", rolle=TraineeRolle.AZUBI,
+        klasse_id=k1.id, ausbildungsbeginn=date(2025, 9, 1), share_token="juenger-token",
+    )
+    session.add_all([me, juenger])
+    session.commit()
+    return {"me": me.id, "juenger": juenger.id, "k1": k1.id, "k2": k2.id}
+
+
+def test_my_class_excludes_other_lj_same_beruf(client, session):
+    """(i) 'Meine Klasse' zeigt NUR die berechnete eigene Klasse — ein Azubi eines
+    anderen (rechnerischen) Lehrjahrs desselben Berufs, auch mit demselben Anker,
+    erscheint NICHT."""
+    _setup_progression(session)
+    r = client.get(f"/mein-plan/{TOKEN}/klasse", params={"schoolyear_id": SY})
+    assert r.status_code == 200
+    assert "Altmann" in r.text
+    assert "Buehler" not in r.text
+
+
+def test_my_class_title_shows_computed_klasse(client, session):
+    """(ii) Titel/Inhalt zeigen die BERECHNETE Klasse fuers gewaehlte Jahr (Anker
+    '1. LJ' + Start 2024 -> 'FISI 2. LJ' im Schuljahr 2025-2026), nicht die
+    statische Anker-Einstiegsklasse."""
+    _setup_progression(session)
+    r = client.get(f"/mein-plan/{TOKEN}/klasse", params={"schoolyear_id": SY})
+    assert r.status_code == 200
+    assert "FISI 2. LJ" in r.text
+
+
+# ── Absolventen ausblenden (Paket B, Bug 3) ────────────────────────────────
+
+def test_absolvent_hidden_everywhere(client, session):
+    """(iii) Ein Absolvent (klasse_fuer -> None fuers gewaehlte Jahr, weil kein
+    Nachfolge-Lehrjahr mehr existiert) taucht weder auf 'Meine Klasse' noch auf
+    'Mein Jahrgang' oder 'Alle Azubis & Studis' auf. Ein DH-Kollege desselben
+    Jahrgangs (bleibt in der letzten Klasse statt Abschluss) und ein aktiver
+    Azubi bleiben sichtbar."""
+    session.add(Schoolyear(id=SY, start_kw=36, start_year=2025, end_kw=35, end_year=2026))
+    k1 = TraineeClass(name="FISI 1. LJ", berufsschule="JD", unterrichts_typ=UnterrichtsTyp.BLOCK_FEST)
+    k2 = TraineeClass(name="FISI 2. LJ", berufsschule="JD", unterrichts_typ=UnterrichtsTyp.BLOCK_FEST)
+    k3 = TraineeClass(name="FISI 3. LJ", berufsschule="JD", unterrichts_typ=UnterrichtsTyp.BLOCK_FEST)
+    session.add_all([k1, k2, k3])
+    session.flush()
+
+    # 3 Jahre vor Schuljahresstart 2025 -> nach 3x next_class_for() kein 4. LJ mehr -> Abschluss
+    absolvent = Trainee(
+        vorname="Greta", nachname="Graf", rolle=TraineeRolle.AZUBI,
+        klasse_id=k1.id, ausbildungsbeginn=date(2022, 9, 1), share_token=TOKEN,
+    )
+    dh_kollege = Trainee(
+        vorname="Iris", nachname="Igel", rolle=TraineeRolle.DH_STUDENT,
+        klasse_id=k1.id, ausbildungsbeginn=date(2022, 9, 1),  # gleicher Jahrgang, bleibt aktiv
+    )
+    aktiver = Trainee(
+        vorname="Heiko", nachname="Hahn", rolle=TraineeRolle.AZUBI,
+        klasse_id=k1.id, ausbildungsbeginn=date(2025, 9, 1), share_token="aktiver-token-iii",
+    )
+    session.add_all([absolvent, dh_kollege, aktiver])
+    session.commit()
+
+    # Eigene Klasse (Absolvent selbst): fuers gewaehlte Jahr keine Klasse mehr
+    r_klasse = client.get(f"/mein-plan/{TOKEN}/klasse", params={"schoolyear_id": SY})
+    assert r_klasse.status_code == 200
+    assert "Für das gewählte Schuljahr bist du keiner Klasse zugeordnet." in r_klasse.text
+
+    # Mein Jahrgang (Absolvent selbst): Absolvent erscheint nicht als Zeile in der
+    # Matrix (Tabellenzellen rendern "Nachname, Vorname"; der eigene Seitenkopf
+    # zeigt "Vorname Nachname" der Absolventin selbstverstaendlich weiterhin an —
+    # daher gezielt auf die Tabellenzeilen-Notation pruefen, nicht auf den blossen
+    # Nachnamen).
+    r_jahrgang = client.get(f"/mein-plan/{TOKEN}/jahrgang", params={"schoolyear_id": SY})
+    assert r_jahrgang.status_code == 200
+    assert "Graf, Greta" not in r_jahrgang.text
+    assert "Igel, Iris" in r_jahrgang.text
+
+    # Alle Azubis & Studis: Absolvent nicht, aktiver Azubi schon
+    r_ueb = client.get(f"/mein-plan/{TOKEN}/uebersicht", params={"schoolyear_id": SY})
+    assert r_ueb.status_code == 200
+    assert "Graf, Greta" not in r_ueb.text
+    assert "Hahn, Heiko" in r_ueb.text
+
+
+# ── Mein Jahrgang (Paket B, neue Seite c) ──────────────────────────────────
+
+def _setup_jahrgang(session: Session) -> dict:
+    """Zwei Trainees desselben Startjahrgangs (2024) in unterschiedlichen Berufen
+    — einer davon mit Ausbildungsbeginn 01.01.2025 (zaehlt laut Konvention zum
+    Vorjahres-Jahrgang 2024) — sowie ein Trainee eines anderen Jahrgangs (2023)."""
+    session.add(Schoolyear(id="2024-2025", start_kw=36, start_year=2024, end_kw=35, end_year=2025))
+    fisi = TraineeClass(name="FISI 1. LJ", berufsschule="JD", unterrichts_typ=UnterrichtsTyp.BLOCK_FEST)
+    fiae = TraineeClass(name="FIAE 1. LJ", berufsschule="JD", unterrichts_typ=UnterrichtsTyp.BLOCK_FEST)
+    session.add_all([fisi, fiae])
+    session.flush()
+
+    ich = Trainee(
+        vorname="Anton", nachname="Altmann", rolle=TraineeRolle.AZUBI,
+        klasse_id=fisi.id, ausbildungsbeginn=date(2024, 9, 1), share_token=TOKEN,
+    )
+    januar_start = Trainee(
+        vorname="Berta", nachname="Buehler", rolle=TraineeRolle.AZUBI,
+        klasse_id=fiae.id, ausbildungsbeginn=date(2025, 1, 1),
+    )
+    anderer_jahrgang = Trainee(
+        vorname="Carla", nachname="Cortes", rolle=TraineeRolle.AZUBI,
+        klasse_id=fisi.id, ausbildungsbeginn=date(2023, 9, 1),
+    )
+    session.add_all([ich, januar_start, anderer_jahrgang])
+    session.commit()
+    return {"fisi": fisi.id, "fiae": fiae.id}
+
+
+def test_jahrgang_cross_beruf_and_january_start(client, session):
+    """(iv) 'Mein Jahrgang' zeigt denselben Startjahrgang berufsuebergreifend;
+    ein anderer Jahrgang bleibt aussen vor; ein Start am 01.01. zaehlt zum
+    Vorjahres-Jahrgang."""
+    _setup_jahrgang(session)
+    r = client.get(f"/mein-plan/{TOKEN}/jahrgang", params={"schoolyear_id": "2024-2025"})
+    assert r.status_code == 200
+    assert "Altmann" in r.text
+    assert "Buehler" in r.text       # anderer Beruf, aber dank 01.01.-Regel gleicher Jahrgang
+    assert "Cortes" not in r.text    # anderer Jahrgang (2023)
+
+
+def test_jahrgang_group_headings_present(client, session):
+    """(vi) Gruppen-Zwischenueberschriften (Beruf-Langname + Klassenname) sind
+    vorhanden, sobald mehrere Berufe im selben Jahrgang vertreten sind."""
+    _setup_jahrgang(session)
+    r = client.get(f"/mein-plan/{TOKEN}/jahrgang", params={"schoolyear_id": "2024-2025"})
+    assert r.status_code == 200
+    assert "Fachinformatiker für Systemintegration" in r.text
+    assert "Fachinformatiker für Anwendungsentwicklung" in r.text
+    assert "overview-beruf-heading" in r.text
+    assert "overview-klasse-heading" in r.text
+
+
+# ── Über Wilbeth (Paket B, Fix e) ───────────────────────────────────────────
+
+def test_ueber_page_renders_in_share_layout(client, session):
+    """(v) /mein-plan/{token}/ueber liefert 200 im share-Layout — nicht die
+    Planer-Seite /ueber-wilbeth hinter dem Auth-Guard."""
+    _setup(session)
+    r = client.get(f"/mein-plan/{TOKEN}/ueber")
+    assert r.status_code == 200
+    assert "Über Wilbeth" in r.text
+    # Share-Layout: eigener Name erscheint im Sidebar-Header
+    assert "Anton" in r.text
+    assert "Altmann" in r.text
 
 
 # ── Abteilungsliste ──────────────────────────────────────────────

@@ -1,4 +1,14 @@
-"""Tests fuer die Matrix-Uebersicht: Klassen- und Abteilungs-Filter sowie Archiv-Dropdown."""
+"""Tests fuer die Matrix-Uebersicht: Beruf/Klassen-Baumfilter und Abteilungs-Filter
+sowie Archiv-Dropdown.
+
+Der Klassen-Filter arbeitet seit der Umstellung auf den Beruf/Klasse-Checkbaum mit
+dem kommaseparierten Mehrfachauswahl-Param "klassen" (Query-Param + Cookie-Key).
+Der alte Einzel-Param/Cookie-Key "klasse_id" bleibt als Fallback erhalten, damit
+alte Links/Cookies nicht brechen.
+"""
+import json
+from urllib.parse import unquote
+
 from sqlmodel import Session
 
 from app.models import (
@@ -47,12 +57,81 @@ def test_overview_renders(client, session):
     assert "Bergmann" in r.text
 
 
-def test_klasse_filter(client, session):
+def test_klassen_filter_single_id(client, session):
+    """klassen=<id> (neuer Mehrfachauswahl-Param, hier mit nur einer ID) filtert auf
+    die berechnete Klasse des Trainees."""
     ids = _base(session)
-    r = client.get("/overview", params={"schoolyear_id": SY, "klasse_id": ids["fisi"]})
+    r = client.get("/overview", params={"schoolyear_id": SY, "klassen": str(ids["fisi"])})
     assert r.status_code == 200
     assert "Altmann" in r.text       # FISI
     assert "Bergmann" not in r.text  # FIAE ausgeblendet
+
+
+def test_klassen_filter_leer_zeigt_alle(client, session):
+    """klassen='' (bzw. gar kein Param) zeigt alle Trainees, kein Klassenfilter aktiv."""
+    _base(session)
+    r = client.get("/overview", params={"schoolyear_id": SY})
+    assert r.status_code == 200
+    assert "Altmann" in r.text
+    assert "Bergmann" in r.text
+
+
+def test_klasse_id_alter_param_faellt_zurueck(client, session):
+    """Der alte Einzel-Param 'klasse_id' wirkt weiterhin als Fallback fuer 'klassen',
+    solange 'klassen' selbst weder als Query-Param noch im Cookie vorhanden ist."""
+    ids = _base(session)
+    r = client.get("/overview", params={"schoolyear_id": SY, "klasse_id": str(ids["fisi"])})
+    assert r.status_code == 200
+    assert "Altmann" in r.text       # FISI
+    assert "Bergmann" not in r.text  # FIAE ausgeblendet
+
+
+def test_klassen_filter_ganzer_beruf_alle_lj(client, session):
+    """klassen=<id1>,<id2>,<id3> (alle LJ-Klassen eines Berufs) zeigt alle Trainees
+    dieses Berufs unabhaengig vom Lehrjahr, aber keine Trainees anderer Berufe."""
+    session.add(Schoolyear(id=SY, start_kw=36, start_year=2025, end_kw=35, end_year=2026))
+    fisi1 = TraineeClass(name="FISI 1. LJ", berufsschule="JD", unterrichts_typ=UnterrichtsTyp.BLOCK_FEST)
+    fisi2 = TraineeClass(name="FISI 2. LJ", berufsschule="JD", unterrichts_typ=UnterrichtsTyp.BLOCK_FEST)
+    fisi3 = TraineeClass(name="FISI 3. LJ", berufsschule="JD", unterrichts_typ=UnterrichtsTyp.BLOCK_FEST)
+    fiae1 = TraineeClass(name="FIAE 1. LJ", berufsschule="HHS", unterrichts_typ=UnterrichtsTyp.BLOCK_FEST)
+    session.add_all([fisi1, fisi2, fisi3, fiae1])
+    session.flush()
+
+    t1 = Trainee(vorname="Erik", nachname="Einserlj", rolle=TraineeRolle.AZUBI, klasse_id=fisi1.id)
+    t2 = Trainee(vorname="Zora", nachname="Zweierlj", rolle=TraineeRolle.AZUBI, klasse_id=fisi2.id)
+    t3 = Trainee(vorname="Dana", nachname="Dreierlj", rolle=TraineeRolle.AZUBI, klasse_id=fisi3.id)
+    tf = Trainee(vorname="Finn", nachname="Fiaeler", rolle=TraineeRolle.AZUBI, klasse_id=fiae1.id)
+    session.add_all([t1, t2, t3, tf])
+    session.commit()
+
+    klassen_param = f"{fisi1.id},{fisi2.id},{fisi3.id}"
+    r = client.get("/overview", params={"schoolyear_id": SY, "klassen": klassen_param, "halbjahr": ""})
+    assert r.status_code == 200
+    assert "Einserlj" in r.text
+    assert "Zweierlj" in r.text
+    assert "Dreierlj" in r.text
+    assert "Fiaeler" not in r.text  # anderer Beruf (FIAE) bleibt ausgeblendet
+
+
+def test_klassen_cookie_persistenz(client, session):
+    """klassen=<id> wird im ov_filters-Cookie unter dem Schluessel 'klassen' gespeichert
+    und beim naechsten Request ohne Query-Param weiterverwendet."""
+    ids = _base(session)
+    r1 = client.get("/overview", params={"schoolyear_id": SY, "klassen": str(ids["fisi"])})
+    assert r1.status_code == 200
+
+    cookie_raw = client.cookies.get("ov_filters")
+    assert cookie_raw is not None, "ov_filters-Cookie muss gesetzt sein"
+    data = json.loads(unquote(cookie_raw))
+    assert data["klassen"] == str(ids["fisi"]), (
+        f"Cookie.klassen soll '{ids['fisi']}' sein, ist: {data.get('klassen')}"
+    )
+
+    # Folgerequest ohne klassen-Param: Cookie-Wert wird weiterhin angewendet
+    r2 = client.get("/overview", params={"schoolyear_id": SY})
+    assert r2.status_code == 200
+    assert "Altmann" in r2.text
+    assert "Bergmann" not in r2.text
 
 
 def test_abteilung_filter_variante_a(client, session):

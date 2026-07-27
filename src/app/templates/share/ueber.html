@@ -1,0 +1,47 @@
+{% extends "share/_base.html" %}
+{% block title %}Über Wilbeth{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Über Wilbeth</h1>
+    <p class="page-subtitle">Wozu dieses Tool da ist – und was du hier selbst erledigen kannst</p>
+  </div>
+</div>
+
+<div class="card card-body about-share">
+  <p>
+    <strong>Wilbeth</strong> ist das interne Einsatzplanungs-Tool für die IT-Azubis
+    und dual Studierenden. Es ersetzt die frühere Planung per Excel-Tabelle und
+    bringt Abteilungseinsätze, Berufsschul- bzw. Hochschulwochen und Urlaub an
+    einem Ort zusammen — deinen persönlichen Plan siehst du hier unter
+    „Meine Einsätze".
+  </p>
+  <p>
+    Betreut wird Wilbeth vom Ausbildungsteam. Der Name stammt aus einer
+    süddeutsch-alpenländischen Sage von drei Schwestern — Wilbeth ist darin die
+    Ordnende, die den Faden der Wochen webt.
+  </p>
+
+  <h2>Was du hier selbst erledigen kannst</h2>
+  <ul>
+    <li><strong>Urlaub eintragen</strong> — unter „Urlaub" trägst du eigene Urlaubswochen ein oder entfernst sie wieder.</li>
+    <li><strong>Wünsche äußern</strong> — unter „Wünsche" hinterlegst du deine Abteilungspräferenzen für die Einsatzplanung.</li>
+    <li><strong>Plan im Blick behalten</strong> — „Meine Klasse", „Mein Jahrgang" und „Alle Azubis &amp; Studis" zeigen dir, wer wann wo eingeplant ist. Über „Kalender (.ics)" holst du dir deinen Plan in dein eigenes Kalenderprogramm.</li>
+  </ul>
+
+  <p class="about-share-note">
+    Fragen oder Änderungswünsche zu deinem Plan? Wende dich an dein
+    Ausbildungsteam — dieser Link ist ein persönlicher Lese- und
+    Selfservice-Zugang, keine Anmeldung mit Passwort nötig.
+  </p>
+</div>
+
+<style>
+.about-share p { line-height: 1.7; margin: 0 0 1rem; }
+.about-share h2 { font-size: 1rem; margin: 1.5rem 0 0.6rem; }
+.about-share ul { margin: 0 0 1rem; padding-left: 1.2rem; line-height: 1.75; }
+.about-share ul li { margin-bottom: 0.35rem; }
+.about-share-note { color: var(--text-muted); font-size: 0.88rem; margin-bottom: 0; }
+</style>
+{% endblock %}

@@ -9,17 +9,6 @@
   </div>
 </div>
 
-{% if not klasse %}
-<div class="card card-body" style="text-align:center; color:var(--text-muted)">
-  Du bist keiner Klasse zugeordnet — daher gibt es hier keine Klassenansicht.
-</div>
-
-{% else %}
-
-{% if schul_tage %}
-<p class="share-schooldays">&#128218; Schultage der Klasse: <strong>{{ schul_tage }}</strong></p>
-{% endif %}
-
 {% if years | length > 1 %}
 <div class="share-year-links">
   {% for y in years %}
@@ -27,6 +16,17 @@
      class="share-year-link {{ 'active' if y.id == selected_year else '' }}">{{ y.id }}</a>
   {% endfor %}
 </div>
+{% endif %}
+
+{% if not klasse %}
+<div class="card card-body" style="text-align:center; color:var(--text-muted)">
+  Für das gewählte Schuljahr bist du keiner Klasse zugeordnet.
+</div>
+
+{% else %}
+
+{% if schul_tage %}
+<p class="share-schooldays">&#128218; Schultage der Klasse: <strong>{{ schul_tage }}</strong></p>
 {% endif %}
 
 <div class="matrix-legend">

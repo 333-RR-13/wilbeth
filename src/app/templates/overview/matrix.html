@@ -70,6 +70,105 @@
 .matrix-cell.mc-confirm-abgelehnt::after {
   background: var(--danger, #dc2626);
 }
+
+/* ── Beruf/Klasse-Baumfilter (scoped) ──────────────────────────────────── */
+.kt-filter {
+  position: relative;
+}
+
+.kt-filter-btn {
+  gap: 8px;
+}
+
+.kt-filter-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-pill, 9999px);
+  background: var(--accent, #1b61c9);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+}
+
+.kt-filter-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  width: 280px;
+  max-height: 360px;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface, #fff);
+  border-radius: var(--radius-md, 8px);
+  box-shadow: var(--shadow-card, rgba(0,0,0,0.08) 0px 0px 0px 1px, rgba(0,0,0,0.04) 0px 2px 4px);
+}
+
+.kt-filter-tree {
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.kt-node {
+  margin-bottom: 2px;
+}
+
+.kt-beruf,
+.kt-kind {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  border-radius: var(--radius-sm, 4px);
+  cursor: pointer;
+  font-size: 13px;
+  user-select: none;
+}
+
+.kt-beruf:hover,
+.kt-kind:hover {
+  background: var(--page-bg, #f8fafc);
+}
+
+.kt-beruf {
+  font-weight: 500;
+}
+
+.kt-kinder {
+  margin-left: 22px;
+}
+
+.kt-kind {
+  font-weight: 400;
+  color: var(--text-secondary, #4d4d4d);
+}
+
+.kt-cb {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.kt-empty {
+  padding: 12px 6px;
+  color: var(--text-muted, #808080);
+  font-size: 13px;
+}
+
+.kt-filter-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-top: 1px solid var(--border, #e0e2e6);
+}
 </style>
 <div class="page-header">
   <div>
@@ -101,12 +200,49 @@
     <option value="{{ y.id }}" {{ 'selected' if y.id == selected_year else '' }}>{{ y.id }}</option>
     {% endfor %}
   </select>
-  <select name="klasse_id">
-    <option value="">Alle Klassen</option>
-    {% for c in classes %}
-    <option value="{{ c.id }}" {{ 'selected' if (c.id | string) == selected_klasse else '' }}>{{ c.name }}</option>
-    {% endfor %}
-  </select>
+  <div class="kt-filter" id="ktFilter">
+    <button type="button" class="btn btn-secondary kt-filter-btn" id="ktFilterBtn"
+            aria-haspopup="true" aria-expanded="false">
+      Beruf / Klasse
+      <span class="kt-filter-count" id="ktFilterCount" {% if not selected_klassen %}hidden{% endif %}>{{ selected_klassen | length }}</span>
+    </button>
+    <div class="kt-filter-panel" id="ktFilterPanel" hidden>
+      <div class="kt-filter-tree">
+        {% for node in beruf_tree %}
+        <div class="kt-node">
+          {% if node.kinder %}
+          <label class="kt-beruf">
+            <input type="checkbox" class="kt-cb kt-beruf-cb">
+            <span>{{ node.langname }}</span>
+          </label>
+          <div class="kt-kinder">
+            {% for k in node.kinder %}
+            <label class="kt-kind">
+              <input type="checkbox" class="kt-cb kt-kind-cb" value="{{ k.klasse_id }}"
+                     {{ 'checked' if k.klasse_id in selected_klassen else '' }}>
+              <span>{{ k.label }}</span>
+            </label>
+            {% endfor %}
+          </div>
+          {% else %}
+          <label class="kt-beruf kt-beruf--leaf">
+            <input type="checkbox" class="kt-cb kt-beruf-cb kt-leaf-cb" value="{{ node.klasse_id }}"
+                   {{ 'checked' if node.klasse_id in selected_klassen else '' }}>
+            <span>{{ node.langname }}</span>
+          </label>
+          {% endif %}
+        </div>
+        {% else %}
+        <div class="kt-empty">Keine Klassen angelegt</div>
+        {% endfor %}
+      </div>
+      <div class="kt-filter-actions">
+        <button type="button" class="btn btn-ghost btn-sm" id="ktFilterClear">Auswahl leeren</button>
+        <button type="button" class="btn btn-secondary btn-sm" id="ktFilterApply">Anwenden</button>
+      </div>
+    </div>
+    <input type="hidden" name="klassen" id="ktFilterHidden" value="{{ selected_klassen_str }}">
+  </div>
   <select name="abteilung_id">
     <option value="">Alle Abteilungen</option>
     {% for d in all_depts %}
@@ -590,6 +726,126 @@ document.getElementById('cell-edit-dialog').addEventListener('click', function (
     // Namensspalte (~180px) als Offset abziehen damit die Spalte nicht darunter liegt
     var stickyWidth = 180;
     scroll.scrollLeft += cellLeft - containerLeft - stickyWidth;
+  });
+}());
+
+/* ── Beruf/Klasse-Baumfilter: Dropdown mit Checkbox-Baum, Mehrfachauswahl ── */
+(function () {
+  var filterEl = document.getElementById('ktFilter');
+  if (!filterEl) return;
+
+  var btn         = document.getElementById('ktFilterBtn');
+  var panel       = document.getElementById('ktFilterPanel');
+  var countBadge  = document.getElementById('ktFilterCount');
+  var hiddenInput = document.getElementById('ktFilterHidden');
+  var clearBtn    = document.getElementById('ktFilterClear');
+  var applyBtn    = document.getElementById('ktFilterApply');
+  var form        = filterEl.closest('form');
+
+  /** Alle Checkboxen, die eine tatsaechliche Klasse repraesentieren (Kind-Checkboxen
+   *  eines LJ-Berufs + Beruf-Checkboxen einer kinderlosen DH-Kohorte). */
+  function leafCheckboxes() {
+    return Array.from(panel.querySelectorAll('.kt-kind-cb, .kt-leaf-cb'));
+  }
+
+  /** Setzt checked/indeterminate der Beruf-Checkbox anhand ihrer Kind-Checkboxen. */
+  function syncBerufState(node) {
+    var berufCb = node.querySelector('.kt-beruf-cb');
+    if (!berufCb || berufCb.classList.contains('kt-leaf-cb')) return; // DH-Kohorte: keine Kinder
+    var kinder = Array.from(node.querySelectorAll('.kt-kind-cb'));
+    if (kinder.length === 0) return;
+    var checkedCount = kinder.filter(function (cb) { return cb.checked; }).length;
+    if (checkedCount === 0) {
+      berufCb.checked = false;
+      berufCb.indeterminate = false;
+    } else if (checkedCount === kinder.length) {
+      berufCb.checked = true;
+      berufCb.indeterminate = false;
+    } else {
+      berufCb.checked = false;
+      berufCb.indeterminate = true;
+    }
+  }
+
+  function syncAllBerufStates() {
+    panel.querySelectorAll('.kt-node').forEach(function (node) { syncBerufState(node); });
+  }
+
+  function updateCount() {
+    var n = leafCheckboxes().filter(function (cb) { return cb.checked; }).length;
+    countBadge.textContent = n;
+    countBadge.hidden = n === 0;
+  }
+
+  function openPanel() {
+    panel.hidden = false;
+    btn.setAttribute('aria-expanded', 'true');
+  }
+
+  function closePanel() {
+    panel.hidden = true;
+    btn.setAttribute('aria-expanded', 'false');
+  }
+
+  /** Schreibt die aktuelle Auswahl ins hidden input, schliesst das Panel und
+   *  submitted das Filter-Formular (gilt fuer "Anwenden" UND jedes Schliessen). */
+  function applyAndClose() {
+    var ids = leafCheckboxes().filter(function (cb) { return cb.checked; })
+      .map(function (cb) { return cb.value; });
+    hiddenInput.value = ids.join(',');
+    closePanel();
+    if (form) form.submit();
+  }
+
+  // Initialzustand (Server-Rendering) auf die Beruf-Checkboxen anwenden
+  syncAllBerufStates();
+  updateCount();
+
+  btn.addEventListener('click', function (evt) {
+    evt.stopPropagation();
+    if (panel.hidden) {
+      openPanel();
+    } else {
+      applyAndClose();
+    }
+  });
+
+  panel.addEventListener('click', function (evt) {
+    evt.stopPropagation();
+  });
+
+  panel.addEventListener('change', function (evt) {
+    var cb = evt.target;
+    if (!cb.classList || !cb.classList.contains('kt-cb')) return;
+
+    if (cb.classList.contains('kt-beruf-cb') && !cb.classList.contains('kt-leaf-cb')) {
+      // Beruf-Checkbox (mit Kindern) togglet alle Kind-Checkboxen
+      var node = cb.closest('.kt-node');
+      node.querySelectorAll('.kt-kind-cb').forEach(function (kcb) { kcb.checked = cb.checked; });
+      cb.indeterminate = false;
+    } else if (cb.classList.contains('kt-kind-cb')) {
+      syncBerufState(cb.closest('.kt-node'));
+    }
+    updateCount();
+  });
+
+  clearBtn.addEventListener('click', function (evt) {
+    evt.stopPropagation();
+    leafCheckboxes().forEach(function (cb) { cb.checked = false; });
+    syncAllBerufStates();
+    updateCount();
+  });
+
+  applyBtn.addEventListener('click', function (evt) {
+    evt.stopPropagation();
+    applyAndClose();
+  });
+
+  // Panel schliesst bei Klick ausserhalb (uebernimmt/submitted die Auswahl)
+  document.addEventListener('click', function (evt) {
+    if (!panel.hidden && !filterEl.contains(evt.target)) {
+      applyAndClose();
+    }
   });
 }());
 </script>

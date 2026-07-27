@@ -23,6 +23,7 @@ from app.models import (
 from app.services.conflict_checker import describe_conflict, find_conflicts
 from app.services.membership_utils import (
     aktuelles_schuljahr_id,
+    beruf_langname,
     beruf_und_lehrjahr,
     klasse_fuer,
     semester_label,
@@ -70,7 +71,7 @@ def _resolve_param(query_params, key: str, cookie_data: dict) -> str:
 def _set_filter_cookie(
     response,
     schoolyear_id: str,
-    klasse_id: str,
+    klassen: str,
     abteilung_id: str,
     wochen: str,
     halbjahr: str,
@@ -81,10 +82,16 @@ def _set_filter_cookie(
     set_cookie das JSON wegen ',' und '"' via http.cookies in RFC-2109-Quoting
     mit Oktal-Escapes (\\054) verpacken – das dekodieren Browser nicht zurueck
     und der Client-Cookie-Jar (httpx) liefert unparsebares JSON.
+
+    Der alte Schluessel "klasse_id" wird zusaetzlich gespiegelt (gleicher Wert
+    wie "klassen"), damit Cookies die vor der Baum-Filter-Umstellung geschrieben
+    wurden bzw. Konsumenten die noch auf den alten Schluessel schauen, nicht
+    brechen.
     """
     payload = quote(json.dumps({
         "schoolyear_id": schoolyear_id,
-        "klasse_id": klasse_id,
+        "klassen": klassen,
+        "klasse_id": klassen,
         "abteilung_id": abteilung_id,
         "wochen": wochen,
         "halbjahr": halbjahr,
@@ -125,6 +132,53 @@ def _filter_weeks_by_halbjahr(weeks: list[dict], halbjahr: str) -> list[dict]:
     return weeks
 
 
+def _build_beruf_klassen_tree(classes: list[TraineeClass]) -> list[dict]:
+    """Baut den Beruf/Klasse-Baum fuer den Checkbox-Filter in der Uebersicht.
+
+    Berufe mit LJ-Muster (z. B. "FISI 2. LJ") werden zu einem Knoten mit Kindern
+    gruppiert (eine Checkbox je Lehrjahr). DH-Kohorten (kein LJ-Muster, z. B.
+    "DHBW Cybersecurity") bilden einen eigenen Beruf-Knoten OHNE Kinder – die
+    Beruf-Checkbox repraesentiert dort direkt die Kohortenklasse selbst.
+
+    Rueckgabe: [{"token", "langname", "klasse_id", "kinder": [{"klasse_id","label"}]}]
+    alphabetisch nach langname, Kinder nach Lehrjahr sortiert.
+    """
+    grouped: dict[str, list[tuple[TraineeClass, int | None]]] = {}
+    for c in classes:
+        token, lj = beruf_und_lehrjahr(c.name)
+        grouped.setdefault(token, []).append((c, lj))
+
+    tree: list[dict] = []
+    for token, items in grouped.items():
+        has_lj = any(lj is not None for _c, lj in items)
+        if has_lj:
+            items_sorted = sorted(
+                items, key=lambda pair: (pair[1] is None, pair[1] if pair[1] is not None else 0)
+            )
+            kinder = [
+                {"klasse_id": c.id, "label": (f"{lj}. LJ" if lj is not None else c.name)}
+                for c, lj in items_sorted
+            ]
+            tree.append({
+                "token": token,
+                "langname": beruf_langname(token),
+                "klasse_id": None,
+                "kinder": kinder,
+            })
+        else:
+            # Kein LJ-Muster -> genau eine Klasse (Name eindeutig) -> DH-Kohorte
+            c, _lj = items[0]
+            tree.append({
+                "token": token,
+                "langname": beruf_langname(token),
+                "klasse_id": c.id,
+                "kinder": [],
+            })
+
+    tree.sort(key=lambda node: node["langname"])
+    return tree
+
+
 @router.get("/", response_class=RedirectResponse)
 def root():
     return RedirectResponse("/overview", status_code=302)
@@ -152,7 +206,21 @@ def overview(request: Request, db: DB):
     _cookie = _read_filter_cookie(request)
     qp = request.query_params
     schoolyear_id = _resolve_param(qp, "schoolyear_id", _cookie)
-    klasse_id_str = _resolve_param(qp, "klasse_id", _cookie)
+    # klassen: neuer Mehrfachauswahl-Param (kommaseparierte Klassen-IDs).
+    # Fallback auf den alten Einzel-Param/Cookie-Key "klasse_id", wenn "klassen"
+    # weder als Query-Param noch im Cookie vorhanden ist (alte Cookies/Links).
+    # Query-Param hat immer Vorrang vor Cookie, auch wenn er leer ist – siehe
+    # _resolve_param – dieselbe Regel gilt hier je Prioritaetsstufe.
+    if "klassen" in qp:
+        klassen_str = qp["klassen"]
+    elif "klasse_id" in qp:
+        klassen_str = qp["klasse_id"]
+    elif "klassen" in _cookie:
+        klassen_str = _cookie["klassen"]
+    elif "klasse_id" in _cookie:
+        klassen_str = _cookie["klasse_id"]
+    else:
+        klassen_str = ""
     abteilung_id_str = _resolve_param(qp, "abteilung_id", _cookie)
     wochen_str = _resolve_param(qp, "wochen", _cookie)
     # halbjahr: Default beim ersten Aufruf (kein Cookie, kein Param) = aktuelles Halbjahr
@@ -170,6 +238,14 @@ def overview(request: Request, db: DB):
     ).all()
     classes = db.exec(select(TraineeClass).order_by(TraineeClass.name)).all()
     all_depts = db.exec(select(Department).order_by(Department.code)).all()
+    beruf_tree = _build_beruf_klassen_tree(classes)
+
+    # Klassen-IDs aus dem klassen-Param parsen (kommasepariert, ungueltige Teile ignorieren)
+    klassen_id_set: set[int] = set()
+    for _teil in klassen_str.split(","):
+        _teil = _teil.strip()
+        if _teil.isdigit():
+            klassen_id_set.add(int(_teil))
 
     # Schultage-Hinweis je TAGE_FEST-Klasse (z. B. "Di, Mi (halbtags)")
     tage_fest_map = {
@@ -188,20 +264,23 @@ def overview(request: Request, db: DB):
         resp = templates.TemplateResponse(request, "overview/matrix.html", {
             "trainees": [], "grouped": [], "weeks": [], "cell_map": {}, "conflict_cells": set(),
             "conflict_count": 0, "years": years, "classes": classes,
+            "beruf_tree": beruf_tree,
             "depts": {}, "all_depts": all_depts, "school_week_map": {}, "trainee_klasse_map": {},
             "semester_label_map": {},
             "tage_fest_map": tage_fest_map,
             "visited_map": {},
             "dept_colors": dept_colors,
             "n_wochen": 0,
-            "selected_year": schoolyear_id, "selected_klasse": klasse_id_str,
+            "selected_year": schoolyear_id,
+            "selected_klassen": klassen_id_set,
+            "selected_klassen_str": klassen_str,
             "selected_abteilung": abteilung_id_str,
             "selected_wochen": wochen_str,
             "selected_halbjahr": halbjahr_str,
             "wochen_options": WOCHEN_OPTIONS,
             "active_nav": "overview",
         })
-        _set_filter_cookie(resp, schoolyear_id, klasse_id_str, abteilung_id_str, wochen_str, halbjahr_str)
+        _set_filter_cookie(resp, schoolyear_id, klassen_str, abteilung_id_str, wochen_str, halbjahr_str)
         return resp
 
     _today = date.today().isocalendar()
@@ -255,10 +334,9 @@ def overview(request: Request, db: DB):
         if trainee_klasse_map[t.id] is not None or t.klasse_id is None
     ]
 
-    # Klassen-Filter auf Basis der berechneten Klasse
-    if klasse_id_str:
-        klasse_id_int = int(klasse_id_str)
-        trainees = [t for t in trainees if trainee_klasse_map[t.id] == klasse_id_int]
+    # Klassen-Filter auf Basis der berechneten Klasse (Mehrfachauswahl aus dem Baum)
+    if klassen_id_set:
+        trainees = [t for t in trainees if trainee_klasse_map[t.id] in klassen_id_set]
 
     # Assignments for the selected trainees
     trainee_ids = [t.id for t in trainees]
@@ -372,6 +450,7 @@ def overview(request: Request, db: DB):
         "conflict_count": len(raw_conflicts),
         "years": years,
         "classes": classes,
+        "beruf_tree": beruf_tree,
         "depts": depts,
         "all_depts": all_depts,
         "school_week_map": school_week_map,
@@ -382,12 +461,13 @@ def overview(request: Request, db: DB):
         "dept_colors": dept_colors,
         "n_wochen": n_wochen,
         "selected_year": schoolyear_id,
-        "selected_klasse": klasse_id_str,
+        "selected_klassen": klassen_id_set,
+        "selected_klassen_str": klassen_str,
         "selected_abteilung": abteilung_id_str,
         "selected_wochen": wochen_str,
         "selected_halbjahr": halbjahr_str,
         "wochen_options": WOCHEN_OPTIONS,
         "active_nav": "overview",
     })
-    _set_filter_cookie(resp, schoolyear_id, klasse_id_str, abteilung_id_str, wochen_str, halbjahr_str)
+    _set_filter_cookie(resp, schoolyear_id, klassen_str, abteilung_id_str, wochen_str, halbjahr_str)
     return resp
