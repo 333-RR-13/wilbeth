@@ -57,6 +57,20 @@ def test_overview_renders(client, session):
     assert "Bergmann" in r.text
 
 
+def test_abteilungs_zelle_hat_tooltip(client, session):
+    """Die ganze Matrix-Zelle eines Abteilungs-Einsatzes traegt den
+    Abteilungsnamen als title-Tooltip (nicht nur der kleine Chip darin)."""
+    _base(session)
+    # halbjahr="" = ganzes Jahr, sonst laege KW40/2025 je nach heutigem
+    # Datum ausserhalb des angezeigten Halbjahres
+    r = client.get("/overview", params={"schoolyear_id": SY, "halbjahr": ""})
+    assert r.status_code == 200
+    # td-Markup: title-Attribut direkt vor der class-Zeile (Chip-title allein
+    # wuerde dieses Muster nicht erzeugen)
+    import re
+    assert re.search(r'title="Cloud Platform"\s+class="matrix-cell cell-clickable', r.text)
+
+
 def test_klassen_filter_single_id(client, session):
     """klassen=<id> (neuer Mehrfachauswahl-Param, hier mit nur einer ID) filtert auf
     die berechnete Klasse des Trainees."""

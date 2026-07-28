@@ -180,6 +180,19 @@ def test_save_wishes_replaces(client, session):
     assert wishes[0].department_id == ids["ba"]
 
 
+def test_abteilungs_zelle_hat_tooltip(client, session):
+    """Auch in der Azubi-Sicht traegt die ganze Matrix-Zelle eines
+    Abteilungs-Einsatzes den Abteilungsnamen als title-Tooltip."""
+    ids = _setup(session)
+    session.add(Assignment(trainee_id=ids["trainee"], schoolyear_id=SY, kw=40, jahr=2025,
+                           typ=AssignmentTyp.ABTEILUNG, abteilung_id=ids["cp"],
+                           source=AssignmentSource.MANUAL))
+    session.commit()
+    r = client.get(f"/mein-plan/{TOKEN}")
+    assert r.status_code == 200
+    assert '<td class="matrix-cell" title="Cloud Platform">' in r.text
+
+
 # ── ICS-Export ───────────────────────────────────────────────────
 
 def test_ics_export(client, session):
@@ -294,6 +307,23 @@ def test_my_class_title_shows_computed_klasse(client, session):
     r = client.get(f"/mein-plan/{TOKEN}/klasse", params={"schoolyear_id": SY})
     assert r.status_code == 200
     assert "FISI 2. LJ" in r.text
+
+
+def test_abteilungs_zelle_hat_tooltip_gruppenseiten(client, session):
+    """Auch die gruppierten Matrizen (Mein Jahrgang / Alle Azubis & Studis,
+    week_matrix_group.html) tragen den Abteilungsnamen als Zell-Tooltip."""
+    ids = _setup_progression(session)
+    cp = Department(code="CP", name="Cloud Platform")
+    session.add(cp)
+    session.flush()
+    session.add(Assignment(trainee_id=ids["me"], schoolyear_id=SY, kw=40, jahr=2025,
+                           typ=AssignmentTyp.ABTEILUNG, abteilung_id=cp.id,
+                           source=AssignmentSource.MANUAL))
+    session.commit()
+    for pfad in ("jahrgang", "uebersicht"):
+        r = client.get(f"/mein-plan/{TOKEN}/{pfad}", params={"schoolyear_id": SY})
+        assert r.status_code == 200
+        assert '<td class="matrix-cell" title="Cloud Platform">' in r.text, pfad
 
 
 # ── Absolventen ausblenden (Paket B, Bug 3) ────────────────────────────────

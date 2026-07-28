@@ -328,7 +328,9 @@
           {% set is_school = t_school_weeks.get(cell_key) %}
           {% set _is_abteilung = a and a.typ.value == 'ABTEILUNG' %}
           {% set _bestaetigung = (a.bestaetigung if a.bestaetigung else 'offen') if _is_abteilung else none %}
+          {% set _dept_c = dept_colors.get(a.abteilung_id) if _is_abteilung else none %}
           <td id="cell-{{ t.id }}-{{ w.kw }}-{{ w.jahr }}"
+              {% if _dept_c %}title="{{ _dept_c.name }}"{% endif %}
               class="matrix-cell cell-clickable{% if is_conflict %} mc-conflict{% endif %}{% if w.is_today %} mc-today{% endif %}{% if _is_abteilung %} mc-confirm-{{ _bestaetigung }}{% endif %}"
               data-trainee="{{ t.id }}"
               data-kw="{{ w.kw }}"

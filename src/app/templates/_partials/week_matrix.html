@@ -36,7 +36,8 @@
         {% set cell_key = w.kw ~ "," ~ w.jahr %}
         {% set a = t_cells.get(cell_key) %}
         {% set is_school = cell_key in school_weeks %}
-        <td class="matrix-cell{% if w.is_today %} mc-today{% endif %}">
+        {% set _dept_c = dept_colors.get(a.abteilung_id) if a and a.typ.value == 'ABTEILUNG' else none %}
+        <td class="matrix-cell{% if w.is_today %} mc-today{% endif %}"{% if _dept_c %} title="{{ _dept_c.name }}"{% endif %}>
           {{ cell_content(a, dept_colors, school_weeks.get(cell_key) if not a else None) }}
         </td>
         {% endfor %}
