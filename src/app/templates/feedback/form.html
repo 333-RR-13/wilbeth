@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+{% block title %}{% if bogen %}Feedbackbogen bearbeiten{% else %}Feedbackbogen anlegen{% endif %}{% endblock %}
+
+{% block content %}
+{% macro skala_matrix(items, skala, antworten) %}
+<div class="skala-scroll">
+  <table class="skala-table">
+    <thead>
+      <tr>
+        <th class="skala-th-frage"></th>
+        {% for wert, label in skala %}
+        <th class="skala-th-wert" title="{{ label }}">{{ wert }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in items %}
+      <tr>
+        <td class="skala-td-frage">{{ item.text }}</td>
+        {% for wert, label in skala %}
+        <td class="skala-td-radio">
+          <input type="radio" name="frage_{{ item.key }}" value="{{ wert }}" title="{{ label }}"
+                 {{ 'checked' if antworten.get(item.key) == wert else '' }}>
+        </td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endmacro %}
+
+<style>
+  .feedback-kopf-facts {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 16px;
+    font-size: 14px;
+  }
+  .feedback-kopf-facts dt { color: var(--text-muted); font-weight: 500; }
+  .feedback-kopf-facts dd { margin: 0; color: var(--text-primary); }
+
+  .feedback-gruppe-titel {
+    font-size: 13px; font-weight: 600; color: var(--text-secondary);
+    margin: 16px 0 8px;
+  }
+  .feedback-gruppe-titel:first-of-type { margin-top: 4px; }
+
+  .skala-legend {
+    display: flex; flex-wrap: wrap; gap: 4px 16px;
+    font-size: 12px; color: var(--text-muted); margin-bottom: 14px;
+  }
+  .skala-legend-item strong { color: var(--text-secondary); margin-right: 2px; }
+
+  .skala-scroll { overflow-x: auto; margin-bottom: 4px; }
+  .skala-table { width: 100%; border-collapse: collapse; }
+  .skala-table th, .skala-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  .skala-table tbody tr:last-child td { border-bottom: none; }
+  .skala-th-frage { text-align: left; }
+  .skala-th-wert {
+    text-align: center; width: 44px; font-size: 12px;
+    color: var(--text-muted); font-weight: 600; cursor: help;
+  }
+  .skala-td-frage { font-size: 14px; color: var(--text-primary); }
+  .skala-td-radio { text-align: center; }
+  .skala-td-radio input[type="radio"] {
+    width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer;
+  }
+
+  .lernziel-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .lernziel-row input[type="text"] { flex: 1 1 auto; }
+  .lernziel-row select { width: 220px; flex-shrink: 0; }
+
+  .feedback-card { margin-bottom: 20px; }
+</style>
+
+<div class="page-header">
+  <div>
+    <h1 class="page-title">{% if bogen %}Feedbackbogen bearbeiten{% else %}Feedbackbogen anlegen{% endif %}</h1>
+    <p class="page-subtitle">{{ 'Ausbilder-Bogen' if typ == 'AUSBILDER' else 'Azubi-Bogen' }} &middot; {{ schoolyear.id }}</p>
+  </div>
+</div>
+
+<div class="card card-body feedback-card">
+  <dl class="feedback-kopf-facts">
+    <dt>Azubi</dt><dd>{{ trainee.nachname }}, {{ trainee.vorname }}</dd>
+    <dt>Ausbildungsrichtung</dt><dd>{{ beruf_lang if beruf_lang else '–' }}</dd>
+    <dt>Jahrgang</dt><dd>{{ jahrgang if jahrgang else '–' }}</dd>
+    <dt>Team</dt><dd>{{ department.code }} – {{ department.name }}</dd>
+    <dt>Zeitraum</dt><dd class="mono">KW {{ kw_von }}/{{ jahr_von }} – KW {{ kw_bis }}/{{ jahr_bis }}</dd>
+  </dl>
+</div>
+
+<form method="post" action="{{ action_url }}">
+  <input type="hidden" name="trainee_id" value="{{ trainee.id }}">
+  <input type="hidden" name="department_id" value="{{ department.id }}">
+  <input type="hidden" name="schoolyear_id" value="{{ schoolyear.id }}">
+  <input type="hidden" name="kw_von" value="{{ kw_von }}">
+  <input type="hidden" name="jahr_von" value="{{ jahr_von }}">
+  <input type="hidden" name="kw_bis" value="{{ kw_bis }}">
+  <input type="hidden" name="jahr_bis" value="{{ jahr_bis }}">
+
+  <div class="card card-body feedback-card">
+    <h2 class="form-section-title">Einsatz</h2>
+    <div class="form-grid form-grid-2">
+      <div class="form-group">
+        <label for="einsatzart">Einsatzart</label>
+        <select id="einsatzart" name="einsatzart">
+          <option value="">–</option>
+          {% for e in einsatzarten %}
+          <option value="{{ e }}" {{ 'selected' if e == einsatzart_selected else '' }}>{{ e }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% if typ == 'AUSBILDER' %}
+      <div class="form-group">
+        <label for="fachausbilder_name">Fachausbilder</label>
+        <input type="text" id="fachausbilder_name" name="fachausbilder_name" value="{{ fachausbilder_name }}">
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card card-body feedback-card">
+    <h2 class="form-section-title">Lernziele</h2>
+    <div id="lernziel-rows">
+      {% for lz in lernziele %}
+      <div class="lernziel-row">
+        <input type="text" name="lernziel_text" value="{{ lz.text }}" placeholder="Lernziel">
+        <select name="lernziel_wert">
+          <option value="">–</option>
+          {% for wert, label in skala_lernziele %}
+          <option value="{{ wert }}" {{ 'selected' if lz.bewertung == wert else '' }}>{{ wert }} – {{ label }}</option>
+          {% endfor %}
+        </select>
+        <button type="button" class="btn btn-ghost-danger btn-sm lernziel-remove">Entfernen</button>
+      </div>
+      {% endfor %}
+    </div>
+    <button type="button" id="lernziel-add" class="btn btn-secondary btn-sm" style="margin-top:4px;">+ Lernziel hinzufügen</button>
+    <template id="lernziel-row-template">
+      <div class="lernziel-row">
+        <input type="text" name="lernziel_text" value="" placeholder="Lernziel">
+        <select name="lernziel_wert">
+          <option value="">–</option>
+          {% for wert, label in skala_lernziele %}
+          <option value="{{ wert }}">{{ wert }} – {{ label }}</option>
+          {% endfor %}
+        </select>
+        <button type="button" class="btn btn-ghost-danger btn-sm lernziel-remove">Entfernen</button>
+      </div>
+    </template>
+  </div>
+
+  {% for sektion in sektionen %}
+  <div class="card card-body feedback-card">
+    <h2 class="form-section-title">{{ sektion.titel }}</h2>
+    <div class="skala-legend">
+      {% for wert, label in skala %}<span class="skala-legend-item"><strong>{{ wert }}</strong> {{ label }}</span>{% endfor %}
+    </div>
+    {% if 'gruppen' in sektion %}
+      {% for gruppe in sektion.gruppen %}
+      <h3 class="feedback-gruppe-titel">{{ gruppe.titel }}</h3>
+      {{ skala_matrix(gruppe['items'], skala, antworten) }}
+      {% endfor %}
+    {% else %}
+      {{ skala_matrix(sektion['items'], skala, antworten) }}
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  <div class="card card-body feedback-card">
+    <h2 class="form-section-title">Kommentare</h2>
+    {% for feld in freitext_felder %}
+    <div class="form-group" style="margin-bottom:16px;">
+      <label for="ft-{{ feld.key }}">{{ feld.label }}</label>
+      <textarea id="ft-{{ feld.key }}" name="{{ feld.key }}" rows="3">{{ freitexte.get(feld.key, '') }}</textarea>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if typ == 'AUSBILDER' %}
+  <div class="card card-body feedback-card">
+    <h2 class="form-section-title">Fehlzeiten (in Wochen)</h2>
+    <div class="form-grid form-grid-2">
+      <div class="form-group">
+        <label for="fehl_krank">Krank</label>
+        <input type="number" id="fehl_krank" name="fehl_krank" min="0" value="{{ fehl_krank if fehl_krank is not none else '' }}">
+      </div>
+      <div class="form-group">
+        <label for="fehl_urlaub">Urlaub (aus dem Plan vorbelegt)</label>
+        <input type="number" id="fehl_urlaub" name="fehl_urlaub" min="0" value="{{ fehl_urlaub if fehl_urlaub is not none else '' }}">
+      </div>
+      <div class="form-group">
+        <label for="fehl_schule">Schule (aus dem Plan vorbelegt)</label>
+        <input type="number" id="fehl_schule" name="fehl_schule" min="0" value="{{ fehl_schule if fehl_schule is not none else '' }}">
+      </div>
+      <div class="form-group">
+        <label for="fehl_sonstige">Sonstige</label>
+        <input type="number" id="fehl_sonstige" name="fehl_sonstige" min="0" value="{{ fehl_sonstige if fehl_sonstige is not none else '' }}">
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="card card-body feedback-card">
+    <h2 class="form-section-title">Abschluss</h2>
+    <div class="form-grid form-grid-2">
+      <div class="form-group">
+        <label for="weiterer_einsatz">Weiterer Einsatz vorstellbar?</label>
+        <select id="weiterer_einsatz" name="weiterer_einsatz">
+          <option value="" {{ 'selected' if weiterer_einsatz == '' else '' }}>–</option>
+          <option value="ja" {{ 'selected' if weiterer_einsatz == 'ja' else '' }}>Ja</option>
+          <option value="nein" {{ 'selected' if weiterer_einsatz == 'nein' else '' }}>Nein</option>
+        </select>
+      </div>
+    </div>
+    {% if typ == 'AUSBILDER' %}
+    <label class="form-check" style="margin-top:14px;">
+      <input type="checkbox" name="zugriffe_geloescht" {{ 'checked' if zugriffe_geloescht else '' }}>
+      Sind alle Zugriffsberechtigungen gelöscht worden?
+    </label>
+    {% endif %}
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" name="action" value="entwurf" class="btn btn-secondary">Als Entwurf speichern</button>
+    <button type="submit" name="action" value="abschliessen" class="btn btn-primary">Abschließen</button>
+    <a href="{{ cancel_url }}" class="btn btn-ghost">Abbrechen</a>
+  </div>
+</form>
+
+<script>
+(function () {
+  var container = document.getElementById('lernziel-rows');
+  var addBtn = document.getElementById('lernziel-add');
+  var tmpl = document.getElementById('lernziel-row-template');
+  if (!container || !addBtn || !tmpl) return;
+
+  addBtn.addEventListener('click', function () {
+    container.appendChild(tmpl.content.cloneNode(true));
+  });
+
+  container.addEventListener('click', function (e) {
+    if (e.target.classList.contains('lernziel-remove')) {
+      var row = e.target.closest('.lernziel-row');
+      if (row) row.remove();
+    }
+  });
+})();
+</script>
+{% endblock %}

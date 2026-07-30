@@ -20,6 +20,7 @@
   <a href="#uebersicht-bedienen">Übersicht bedienen</a>
   {% if user.rolle in ("ausbilder", "orga", "admin") %}
   <a href="#meine-abteilung">Meine Abteilung</a>
+  <a href="#feedbackboegen">Feedbackbögen</a>
   {% endif %}
   {% if user.rolle in ("orga", "admin") %}
   <a href="#stammdaten">Stammdaten &amp; Erst-Einrichtung</a>
@@ -84,6 +85,27 @@
     Du siehst keine Abteilung? Dann fehlt dein UPN im Feld <strong>„Verantwortliche Ausbilder"</strong>
     der Abteilung – Orga/Admin trägt ihn unter Abteilungen → Bearbeiten ein.
   </p>
+</section>
+
+<section class="hilfe-section" id="feedbackboegen">
+  <h2 class="form-section-title">Feedbackbögen</h2>
+  <p>
+    Es gibt zwei Bögen pro Einsatz: den <strong>Ausbilder-Bogen</strong> (Fachausbilder beurteilt
+    den Azubi) und den <strong>Azubi-Bogen</strong> (Azubi beurteilt den Einsatz/die Abteilung).
+    Beide teilen sich dieselben Lernziele – der Azubi bewertet sie als Selbsteinschätzung.
+  </p>
+  <ul class="hilfe-list">
+    <li>Über <strong>„Meine Abteilung"</strong> je Block auf <strong>„Feedbackbogen ausfüllen"</strong> – Kopfdaten
+    (Azubi, Team, Zeitraum, Fehlzeiten) sind bereits aus dem Plan vorbefüllt</li>
+    <li>Status-Ablauf: <strong>Entwurf</strong> → <strong>Abgeschlossen</strong> → <strong>Besprochen</strong>
+    (im Mitarbeitergespräch) → beim Ausbilder-Bogen zusätzlich <strong>vom Azubi bestätigt</strong>
+    (Kenntnisnahme über den eigenen Plan)</li>
+    <li>Solange ein Bogen im Entwurf ist, bleibt er bearbeitbar; danach nur noch lesbar –
+    Korrekturen (Zurück auf Entwurf) macht Orga/Admin</li>
+    <li>Wer sieht was: Ausbilder sehen nur Bögen der eigenen Abteilung(en); Orga/Admin sehen
+    alle Bögen – darüber liest auch HR mit (eigene Rolle gibt es dafür nicht, HR nutzt die
+    Orga-Rolle)</li>
+  </ul>
 </section>
 {% endif %}
 

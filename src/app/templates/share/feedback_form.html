@@ -1,0 +1,265 @@
+{% extends "share/_base.html" %}
+{% block title %}{{ 'Feedback des Ausbilders' if typ == 'AUSBILDER' else 'Mein Feedback' }}{% endblock %}
+
+{% macro frage_row(item, antworten, skala, skala_map, readonly) %}
+<div class="feedback-frage-row">
+  <div class="feedback-frage-text">{{ item.text }}</div>
+  <div class="feedback-frage-answer">
+    {% if readonly %}
+    <span class="feedback-frage-value">{{ skala_map.get(antworten.get(item.key), '–') }}</span>
+    {% else %}
+    <div class="feedback-radio-group">
+      {% for wert, label in skala %}
+      <label class="feedback-radio-option" title="{{ label }}">
+        <input type="radio" name="{{ item.key }}" value="{{ wert }}" {{ 'checked' if antworten.get(item.key) == wert else '' }}>
+        <span>{{ wert }}</span>
+      </label>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endmacro %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">{{ 'Feedback des Ausbilders' if typ == 'AUSBILDER' else ('Mein Feedback' if bogen else 'Feedback ausfüllen') }}</h1>
+    <p class="page-subtitle">
+      {% if typ == 'AUSBILDER' %}
+      Von deinem Fachausbilder besprochenes Feedback zu diesem Einsatz.
+      {% else %}
+      Deine Selbsteinsch&auml;tzung zu diesem Einsatz.
+      {% endif %}
+    </p>
+  </div>
+</div>
+
+{% if not readonly %}
+<form method="post" action="{{ post_url }}">
+  {% if not bogen %}
+  <input type="hidden" name="department_id" value="{{ department.id }}">
+  <input type="hidden" name="schoolyear_id" value="{{ schoolyear.id }}">
+  <input type="hidden" name="kw_von" value="{{ kw_von }}">
+  <input type="hidden" name="jahr_von" value="{{ jahr_von }}">
+  <input type="hidden" name="kw_bis" value="{{ kw_bis }}">
+  <input type="hidden" name="jahr_bis" value="{{ jahr_bis }}">
+  {% endif %}
+{% endif %}
+
+  <div class="card card-body feedback-kopf">
+    <div class="feedback-kopf-grid">
+      <div><span class="feedback-kopf-label">Team</span><br>{{ department.code }} &ndash; {{ department.name }}</div>
+      <div><span class="feedback-kopf-label">Zeitraum</span><br>KW {{ kw_von }}/{{ jahr_von }} &ndash; KW {{ kw_bis }}/{{ jahr_bis }}</div>
+      <div><span class="feedback-kopf-label">Name</span><br>{{ trainee.vorname }} {{ trainee.nachname }}</div>
+      {% if typ == "AUSBILDER" and fachausbilder_name %}
+      <div><span class="feedback-kopf-label">Fachausbilder</span><br>{{ fachausbilder_name }}</div>
+      {% endif %}
+      <div>
+        <span class="feedback-kopf-label">Einsatzart</span><br>
+        {% if readonly %}
+        {{ einsatzart or '–' }}
+        {% else %}
+        <select name="einsatzart">
+          <option value="">–</option>
+          {% for ea in einsatzarten %}
+          <option value="{{ ea }}" {{ 'selected' if einsatzart == ea else '' }}>{{ ea }}</option>
+          {% endfor %}
+        </select>
+        {% endif %}
+      </div>
+      {% if bogen %}
+      <div>
+        <span class="feedback-kopf-label">Status</span><br>
+        <span class="badge {{ status_badge_class_map.get(bogen.status, 'badge-gray') }}">{{ status_labels.get(bogen.status, bogen.status) }}</span>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card card-body">
+    <h3 class="feedback-sektion-titel">Lernziele</h3>
+    {% if readonly %}
+      {% if lernziele %}
+      <div class="table-wrapper">
+      <table class="feedback-lernziel-table">
+        <thead><tr><th>Lernziel</th><th>Bewertung</th></tr></thead>
+        <tbody>
+        {% for row in lernziele %}
+          <tr><td>{{ row.text }}</td><td>{{ skala_lernziele_map.get(row.bewertung, '–') }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% else %}
+      <div class="empty-state">Keine Lernziele hinterlegt.</div>
+      {% endif %}
+    {% else %}
+      <div id="lernziel-rows">
+        {% for row in lernziele %}
+        <div class="feedback-lernziel-row-edit">
+          <input type="text" name="lernziel_text" value="{{ row.text }}" placeholder="Lernziel" {{ 'readonly' if has_partner else '' }}>
+          <select name="lernziel_bewertung">
+            <option value="">–</option>
+            {# Lernziele werden auf der Anforderungen-Skala bewertet (wie im
+               Papierbogen und in der Staff-UI), nicht auf der Erwartungen-Skala #}
+            {% for wert, label in skala_lernziele %}
+            <option value="{{ wert }}" {{ 'selected' if row.bewertung == wert else '' }}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          {% if not has_partner %}
+          <button type="button" class="btn btn-ghost-danger btn-sm feedback-lernziel-remove">Entfernen</button>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% if has_partner %}
+      {# Bewusst neutral formuliert: verraet nichts ueber einen (ggf. noch
+         unbesprochenen) Feedbackbogen des Ausbilders -- die Lernziele gelten
+         als Einsatz-Vorgabe, siehe share.py feedback_neu #}
+      <p class="feedback-hinweis">Diese Lernziele wurden von deinem Fachausbilder f&uuml;r diesen Einsatz vorgegeben &ndash; bewerte sie selbst (Selbsteinsch&auml;tzung).</p>
+      {% else %}
+      <button type="button" class="btn btn-secondary btn-sm" id="lernziel-add-btn">+ Zeile hinzuf&uuml;gen</button>
+      {% endif %}
+    {% endif %}
+  </div>
+
+  <div class="feedback-skala-legend">
+    {% for wert, label in skala %}<span class="feedback-skala-legend-item"><strong>{{ wert }}</strong> {{ label }}</span>{% endfor %}
+  </div>
+
+  {% for sektion in sektionen %}
+  <div class="card card-body feedback-sektion">
+    <h3 class="feedback-sektion-titel">{{ sektion.titel }}</h3>
+    {% if sektion.gruppen is defined %}
+      {% for gruppe in sektion.gruppen %}
+      <div class="feedback-gruppe">
+        <h4 class="feedback-gruppe-titel">{{ gruppe.titel }}</h4>
+        {% for item in gruppe['items'] %}
+          {{ frage_row(item, antworten, skala, skala_map, readonly) }}
+        {% endfor %}
+      </div>
+      {% endfor %}
+    {% else %}
+      {% for item in sektion['items'] %}
+        {{ frage_row(item, antworten, skala, skala_map, readonly) }}
+      {% endfor %}
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  <div class="card card-body">
+    {% for fd in freitext_defs %}
+    <div class="share-field share-field-block">
+      <label for="{{ fd.key }}">{{ fd.label }}</label>
+      {% if readonly %}
+      <div class="feedback-freitext-view">{{ freitexte.get(fd.key) or '–' }}</div>
+      {% else %}
+      <textarea id="{{ fd.key }}" name="{{ fd.key }}" rows="3">{{ freitexte.get(fd.key, '') }}</textarea>
+      {% endif %}
+    </div>
+    {% endfor %}
+
+    <div class="share-field share-field-block">
+      <label>Weiterer Einsatz?</label>
+      {% if readonly %}
+      <div>{{ {'ja': 'Ja', 'nein': 'Nein'}.get(weiterer_einsatz, '–') }}</div>
+      {% else %}
+      <div class="feedback-radio-group">
+        <label><input type="radio" name="weiterer_einsatz" value="ja" {{ 'checked' if weiterer_einsatz == 'ja' else '' }}> Ja</label>
+        <label><input type="radio" name="weiterer_einsatz" value="nein" {{ 'checked' if weiterer_einsatz == 'nein' else '' }}> Nein</label>
+        <label><input type="radio" name="weiterer_einsatz" value="" {{ 'checked' if weiterer_einsatz == '' else '' }}> Noch offen</label>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if typ == "AUSBILDER" and bogen %}
+  <div class="card card-body">
+    <h3 class="feedback-sektion-titel">Fehlzeiten (Wochen)</h3>
+    <div class="feedback-fehlzeiten-grid">
+      <div><span class="feedback-kopf-label">Krank</span><br>{{ bogen.fehl_krank if bogen.fehl_krank is not none else '–' }}</div>
+      <div><span class="feedback-kopf-label">Urlaub</span><br>{{ bogen.fehl_urlaub if bogen.fehl_urlaub is not none else '–' }}</div>
+      <div><span class="feedback-kopf-label">Schule</span><br>{{ bogen.fehl_schule if bogen.fehl_schule is not none else '–' }}</div>
+      <div><span class="feedback-kopf-label">Sonstige</span><br>{{ bogen.fehl_sonstige if bogen.fehl_sonstige is not none else '–' }}</div>
+    </div>
+    <p style="margin-top:12px"><span class="feedback-kopf-label">Zugriffsberechtigungen gel&ouml;scht?</span> {{ 'Ja' if bogen.zugriffe_geloescht else 'Nein' }}</p>
+  </div>
+  {% endif %}
+
+{% if not readonly %}
+  <div class="form-actions">
+    <button type="submit" name="action" value="entwurf" class="btn btn-secondary">Als Entwurf speichern</button>
+    <button type="submit" name="action" value="abschliessen" class="btn btn-primary">Abschlie&szlig;en</button>
+  </div>
+</form>
+{% endif %}
+
+{% if typ == "AUSBILDER" and show_bestaetigen %}
+<form method="post" action="{{ bestaetigen_url }}" class="feedback-bestaetigen-form">
+  <p class="feedback-hinweis">Bitte best&auml;tige, dass du dieses Feedback zur Kenntnis genommen hast.</p>
+  <button type="submit" class="btn btn-primary">Zur Kenntnis genommen</button>
+</form>
+{% endif %}
+
+<script>
+(function() {
+  var addBtn = document.getElementById('lernziel-add-btn');
+  var container = document.getElementById('lernziel-rows');
+  if (container) {
+    container.querySelectorAll('.feedback-lernziel-remove').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        btn.closest('.feedback-lernziel-row-edit').remove();
+      });
+    });
+  }
+  if (!addBtn || !container) return;
+  var skala = {{ skala_json | safe }};
+  addBtn.addEventListener('click', function() {
+    var row = document.createElement('div');
+    row.className = 'feedback-lernziel-row-edit';
+    var opts = '<option value="">–</option>';
+    skala.forEach(function(s) {
+      opts += '<option value="' + s[0] + '">' + s[1] + '</option>';
+    });
+    row.innerHTML =
+      '<input type="text" name="lernziel_text" placeholder="Lernziel">' +
+      '<select name="lernziel_bewertung">' + opts + '</select>' +
+      '<button type="button" class="btn btn-ghost-danger btn-sm feedback-lernziel-remove">Entfernen</button>';
+    container.appendChild(row);
+    row.querySelector('.feedback-lernziel-remove').addEventListener('click', function() {
+      row.remove();
+    });
+  });
+})();
+</script>
+
+<style>
+.feedback-kopf-grid { display: flex; flex-wrap: wrap; gap: 20px; }
+.feedback-kopf-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
+.feedback-sektion-titel { margin: 0 0 12px 0; font-size: 1rem; }
+.feedback-gruppe { margin-bottom: 14px; }
+.feedback-gruppe:last-child { margin-bottom: 0; }
+.feedback-gruppe-titel { margin: 0 0 6px 0; font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
+.feedback-frage-row {
+  display: flex; justify-content: space-between; align-items: center; gap: 16px;
+  padding: 8px 0; border-top: 1px solid var(--border); flex-wrap: wrap;
+}
+.feedback-frage-row:first-of-type { border-top: none; }
+.feedback-frage-text { flex: 1 1 320px; font-size: 14px; }
+.feedback-frage-answer { flex: 0 0 auto; }
+.feedback-radio-group { display: flex; gap: 10px; }
+.feedback-radio-option { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11px; cursor: pointer; }
+.feedback-skala-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; color: var(--text-muted); margin: -4px 0 4px 0; padding: 0 4px; }
+.feedback-skala-legend-item strong { color: var(--text-secondary); margin-right: 3px; }
+.feedback-lernziel-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.feedback-lernziel-table th { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); color: var(--text-muted); font-weight: 500; }
+.feedback-lernziel-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); }
+.feedback-lernziel-row-edit { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.feedback-lernziel-row-edit input[type="text"] { flex: 1 1 auto; }
+.feedback-freitext-view { white-space: pre-wrap; font-size: 14px; color: var(--text-secondary); }
+.feedback-fehlzeiten-grid { display: flex; flex-wrap: wrap; gap: 20px; }
+.feedback-hinweis { font-size: 13px; color: var(--text-muted); margin: 8px 0 0 0; }
+.feedback-bestaetigen-form { margin-top: 16px; }
+</style>
+{% endblock %}

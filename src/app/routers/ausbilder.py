@@ -33,6 +33,7 @@ from app.models import (
 )
 from app.services.auth_service import CurrentUser, allowed_dept_ids, require_roles
 from app.services.block_utils import apply_to_block, assignment_blocks
+from app.services.feedback_utils import bogen_fuer_block
 from app.services.membership_utils import aktuelles_schuljahr_id
 from app.utils.kw import iter_schoolyear_weeks
 
@@ -81,6 +82,14 @@ def meine_abteilung(
     for d in depts:
         blocks = assignment_blocks(db, d.id, schoolyear_id) if schoolyear_id else []
         offen_count += sum(1 for b in blocks if b["status"] == "offen")
+        for b in blocks:
+            b["bogen"] = (
+                bogen_fuer_block(
+                    db, "AUSBILDER", b["trainee"].id, d.id, schoolyear_id,
+                    b["kw_von"], b["jahr_von"], b["kw_bis"], b["jahr_bis"],
+                )
+                if b["trainee"] is not None else None
+            )
         dept_blocks.append({"dept": d, "blocks": blocks})
 
     trainees = db.exec(

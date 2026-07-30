@@ -1,6 +1,7 @@
 from app.models.assignment import Assignment, AssignmentSource, AssignmentTyp
 from app.models.department import Department, DepartmentKategorie  # DepartmentKategorie ist jetzt eine DB-Tabelle
 from app.models.einsatz_vorschlag import EinsatzVorschlag
+from app.models.feedback_bogen import FeedbackBogen
 from app.models.school_holiday import SchoolHoliday
 from app.models.school_plan import SchoolPlan, SchoolPlanWeek, SchoolWeekTyp
 from app.models.schoolyear import Schoolyear
@@ -16,6 +17,7 @@ __all__ = [
     "Department",
     "DepartmentKategorie",
     "EinsatzVorschlag",
+    "FeedbackBogen",
     "SchoolHoliday",
     "SchoolPlan",
     "SchoolPlanWeek",

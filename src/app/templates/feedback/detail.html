@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block title %}Feedbackbogen{% endblock %}
+
+{% block content %}
+{# status_colors kommt aus dem Router-Kontext (feedback_def.STATUS_BADGE_FARBE) #}
+
+<style>
+  .feedback-kopf-facts {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 16px;
+    font-size: 14px;
+  }
+  .feedback-kopf-facts dt { color: var(--text-muted); font-weight: 500; }
+  .feedback-kopf-facts dd { margin: 0; color: var(--text-primary); }
+
+  .feedback-gruppe-titel {
+    font-size: 13px; font-weight: 600; color: var(--text-secondary);
+    margin: 16px 0 8px;
+  }
+  .feedback-gruppe-titel:first-of-type { margin-top: 4px; }
+
+  .feedback-antwort-list {
+    display: grid; grid-template-columns: 1fr auto; gap: 6px 16px;
+    font-size: 14px; margin-bottom: 8px;
+  }
+  .feedback-antwort-list dt { color: var(--text-primary); }
+  .feedback-antwort-list dd { margin: 0; color: var(--text-secondary); font-weight: 500; white-space: nowrap; }
+
+  .feedback-freitext-label { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+  .feedback-freitext-value { font-size: 14px; color: var(--text-primary); white-space: pre-wrap; }
+
+  .feedback-partner-hint { margin-top: 12px; font-size: 13px; color: var(--text-secondary); }
+
+  .feedback-card { margin-bottom: 20px; }
+
+  .status-verlauf-list { padding-left: 20px; }
+  .status-verlauf-list li { color: var(--text-secondary); line-height: 1.7; }
+
+  .besprochen-form { display: inline-flex; gap: 8px; align-items: center; }
+</style>
+
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Feedbackbogen</h1>
+    <p class="page-subtitle">
+      {{ 'Ausbilder-Bogen' if typ == 'AUSBILDER' else 'Azubi-Bogen' }}
+      {% if schoolyear %} &middot; {{ schoolyear.id }}{% endif %}
+      <span class="badge badge-{{ status_colors.get(bogen.status, 'gray') }}" style="margin-left:6px;">{{ status_labels.get(bogen.status, bogen.status) }}</span>
+    </p>
+  </div>
+  <div class="btn-group">
+    {% if bogen.status == 'abgeschlossen' %}
+    <form method="post" action="/feedback/{{ bogen.id }}/besprochen" class="besprochen-form">
+      <input type="date" name="besprochen_am" value="{{ today }}">
+      <button type="submit" class="btn btn-primary">Als besprochen markieren</button>
+    </form>
+    {% endif %}
+    {% if can_reopen and bogen.status in ('abgeschlossen', 'besprochen') %}
+    <form method="post" action="/feedback/{{ bogen.id }}/reopen" onsubmit="return confirm('Bogen zurück auf Entwurf setzen?')">
+      <button type="submit" class="btn btn-secondary">Zurück auf Entwurf</button>
+    </form>
+    {% endif %}
+    {% if can_delete %}
+    <form method="post" action="/feedback/{{ bogen.id }}/loeschen" onsubmit="return confirm('Bogen endgültig löschen?')">
+      <button type="submit" class="btn btn-ghost-danger">Löschen</button>
+    </form>
+    {% endif %}
+    <a href="/feedback/" class="btn btn-ghost">Zur Liste</a>
+  </div>
+</div>
+
+<div class="card card-body feedback-card">
+  <dl class="feedback-kopf-facts">
+    <dt>Azubi</dt><dd>{{ (trainee.nachname ~ ', ' ~ trainee.vorname) if trainee else '–' }}</dd>
+    <dt>Ausbildungsrichtung</dt><dd>{{ beruf_lang if beruf_lang else '–' }}</dd>
+    <dt>Jahrgang</dt><dd>{{ jahrgang if jahrgang else '–' }}</dd>
+    <dt>Team</dt><dd>{{ (department.code ~ ' – ' ~ department.name) if department else '–' }}</dd>
+    <dt>Zeitraum</dt><dd class="mono">KW {{ bogen.kw_von }}/{{ bogen.jahr_von }} – KW {{ bogen.kw_bis }}/{{ bogen.jahr_bis }}</dd>
+    <dt>Einsatzart</dt><dd>{{ bogen.einsatzart or '–' }}</dd>
+    {% if typ == 'AUSBILDER' %}
+    <dt>Fachausbilder</dt><dd>{{ bogen.fachausbilder_name or '–' }}</dd>
+    {% endif %}
+  </dl>
+  {% if partner %}
+  <p class="feedback-partner-hint">
+    {% if partner.typ == 'AZUBI' %}Zugehöriger Azubi-Bogen:{% else %}Zugehöriger Ausbilder-Bogen:{% endif %}
+    <a href="/feedback/{{ partner.id }}">ansehen</a>
+  </p>
+  {% endif %}
+</div>
+
+{% if lernziele %}
+<div class="card card-body feedback-card">
+  <h2 class="form-section-title">Lernziele</h2>
+  <dl class="feedback-antwort-list">
+    {% for lz in lernziele %}
+    <dt>{{ lz.text }}</dt>
+    <dd>{{ skala_lernziele_dict.get(lz.bewertung, '–') }}</dd>
+    {% endfor %}
+  </dl>
+</div>
+{% endif %}
+
+{% for sektion in sektionen %}
+<div class="card card-body feedback-card">
+  <h2 class="form-section-title">{{ sektion.titel }}</h2>
+  {% if 'gruppen' in sektion %}
+    {% for gruppe in sektion.gruppen %}
+    <h3 class="feedback-gruppe-titel">{{ gruppe.titel }}</h3>
+    <dl class="feedback-antwort-list">
+      {% for item in gruppe['items'] %}
+      <dt>{{ item.text }}</dt>
+      <dd>{{ skala_dict.get(antworten.get(item.key), '–') }}</dd>
+      {% endfor %}
+    </dl>
+    {% endfor %}
+  {% else %}
+    <dl class="feedback-antwort-list">
+      {% for item in sektion['items'] %}
+      <dt>{{ item.text }}</dt>
+      <dd>{{ skala_dict.get(antworten.get(item.key), '–') }}</dd>
+      {% endfor %}
+    </dl>
+  {% endif %}
+</div>
+{% endfor %}
+
+{% if freitext_felder %}
+<div class="card card-body feedback-card">
+  <h2 class="form-section-title">Kommentare</h2>
+  {% for feld in freitext_felder %}
+  <div style="margin-bottom:14px;">
+    <p class="feedback-freitext-label">{{ feld.label }}</p>
+    <p class="feedback-freitext-value">{{ freitexte.get(feld.key) or '–' }}</p>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if typ == 'AUSBILDER' %}
+<div class="card card-body feedback-card">
+  <h2 class="form-section-title">Fehlzeiten (in Wochen)</h2>
+  <dl class="feedback-kopf-facts">
+    <dt>Krank</dt><dd>{{ bogen.fehl_krank if bogen.fehl_krank is not none else '–' }}</dd>
+    <dt>Urlaub</dt><dd>{{ bogen.fehl_urlaub if bogen.fehl_urlaub is not none else '–' }}</dd>
+    <dt>Schule</dt><dd>{{ bogen.fehl_schule if bogen.fehl_schule is not none else '–' }}</dd>
+    <dt>Sonstige</dt><dd>{{ bogen.fehl_sonstige if bogen.fehl_sonstige is not none else '–' }}</dd>
+  </dl>
+</div>
+{% endif %}
+
+<div class="card card-body feedback-card">
+  <h2 class="form-section-title">Abschluss</h2>
+  <dl class="feedback-kopf-facts">
+    <dt>Weiterer Einsatz vorstellbar?</dt>
+    <dd>
+      {%- if bogen.weiterer_einsatz == 'ja' %}Ja
+      {%- elif bogen.weiterer_einsatz == 'nein' %}Nein
+      {%- else %}–{% endif %}
+    </dd>
+    {% if typ == 'AUSBILDER' %}
+    <dt>Zugriffsberechtigungen gelöscht?</dt>
+    <dd>{{ 'Ja' if bogen.zugriffe_geloescht else 'Nein' }}</dd>
+    {% endif %}
+  </dl>
+</div>
+
+<div class="card card-body">
+  <h2 class="form-section-title">Status-Verlauf</h2>
+  <ul class="status-verlauf-list">
+    <li>Erstellt am {{ bogen.erstellt_am.strftime('%d.%m.%Y') if bogen.erstellt_am else '–' }}{% if bogen.erstellt_von_upn %} von {{ bogen.erstellt_von_upn }}{% endif %}</li>
+    {% if bogen.aktualisiert_am %}
+    <li>Zuletzt aktualisiert am {{ bogen.aktualisiert_am.strftime('%d.%m.%Y') }}</li>
+    {% endif %}
+    {% if bogen.besprochen_am %}
+    <li>Besprochen am {{ bogen.besprochen_am.strftime('%d.%m.%Y') }}</li>
+    {% endif %}
+    {% if bogen.bestaetigt_am %}
+    <li>Vom Azubi bestätigt am {{ bogen.bestaetigt_am.strftime('%d.%m.%Y') }}</li>
+    {% endif %}
+  </ul>
+</div>
+{% endblock %}

@@ -1,0 +1,80 @@
+{% extends "share/_base.html" %}
+{% block title %}Feedback{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Feedback</h1>
+    <p class="page-subtitle">Dein Feedback zu jedem Einsatz sowie das mit dir besprochene Feedback deines Fachausbilders.</p>
+  </div>
+</div>
+
+{% if years | length > 1 %}
+<div class="share-year-links">
+  {% for y in years %}
+  <a href="/mein-plan/{{ token }}/feedback?schoolyear_id={{ y.id }}"
+     class="share-year-link {{ 'active' if y.id == selected_year else '' }}">{{ y.id }}</a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if blocks %}
+<div class="feedback-block-list">
+  {% for b in blocks %}
+  <div class="card card-body feedback-block-card">
+    <div class="feedback-block-head">
+      <div class="feedback-block-dept">{{ b.department.code }} &ndash; {{ b.department.name }}</div>
+      <div class="feedback-block-zeitraum">KW {{ b.kw_von }}/{{ b.jahr_von }} &ndash; KW {{ b.kw_bis }}/{{ b.jahr_bis }}</div>
+    </div>
+    <div class="feedback-block-rows">
+      <div class="feedback-block-row">
+        <div class="feedback-block-row-label">Mein Feedback</div>
+        <div class="feedback-block-row-value">
+          {% if b.mein.exists %}
+          <span class="badge {{ b.mein.badge_class }}">{{ status_labels.get(b.mein.status, b.mein.status) }}</span>
+          <a href="{{ b.mein.url }}" class="btn btn-ghost btn-sm">{{ 'Bearbeiten' if b.mein.status == 'entwurf' else 'Ansehen' }}</a>
+          {% else %}
+          <a href="{{ b.mein.url }}" class="btn btn-secondary btn-sm">Ausf&uuml;llen</a>
+          {% endif %}
+        </div>
+      </div>
+      <div class="feedback-block-row">
+        <div class="feedback-block-row-label">Feedback des Ausbilders &uuml;ber mich</div>
+        <div class="feedback-block-row-value">
+          {% if b.ausbilder.visible %}
+          <span class="badge {{ b.ausbilder.badge_class }}">{{ status_labels.get(b.ausbilder.status, b.ausbilder.status) }}</span>
+          {% if b.ausbilder.needs_bestaetigung %}
+          <span class="badge badge-orange">bitte best&auml;tigen</span>
+          {% endif %}
+          <a href="{{ b.ausbilder.url }}" class="btn btn-ghost btn-sm">Ansehen</a>
+          {% else %}
+          <span class="feedback-not-yet">noch nicht besprochen</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card card-body" style="text-align:center; color:var(--text-muted)">
+  F&uuml;r das gew&auml;hlte Schuljahr sind keine Abteilungs-Eins&auml;tze hinterlegt.
+</div>
+{% endif %}
+
+<style>
+.feedback-block-list { display: flex; flex-direction: column; gap: 12px; }
+.feedback-block-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+.feedback-block-dept { font-weight: 600; }
+.feedback-block-zeitraum { font-size: 13px; color: var(--text-muted); }
+.feedback-block-rows { display: flex; flex-direction: column; }
+.feedback-block-row {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  padding: 8px 0; border-top: 1px solid var(--border); flex-wrap: wrap;
+}
+.feedback-block-row:first-child { border-top: none; }
+.feedback-block-row-label { color: var(--text-secondary); font-size: 14px; }
+.feedback-block-row-value { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.feedback-not-yet { color: var(--text-muted); font-size: 13px; font-style: italic; }
+</style>
+{% endblock %}

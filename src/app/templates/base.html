@@ -75,6 +75,12 @@
         </svg>
         Meine Abteilung
       </a>
+      <a href="/feedback/" class="nav-link {% if active_nav == 'feedback' %}active{% endif %}">
+        <svg viewBox="0 0 16 16" fill="currentColor">
+          <path d="M2 2h9l3 3v9H2V2zm1 1v10h10V5.4L10.6 3H3zm2 6.5 1.5 1.5L11 6l.9.9-4.4 4.4L4.1 8.4z"/>
+        </svg>
+        Feedback
+      </a>
       {% endif %}
       {% if cu and cu.rolle in ("orga", "admin") %}
       <a href="/vorschlaege/" class="nav-link {% if active_nav == 'vorschlaege' %}active{% endif %}">

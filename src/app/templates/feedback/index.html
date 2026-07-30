@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Feedbackbögen{% endblock %}
+
+{% block content %}
+{# status_colors kommt aus dem Router-Kontext (feedback_def.STATUS_BADGE_FARBE),
+   damit Staff- und Azubi-UI denselben Status gleich einfaerben #}
+{% set typ_colors = {'AUSBILDER': 'blue', 'AZUBI': 'gray'} %}
+{% set typ_labels = {'AUSBILDER': 'Ausbilder', 'AZUBI': 'Azubi'} %}
+
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Feedbackbögen</h1>
+    <p class="page-subtitle">{{ boegen | length }} {{ 'Bogen' if boegen | length == 1 else 'Bögen' }}</p>
+  </div>
+</div>
+
+<form class="filter-bar" method="get" action="/feedback/">
+  <select name="schoolyear_id">
+    <option value="">Alle Ausbildungsjahre</option>
+    {% for y in years %}
+    <option value="{{ y.id }}" {{ 'selected' if y.id == f_schoolyear_id else '' }}>{{ y.id }}</option>
+    {% endfor %}
+  </select>
+  <select name="department_id">
+    <option value="">Alle Abteilungen</option>
+    {% for d in depts_filter %}
+    <option value="{{ d.id }}" {{ 'selected' if (d.id | string) == f_department_id else '' }}>{{ d.code }} – {{ d.name }}</option>
+    {% endfor %}
+  </select>
+  <select name="trainee_id">
+    <option value="">Alle Azubis</option>
+    {% for t in trainees_filter %}
+    <option value="{{ t.id }}" {{ 'selected' if (t.id | string) == f_trainee_id else '' }}>{{ t.nachname }}, {{ t.vorname }}</option>
+    {% endfor %}
+  </select>
+  <select name="status">
+    <option value="">Alle Status</option>
+    {% for key, label in status_labels.items() %}
+    <option value="{{ key }}" {{ 'selected' if key == f_status else '' }}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="btn btn-secondary">Filtern</button>
+</form>
+
+<div class="table-wrapper">
+  <table>
+    <thead>
+      <tr>
+        <th>Azubi</th>
+        <th>Abteilung</th>
+        <th>Zeitraum</th>
+        <th>Typ</th>
+        <th>Status</th>
+        <th>Erstellt am</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for b in boegen %}
+      {% set t = trainee_map.get(b.trainee_id) %}
+      {% set d = dept_map.get(b.department_id) %}
+      <tr data-href="/feedback/{{ b.id }}">
+        <td>{{ (t.nachname ~ ', ' ~ t.vorname) if t else '–' }}</td>
+        <td>{{ (d.code ~ ' – ' ~ d.name) if d else '–' }}</td>
+        <td class="mono">KW {{ b.kw_von }}/{{ b.jahr_von }} – KW {{ b.kw_bis }}/{{ b.jahr_bis }}</td>
+        <td><span class="badge badge-{{ typ_colors.get(b.typ, 'gray') }}">{{ typ_labels.get(b.typ, b.typ) }}</span></td>
+        <td><span class="badge badge-{{ status_colors.get(b.status, 'gray') }}">{{ status_labels.get(b.status, b.status) }}</span></td>
+        <td class="td-muted">{{ b.erstellt_am.strftime('%d.%m.%Y') if b.erstellt_am else '–' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="empty-state">Keine Feedbackbögen gefunden.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

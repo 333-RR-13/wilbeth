@@ -62,6 +62,7 @@
           <th>Zeitraum</th>
           <th>Status</th>
           <th>Notiz / Feedback</th>
+          <th>Feedbackbogen</th>
         </tr>
       </thead>
       <tbody>
@@ -88,9 +89,29 @@
               <button type="submit" name="aktion" value="abgelehnt" class="btn btn-ghost-danger btn-sm">Ablehnen</button>
             </form>
           </td>
+          <td>
+            {% if b.trainee %}
+              {% if b.bogen %}
+                {% if b.bogen.status == 'entwurf' %}
+                  <span class="badge badge-gray">Entwurf</span>
+                {% elif b.bogen.status == 'abgeschlossen' %}
+                  <span class="badge badge-orange">Abgeschlossen</span>
+                {% elif b.bogen.status == 'besprochen' %}
+                  <span class="badge badge-blue">Besprochen</span>
+                {% else %}
+                  <span class="badge badge-green">Bestätigt</span>
+                {% endif %}
+                <a href="/feedback/{{ b.bogen.id }}" class="btn btn-ghost btn-sm">Feedbackbogen ansehen</a>
+              {% else %}
+                <a href="/feedback/neu?trainee_id={{ b.trainee.id }}&department_id={{ entry.dept.id }}&schoolyear_id={{ selected_year }}&kw_von={{ b.kw_von }}&jahr_von={{ b.jahr_von }}&kw_bis={{ b.kw_bis }}&jahr_bis={{ b.jahr_bis }}" class="btn btn-secondary btn-sm">Feedbackbogen ausfüllen</a>
+              {% endif %}
+            {% else %}
+              <span class="text-muted">–</span>
+            {% endif %}
+          </td>
         </tr>
         {% else %}
-        <tr><td colspan="4" class="empty-state">Keine Einsätze in diesem Schuljahr.</td></tr>
+        <tr><td colspan="5" class="empty-state">Keine Einsätze in diesem Schuljahr.</td></tr>
         {% endfor %}
       </tbody>
     </table>

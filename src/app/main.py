@@ -15,6 +15,7 @@ from app.routers import (
     ausbilder,
     datenexport,
     departments,
+    feedback,
     hilfe,
     holidays,
     imports,
@@ -113,6 +114,7 @@ app.include_router(share.router)
 app.include_router(about.router)
 app.include_router(ausbilder.router)
 app.include_router(vorschlaege.router)
+app.include_router(feedback.router)
 app.include_router(datenexport.router)
 app.include_router(hilfe.router)
 
