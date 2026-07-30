@@ -210,25 +210,19 @@ def _group_beruf_klasse(
 def my_plan(request: Request, token: str, db: DB):
     trainee = _trainee_by_token(db, token)
 
-    # Determine which schoolyear to show
-    years_all = db.exec(select(Schoolyear).order_by(Schoolyear.start_year.desc())).all()
-    selected_param = request.query_params.get("schoolyear_id", "")
-    sy = db.get(Schoolyear, selected_param) if selected_param else None
-    if sy is None:
-        _t = date.today().isocalendar()
-        sy = _schoolyear_for_week(db, _t.week, _t.year)
-    if sy is None:
-        fallback_id = aktuelles_schuljahr_id(db)
-        sy = db.get(Schoolyear, fallback_id) if fallback_id else None
+    # Jahres-Auswahl wie auf den anderen Azubi-Seiten: ALLE Schuljahre stehen
+    # zur Wahl. Frueher wurden hier nur Jahre angeboten, in denen der Trainee
+    # bereits Einsaetze hatte -- bei genau einem solchen Jahr (Normalfall)
+    # blendete das Template den Umschalter dann komplett aus, und kuenftige
+    # Jahre waren gar nicht erreichbar.
+    years = db.exec(select(Schoolyear).order_by(Schoolyear.start_year.desc())).all()
+    sy = _resolve_schoolyear(db, request, years)
 
-    # Find schoolyears that have assignments for this trainee (for year-switch links)
     all_assignments = db.exec(
         select(Assignment)
         .where(Assignment.trainee_id == trainee.id)
         .order_by(Assignment.jahr, Assignment.kw)
     ).all()
-    trainee_year_ids = sorted({a.schoolyear_id for a in all_assignments})
-    years_with_assignments = [y for y in years_all if y.id in trainee_year_ids]
 
     all_depts = db.exec(select(Department)).all()
     depts = {d.id: d for d in all_depts}
@@ -270,7 +264,7 @@ def my_plan(request: Request, token: str, db: DB):
         "dept_colors": dept_colors,
         "highlight_id": trainee.id,
         "selected_year": sy.id if sy else "",
-        "years": years_with_assignments,
+        "years": years,
         "schul_tage": schul_tage,
     })
 

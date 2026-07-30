@@ -57,6 +57,29 @@ def test_my_plan_valid_token(client, session):
     assert "Meine Einsätze" in r.text
 
 
+def test_my_plan_jahr_umschalter_auch_ohne_einsaetze(client, session):
+    """Der Jahr-Umschalter auf 'Meine Einsaetze' bietet ALLE Schuljahre an.
+
+    Regression: Frueher wurden nur Jahre verlinkt, in denen der Trainee schon
+    Einsaetze hatte -- bei genau einem solchen Jahr (Normalfall) verschwand der
+    Umschalter komplett und kuenftige Jahre waren nicht erreichbar.
+    """
+    _setup(session)
+    session.add(Schoolyear(id="2026-2027", start_kw=36, start_year=2026, end_kw=35, end_year=2027))
+    session.commit()
+
+    r = client.get(f"/mein-plan/{TOKEN}")
+    assert r.status_code == 200
+    # Beide Jahre sind als Umschalt-Link vorhanden (Trainee hat in keinem Einsaetze)
+    assert f'/mein-plan/{TOKEN}?schoolyear_id={SY}' in r.text
+    assert f'/mein-plan/{TOKEN}?schoolyear_id=2026-2027' in r.text
+
+    # Und die Auswahl greift: gewaehltes Jahr ist aktiv markiert
+    r2 = client.get(f"/mein-plan/{TOKEN}", params={"schoolyear_id": "2026-2027"})
+    assert r2.status_code == 200
+    assert 'share-year-link active">2026-2027' in r2.text
+
+
 def test_my_plan_invalid_token(client, session):
     _setup(session)
     r = client.get("/mein-plan/gibt-es-nicht")
