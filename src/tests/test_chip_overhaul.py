@@ -4,6 +4,8 @@
 - text_color_for utility
 - Overview matrix: chip rendering (BS/HS/BLK/ABTEILUNG/visited column)
 """
+from pathlib import Path
+
 import pytest
 from sqlmodel import Session
 
@@ -22,6 +24,10 @@ from app.utils.colors import department_color_map, text_color_for
 
 SY = "2025-2026"
 SY2 = "2024-2025"
+
+STYLE_CSS = (Path(__file__).resolve().parents[1] / "app" / "static" / "style.css").read_text(
+    encoding="utf-8"
+)
 
 
 # ── text_color_for ────────────────────────────────────────────────────────────
@@ -184,23 +190,19 @@ def test_overview_uni_shows_hs_with_cell_school(client, session: Session):
     assert ">HS<" in r.text
 
 
-def test_overview_urlaub_shows_u_with_cell_blocker(client, session: Session):
-    """URLAUB assignment renders as 'U' with class cell-blocker."""
-    ids = _setup_overview(session)
-    session.add(Assignment(
-        trainee_id=ids["trainee_id"], schoolyear_id=SY, kw=40, jahr=2025,
-        typ=AssignmentTyp.URLAUB, abteilung_id=None, source=AssignmentSource.MANUAL,
-    ))
-    session.commit()
+# URLAUB als Assignment-Typ entfaellt (siehe Abwesenheiten-Overlay, project_
+# computed_class_model): der frühere Test "URLAUB rendert als U" ist damit
+# gegenstandslos geworden. FREI bleibt der einzige "Blocker"-Typ und wird
+# unten mit dem neuen Buchstaben 'F' geprueft.
 
-    r = client.get("/overview", params={"schoolyear_id": SY})
-    assert r.status_code == 200
-    assert "cell-blocker" in r.text
-    assert ">U<" in r.text
+def test_overview_frei_shows_f_with_cell_blocker(client, session: Session):
+    """FREI assignment renders as 'F' with class cell-blocker.
 
-
-def test_overview_frei_shows_u_with_cell_blocker(client, session: Session):
-    """FREI assignment renders as 'U' with class cell-blocker."""
+    halbjahr wird explizit auf '1' gesetzt (deckt KW36-KW10 ab, hier KW40/2025),
+    damit die Zelle unabhaengig vom Default-Halbjahr (das sich am heutigen
+    Datum orientiert, siehe overview._default_halbjahr) tatsaechlich im
+    gerenderten Bereich liegt -- sonst wuerde die Assertion nur zufaellig
+    ueber die (unabhaengige) Legende passen."""
     ids = _setup_overview(session)
     session.add(Assignment(
         trainee_id=ids["trainee_id"], schoolyear_id=SY, kw=40, jahr=2025,
@@ -208,10 +210,11 @@ def test_overview_frei_shows_u_with_cell_blocker(client, session: Session):
     ))
     session.commit()
 
-    r = client.get("/overview", params={"schoolyear_id": SY})
+    r = client.get("/overview", params={"schoolyear_id": SY, "halbjahr": "1"})
     assert r.status_code == 200
-    assert "cell-blocker" in r.text
-    assert ">U<" in r.text
+    cell = _cell_html(r.text, ids["trainee_id"], 40, 2025)
+    assert "cell-blocker" in cell
+    assert ">F<" in cell
 
 
 def test_overview_abteilung_chip_has_inline_style(client, session: Session):
@@ -331,11 +334,11 @@ def test_overview_abteilung_abgelehnt_shows_confirm_marker(client, session: Sess
 
 
 def test_overview_non_abteilung_has_no_confirm_marker(client, session: Session):
-    """BERUFSSCHULE/URLAUB/FREI assignments never get a confirm marker class."""
+    """BERUFSSCHULE/FREI assignments never get a confirm marker class."""
     ids = _setup_overview(session)
     session.add(Assignment(
         trainee_id=ids["trainee_id"], schoolyear_id=SY, kw=40, jahr=2025,
-        typ=AssignmentTyp.URLAUB, abteilung_id=None, source=AssignmentSource.MANUAL,
+        typ=AssignmentTyp.FREI, abteilung_id=None, source=AssignmentSource.MANUAL,
     ))
     session.commit()
 
@@ -343,3 +346,79 @@ def test_overview_non_abteilung_has_no_confirm_marker(client, session: Session):
     assert r.status_code == 200
     cell = _cell_html(r.text, ids["trainee_id"], 40, 2025)
     assert "mc-confirm-" not in cell
+
+
+# ── Befund 8: veraltete Legenden (U/Urlaub statt F/Frei, fehlender Abwesend-
+#    Eintrag in den share-Templates) ─────────────────────────────────────────
+
+def _legend_html(r_text: str) -> str:
+    """Extrahiert den <div class="matrix-legend">...</div>-Block."""
+    idx = r_text.find('class="matrix-legend"')
+    assert idx != -1, "matrix-legend nicht in der Antwort gefunden"
+    end = r_text.find("</div>", idx)
+    return r_text[idx:end]
+
+
+def test_overview_legend_shows_f_frei_not_u_urlaub(client, session: Session):
+    """Die Legende zeigt 'F' / 'Frei' (das Kuerzel, das chip.html fuer FREI
+    tatsaechlich rendert) statt des veralteten 'U' / 'Urlaub'-Eintrags."""
+    _setup_overview(session)
+    r = client.get("/overview", params={"schoolyear_id": SY})
+    assert r.status_code == 200
+    legend = _legend_html(r.text)
+    assert "cell-blocker\">F</span> Frei" in legend
+    assert "Urlaub</span>" not in legend
+    assert ">U</span>" not in legend
+
+
+def test_overview_legend_has_abwesend_sample(client, session: Session):
+    """Die Legende der Voll-Matrix erklaert die Abwesend-Schraffur bereits
+    (Referenz fuer die share-Templates unten)."""
+    _setup_overview(session)
+    r = client.get("/overview", params={"schoolyear_id": SY})
+    assert r.status_code == 200
+    legend = _legend_html(r.text)
+    assert "matrix-abwesend-sample" in legend
+    assert "Abwesend (Urlaub/Sonstiges)" in legend
+
+
+@pytest.mark.parametrize("template_name", [
+    "share/plan.html",
+    "share/klasse.html",
+    "share/jahrgang.html",
+    "share/uebersicht.html",
+])
+def test_share_legend_shows_f_frei_and_abwesend_sample(template_name):
+    """Alle vier share-Legenden: 'F' / 'Frei' statt 'U' / 'Urlaub', UND der
+    Abwesend-Sample-Eintrag (der vorher in den share-Templates komplett
+    fehlte, obwohl die Zellen die Markierung schon anzeigen)."""
+    src = (
+        Path(__file__).resolve().parents[1] / "app" / "templates" / template_name
+    ).read_text(encoding="utf-8")
+    assert "cell-blocker\">F</span> Frei" in src
+    assert "Urlaub</span>" not in src
+    assert ">U</span>" not in src
+    assert "matrix-abwesend-sample" in src
+    assert "Abwesend (Urlaub/Sonstiges)" in src
+
+
+# ── Befund 11: CSS-Spezifitaet der Abwesend-Schraffur ───────────────────────
+
+def test_abwesend_voll_selector_matches_today_conflict_specificity():
+    """.matrix-cell.mc-abwesend.mc-abwesend-voll (Spezifitaet 0-3-0) statt nur
+    .matrix-cell.mc-abwesend-voll (0-2-0) -- sonst verliert eine Zelle, die
+    gleichzeitig mc-today + mc-conflict UND ganze-Woche-abwesend ist, die
+    background-image-Schraffur gegen die hoeher-spezifische
+    .matrix-cell.mc-today.mc-conflict-Regel (setzt background-image implizit
+    auf none)."""
+    assert ".matrix-cell.mc-abwesend.mc-abwesend-voll {" in STYLE_CSS
+    assert ".matrix-cell.mc-abwesend-voll {" not in STYLE_CSS
+
+
+# ── Befund 14: tote CSS-Reste (.cell-URLAUB, veralteter Kommentar) ──────────
+
+def test_cell_urlaub_dead_css_removed():
+    """.cell-URLAUB hat keinen Nutzer mehr (AssignmentTyp.URLAUB entfaellt)
+    und der Kommentar ueber 'Urlaub and Frei shown as dark U' ist veraltet."""
+    assert ".cell-URLAUB" not in STYLE_CSS
+    assert "Urlaub and Frei shown as dark" not in STYLE_CSS

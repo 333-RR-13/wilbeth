@@ -11,11 +11,15 @@ Aufruf:  python -m seed.seed
 from __future__ import annotations
 
 import sys
+from datetime import timedelta
 
 from sqlmodel import Session, select
 
 from app.database import engine
 from app.models import (
+    Abwesenheit,
+    AbwesenheitQuelle,
+    AbwesenheitTyp,
     Assignment,
     AssignmentSource,
     AssignmentTyp,
@@ -31,7 +35,7 @@ from app.models import (
     TraineeRolle,
     UnterrichtsTyp,
 )
-from app.utils.kw import iter_kw_range
+from app.utils.kw import iter_kw_range, kw_to_monday
 
 SCHOOLYEAR_ID = "2025-2026"
 SCHOOLYEAR_2627_ID = "2026-2027"
@@ -139,12 +143,20 @@ def seed_classes(session: Session) -> dict[str, TraineeClass]:
 # ── Abteilungen ───────────────────────────────────────────────────
 
 def seed_departments(session: Session) -> dict[str, Department]:
-    # 1. Kategorien anlegen
+    # 1. Kategorien anlegen -- aber nur, was noch fehlt: Migration
+    # 0003_department_kategorie_table.py legt dieselben vier Namen bereits per
+    # bulk_insert an. Auf einer per "alembic upgrade head" aufgebauten DB (dem
+    # dokumentierten Setup-Pfad) lief der Seed sonst in einen
+    # UNIQUE-constraint-Fehler auf department_kategorie.name.
     kat_names = ["Platform Development", "Customer Service", "Grenke AG", "Grenke Digital"]
     kats: dict[str, DepartmentKategorie] = {}
     for name in kat_names:
-        k = DepartmentKategorie(name=name)
-        session.add(k)
+        k = session.exec(
+            select(DepartmentKategorie).where(DepartmentKategorie.name == name)
+        ).first()
+        if k is None:
+            k = DepartmentKategorie(name=name)
+            session.add(k)
         kats[name] = k
     session.flush()
 
@@ -296,7 +308,6 @@ def seed_assignments(
     AB = AssignmentTyp.ABTEILUNG
     BS = AssignmentTyp.BERUFSSCHULE
     UN = AssignmentTyp.UNI
-    UR = AssignmentTyp.URLAUB
     MA = AssignmentSource.MANUAL
     AU = AssignmentSource.AUTO
     SY = SCHOOLYEAR_ID
@@ -326,7 +337,6 @@ def seed_assignments(
         (40,2025,43,2025, AB,"CP"),
         (45,2025,45,2025, BS, None),
         (46,2025,50,2025, AB,"DWP"),
-        (51,2025,51,2025, UR, None),
         ( 2,2026, 2,2026, AB,"DP"),
         ( 3,2026, 4,2026, BS, None),
         ( 5,2026, 7,2026, AB,"OP"),
@@ -336,7 +346,6 @@ def seed_assignments(
         (17,2026,18,2026, BS, None),
         (19,2026,20,2026, AB,"Sec"),
         (22,2026,25,2026, AB,"BA"),
-        (26,2026,26,2026, UR, None),
         (27,2026,30,2026, AB,"DDAS"),
     ]:
         block("Anton Altmann", kv,yv,kb,yb, t, d, AU if t==BS else MA)
@@ -348,7 +357,6 @@ def seed_assignments(
         (40,2025,43,2025, AB,"CS"),
         (45,2025,45,2025, BS, None),
         (46,2025,50,2025, AB,"IAM"),
-        (51,2025,51,2025, UR, None),
         ( 2,2026, 2,2026, AB,"DWP"),
         ( 3,2026, 4,2026, BS, None),
         ( 5,2026, 7,2026, AB,"Sec"),
@@ -358,7 +366,6 @@ def seed_assignments(
         (17,2026,18,2026, BS, None),
         (19,2026,20,2026, AB,"OP"),
         (22,2026,25,2026, AB,"BA"),
-        (26,2026,26,2026, UR, None),
         (27,2026,30,2026, AB,"KGaA"),
     ]:
         block("Beate Bergmann", kv,yv,kb,yb, t, d, AU if t==BS else MA)
@@ -370,7 +377,6 @@ def seed_assignments(
         (40,2025,43,2025, AB,"DP"),
         (45,2025,45,2025, BS, None),
         (46,2025,50,2025, AB,"Sec"),
-        (51,2025,51,2025, UR, None),
         ( 2,2026, 2,2026, AB,"AI"),
         ( 3,2026, 4,2026, BS, None),
         ( 5,2026, 7,2026, AB,"CISO"),
@@ -380,7 +386,6 @@ def seed_assignments(
         (17,2026,18,2026, BS, None),
         (19,2026,20,2026, AB,"CP"),
         (22,2026,25,2026, AB,"BA"),
-        (26,2026,26,2026, UR, None),
         (27,2026,30,2026, AB,"AI"),
     ]:
         block("Carolin Clasen", kv,yv,kb,yb, t, d, AU if t==BS else MA)
@@ -405,8 +410,6 @@ def seed_assignments(
         (16,2026,16,2026, AB,"AI"),
         (19,2026,20,2026, AB,"BA"),
         (22,2026,24,2026, AB,"BA"),
-        (25,2026,25,2026, UR, None),
-        (26,2026,26,2026, UR, None),
         (27,2026,30,2026, AB,"DDAS"),
     ]:
         block("Dirk Dörner", kv,yv,kb,yb, t, d, AU if t==BS else MA)
@@ -427,7 +430,6 @@ def seed_assignments(
         (16,2026,16,2026, AB,"DDAS"),
         (19,2026,20,2026, AB,"BA"),
         (22,2026,24,2026, AB,"BA"),
-        (25,2026,25,2026, UR, None),
         (27,2026,30,2026, AB,"KGaA"),
     ]:
         block("Eva Erlacher", kv,yv,kb,yb, t, d, AU if t==BS else MA)
@@ -488,7 +490,6 @@ def seed_assignments(
         (46,2025,47,2025, AB,"BA"),
         (48,2025,49,2025, BS, None),
         (50,2025,50,2025, AB,"KGaA"),
-        (51,2025,51,2025, UR, None),
         ( 2,2026, 3,2026, AB,"DWP"),
         ( 4,2026, 5,2026, BS, None),
         ( 6,2026, 7,2026, AB,"CP"),
@@ -517,7 +518,6 @@ def seed_assignments(
         (11,2026,12,2026, BS, None),
         (13,2026,13,2026, AB,"CS"),
         (16,2026,18,2026, AB,"OP"),
-        (19,2026,19,2026, UR, None),
         (20,2026,20,2026, BS, None),
         (22,2026,22,2026, BS, None),
         (23,2026,27,2026, AB,"BA"),
@@ -544,7 +544,6 @@ def seed_assignments(
         (13,2026,13,2026, BS, None),
         (16,2026,16,2026, BS, None),
         (17,2026,19,2026, AB,"DDAS"),
-        (20,2026,20,2026, UR, None),
         (22,2026,22,2026, AB,"CS"),
         (23,2026,24,2026, BS, None),
         (25,2026,29,2026, AB,"DP"),
@@ -566,7 +565,6 @@ def seed_assignments(
         (13,2026,13,2026, BS, None),
         (16,2026,16,2026, BS, None),
         (17,2026,19,2026, AB,"CS"),
-        (20,2026,20,2026, UR, None),
         (22,2026,22,2026, AB,"BA"),
         (23,2026,24,2026, BS, None),
         (25,2026,29,2026, AB,"KGaA"),
@@ -591,8 +589,6 @@ def seed_assignments(
         (22,2026,22,2026, AB,"BA"),
         (23,2026,24,2026, BS, None),
         (25,2026,27,2026, AB,"DDAS"),
-        (28,2026,28,2026, UR, None),
-        (29,2026,29,2026, UR, None),
         (30,2026,30,2026, BS, None),
     ]:
         block("Leon Lorenz", kv,yv,kb,yb, t, d, AU if t==BS else MA)
@@ -611,7 +607,6 @@ def seed_assignments(
         (13,2026,13,2026, BS, None),
         (16,2026,16,2026, BS, None),
         (17,2026,19,2026, AB,"DWP"),
-        (20,2026,20,2026, UR, None),
         (22,2026,22,2026, AB,"AI"),
         (23,2026,24,2026, BS, None),
         (25,2026,29,2026, AB,"OP"),
@@ -690,11 +685,9 @@ def seed_assignments(
     for kv,yv,kb,yb,t,d in [
         (36,2025,43,2025, AB,"EMP"),
         (46,2025,51,2025, AB,"POST"),
-        (52,2025,52,2025, UR, None),
         ( 2,2026, 7,2026, AB,"HR"),
         ( 9,2026,13,2026, AB,"MK"),
         (16,2026,19,2026, AB,"FM"),
-        (20,2026,20,2026, UR, None),
         (21,2026,22,2026, AB,"FM"),
         (23,2026,30,2026, AB,"VT"),
     ]:
@@ -703,7 +696,6 @@ def seed_assignments(
     for kv,yv,kb,yb,t,d in [
         (36,2025,43,2025, AB,"POST"),
         (46,2025,51,2025, AB,"EMP"),
-        (52,2025,52,2025, UR, None),
         ( 2,2026, 7,2026, AB,"MK"),
         ( 9,2026,13,2026, AB,"HR"),
         (16,2026,22,2026, AB,"VT"),
@@ -714,7 +706,6 @@ def seed_assignments(
     for kv,yv,kb,yb,t,d in [
         (36,2025,43,2025, AB,"HR"),
         (46,2025,51,2025, AB,"VT"),
-        (52,2025,52,2025, UR, None),
         ( 2,2026, 7,2026, AB,"BANK"),
         ( 9,2026,13,2026, AB,"FM"),
         (16,2026,22,2026, AB,"POST"),
@@ -725,7 +716,6 @@ def seed_assignments(
     for kv,yv,kb,yb,t,d in [
         (36,2025,43,2025, AB,"FM"),
         (46,2025,50,2025, AB,"HR"),
-        (51,2025,51,2025, UR, None),
         ( 2,2026, 7,2026, AB,"EMP"),
         ( 9,2026,13,2026, AB,"VT"),
         (16,2026,22,2026, AB,"BANK"),
@@ -755,6 +745,85 @@ def seed_assignments(
     return count
 
 
+# ── Urlaub -> Abwesenheit ───────────────────────────────────────────
+#
+# AssignmentTyp.URLAUB entfaellt (siehe Migration 0012_abwesenheit): Urlaub
+# wird NICHT mehr als Assignment-Woche geseedet, sondern NACH den Einsaetzen
+# als eigene Abwesenheit-Zeile angelegt (Overlay, blockiert keinen
+# Abteilungs-Einsatz mehr). Die folgenden (Trainee, KW, Jahr)-Tripel waren
+# vor dem Umbau als "UR"-Eintraege in den block()-Listen oben vorhanden.
+URLAUB_WOCHEN: list[tuple[str, int, int]] = [
+    ("Anton Altmann", 51, 2025),
+    ("Anton Altmann", 26, 2026),
+    ("Beate Bergmann", 51, 2025),
+    ("Beate Bergmann", 26, 2026),
+    ("Carolin Clasen", 51, 2025),
+    ("Carolin Clasen", 26, 2026),
+    ("Dirk Dörner", 25, 2026),
+    ("Dirk Dörner", 26, 2026),
+    ("Eva Erlacher", 25, 2026),
+    ("Hannah Huber", 51, 2025),
+    ("Ingo Imhof", 19, 2026),
+    ("Jonas Jäger", 20, 2026),
+    ("Katrin Kühn", 20, 2026),
+    ("Leon Lorenz", 28, 2026),
+    ("Leon Lorenz", 29, 2026),
+    ("Mia Meßner", 20, 2026),
+    ("Uwe Ulmer", 52, 2025),
+    ("Uwe Ulmer", 20, 2026),
+    ("Vera Voigt", 52, 2025),
+    ("Wanda Wirth", 52, 2025),
+    ("Yara Yildiz", 51, 2025),
+]
+
+
+def seed_urlaub(session: Session, trainees: dict[str, Trainee]) -> int:
+    """Legt aus URLAUB_WOCHEN Abwesenheit-Zeilen an (typ=URLAUB, quelle=PLANER).
+
+    Aufeinanderfolgende KWs desselben Trainees werden zu EINEM Eintrag
+    zusammengefasst (Montag der naechsten Woche == Freitag + 3 Tage der
+    vorherigen) -- identische Merge-Regel wie Migration 0012_abwesenheit und
+    app.services.importer._gruppiere_urlaub_bloecke. Zeitraum je Eintrag:
+    kw_to_monday(kw, jahr) .. +4 Tage (Fr derselben KW).
+    """
+    by_trainee: dict[str, list[tuple[int, int]]] = {}
+    for name, kw, jahr in URLAUB_WOCHEN:
+        by_trainee.setdefault(name, []).append((jahr, kw))
+
+    count = 0
+    for name, wochen in by_trainee.items():
+        wochen.sort()
+        block_start = None
+        block_end = None
+
+        def _flush(von, bis) -> None:
+            nonlocal count
+            session.add(Abwesenheit(
+                trainee_id=trainees[name].id,
+                von_datum=von,
+                bis_datum=bis,
+                typ=AbwesenheitTyp.URLAUB,
+                quelle=AbwesenheitQuelle.PLANER,
+            ))
+            count += 1
+
+        for jahr, kw in wochen:
+            monday = kw_to_monday(kw, jahr)
+            friday = monday + timedelta(days=4)
+            if block_start is not None and block_end is not None and monday == block_end + timedelta(days=3):
+                block_end = friday
+            else:
+                if block_start is not None and block_end is not None:
+                    _flush(block_start, block_end)
+                block_start = monday
+                block_end = friday
+        if block_start is not None and block_end is not None:
+            _flush(block_start, block_end)
+
+    session.flush()
+    return count
+
+
 # ── main ──────────────────────────────────────────────────────────
 
 def main() -> int:
@@ -778,6 +847,7 @@ def main() -> int:
         seed_school_plans(session, classes)
         seed_school_plans_2627(session, classes)
         assignment_count = seed_assignments(session, trainees, departments)
+        urlaub_count = seed_urlaub(session, trainees)
 
         session.commit()
         print(
@@ -788,7 +858,8 @@ def main() -> int:
             f"  - {len(trainees)} Trainees "
             f"(17 Azubis inkl. 4 Bürokaufleute/TAGE_FEST | 9 DH-Studenten inkl. 2 BWL)\n"
             f"  - Schulplaene je Klasse/Lehrjahr (Büro/BWL ohne BS-Wochen)\n"
-            f"  - {assignment_count} Einsaetze fuer 2025-2026"
+            f"  - {assignment_count} Einsaetze fuer 2025-2026\n"
+            f"  - {urlaub_count} Abwesenheiten (Urlaub) fuer 2025-2026"
         )
     return 0
 

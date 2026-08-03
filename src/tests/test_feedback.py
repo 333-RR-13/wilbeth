@@ -6,21 +6,22 @@ monkeypatch auf "dev", dann POST /auth/dev-login mit rolle=ausbilder/orga/
 admin. Dev-Login setzt fuer Staff-Rollen upn="dev@local"; allowed_dept_ids()
 matcht Department.verantwortliche gegen diese UPN.
 """
-from datetime import date
+from datetime import date, timedelta
 
 from sqlmodel import Session, select
 
 from app.config import settings
 from app.models import (
-    Assignment,
-    AssignmentSource,
-    AssignmentTyp,
+    Abwesenheit,
+    AbwesenheitQuelle,
+    AbwesenheitTyp,
     Department,
     FeedbackBogen,
     Schoolyear,
     Trainee,
     TraineeRolle,
 )
+from app.utils.kw import kw_to_monday
 
 SY = "2025-2026"
 DEV_UPN = "dev@local"
@@ -208,10 +209,12 @@ def test_status_workflow_and_role_restrictions(client, session, monkeypatch):
 def test_neu_uebernimmt_fehlzeiten_vorbelegung(client, session, monkeypatch):
     _dev_mode(monkeypatch)
     ids = _setup(session)
-    # Urlaubs-Assignment im abgefragten Zeitraum (KW 10-14/2026)
-    session.add(Assignment(
-        trainee_id=ids["trainee"], schoolyear_id=SY, kw=11, jahr=2026,
-        typ=AssignmentTyp.URLAUB, source=AssignmentSource.MANUAL,
+    # Urlaub ist jetzt eine Abwesenheit (Overlay), kein Assignment mehr.
+    # Volle KW 11/2026 (5 Werktage) im abgefragten Zeitraum (KW 10-14/2026).
+    montag = kw_to_monday(11, 2026)
+    session.add(Abwesenheit(
+        trainee_id=ids["trainee"], von_datum=montag, bis_datum=montag + timedelta(days=4),
+        typ=AbwesenheitTyp.URLAUB, quelle=AbwesenheitQuelle.SELBST,
     ))
     session.commit()
 
@@ -219,7 +222,28 @@ def test_neu_uebernimmt_fehlzeiten_vorbelegung(client, session, monkeypatch):
 
     r = client.get(_neu_url(ids))
     assert r.status_code == 200
-    assert 'id="fehl_urlaub" name="fehl_urlaub" min="0" value="1"' in r.text
+    # Fehlzeiten jetzt in TAGEN: 1 volle Woche = 5 Werktage
+    assert 'id="fehl_urlaub" name="fehl_urlaub" min="0" value="5"' in r.text
+
+
+def test_neu_uebernimmt_fehlzeiten_vorbelegung_sonstige(client, session, monkeypatch):
+    """fehl_sonstige wird jetzt ebenfalls aus Abwesenheiten (typ=SONSTIGES)
+    in Tagen vorbelegt."""
+    _dev_mode(monkeypatch)
+    ids = _setup(session)
+    # SONSTIGES-Abwesenheit Mo-Mi (3 Werktage) in KW 12/2026
+    montag = kw_to_monday(12, 2026)
+    session.add(Abwesenheit(
+        trainee_id=ids["trainee"], von_datum=montag, bis_datum=montag + timedelta(days=2),
+        typ=AbwesenheitTyp.SONSTIGES, quelle=AbwesenheitQuelle.PLANER,
+    ))
+    session.commit()
+
+    _login(client, "ausbilder")
+
+    r = client.get(_neu_url(ids))
+    assert r.status_code == 200
+    assert 'id="fehl_sonstige" name="fehl_sonstige" min="0" value="3"' in r.text
 
 
 # ── (f) Update im Status abgeschlossen -> abgelehnt ────────────────────────

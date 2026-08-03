@@ -272,7 +272,7 @@ def neu_feedback(
         "fehl_krank": None,
         "fehl_urlaub": fehlzeiten["urlaub"],
         "fehl_schule": fehlzeiten["schule"],
-        "fehl_sonstige": None,
+        "fehl_sonstige": fehlzeiten["sonstige"],
         "weiterer_einsatz": "",
         "zugriffe_geloescht": False,
         "action_url": "/feedback/",

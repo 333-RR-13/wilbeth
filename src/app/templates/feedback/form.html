@@ -181,7 +181,7 @@
 
   {% if typ == 'AUSBILDER' %}
   <div class="card card-body feedback-card">
-    <h2 class="form-section-title">Fehlzeiten (in Wochen)</h2>
+    <h2 class="form-section-title">Fehlzeiten (in Tagen)</h2>
     <div class="form-grid form-grid-2">
       <div class="form-group">
         <label for="fehl_krank">Krank</label>
@@ -196,7 +196,7 @@
         <input type="number" id="fehl_schule" name="fehl_schule" min="0" value="{{ fehl_schule if fehl_schule is not none else '' }}">
       </div>
       <div class="form-group">
-        <label for="fehl_sonstige">Sonstige</label>
+        <label for="fehl_sonstige">Sonstige (aus dem Plan vorbelegt)</label>
         <input type="number" id="fehl_sonstige" name="fehl_sonstige" min="0" value="{{ fehl_sonstige if fehl_sonstige is not none else '' }}">
       </div>
     </div>

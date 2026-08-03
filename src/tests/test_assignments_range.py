@@ -51,7 +51,6 @@ def test_kw53_year_2026():
 
 def test_rang_order():
     assert TYP_RANG[AssignmentTyp.BERUFSSCHULE] == TYP_RANG[AssignmentTyp.UNI] == 3
-    assert TYP_RANG[AssignmentTyp.URLAUB] == 2
     assert TYP_RANG[AssignmentTyp.ABTEILUNG] == 1
     assert TYP_RANG[AssignmentTyp.FREI] == 0
 
@@ -163,27 +162,25 @@ def test_same_rank_with_override_key_overrides(session: Session):
     assert not pending
 
 
-def test_urlaub_on_school_week_skipped(session: Session):
+def test_empty_school_week_not_skipped_for_any_typ(session: Session):
+    """Frueher gab es hier zwei Tests ("URLAUB auf Schulwoche wird
+    uebersprungen" / "URLAUB auf Nicht-Schulwoche wird angelegt"): der
+    einzige Sonderfall in _resolve_range, der ueberhaupt eine Schulwoche
+    abgefragt hat (_is_school_week), galt ausschliesslich fuer den Typ
+    URLAUB. Mit URLAUB als Assignment-Typ entfaellt (Urlaub ist jetzt eine
+    Abwesenheit, siehe app/models/abwesenheit.py) ist auch dieser
+    Sonderfall komplett weg -- eine leere Zelle in einer Schulwoche wird
+    jetzt fuer JEDEN Typ ganz normal angelegt, ohne Schulwochen-Sperre."""
     sy = _make_schoolyear(session)
     tid = _make_trainee(session)
     _make_school_week(session, tid, sy, 41, 2025)
     to_create, to_override, skipped, pending = _resolve_range(
-        session, tid, sy, [(41, 2025)], AssignmentTyp.URLAUB, frozenset()
-    )
-    assert not to_create
-    assert not to_override
-    assert len(skipped) == 1
-    assert skipped[0][2] == "Schulwoche"
-    assert not pending
-
-
-def test_urlaub_on_non_school_week_creates(session: Session):
-    sy = _make_schoolyear(session)
-    tid = _make_trainee(session)
-    to_create, to_override, skipped, pending = _resolve_range(
-        session, tid, sy, [(41, 2025)], AssignmentTyp.URLAUB, frozenset()
+        session, tid, sy, [(41, 2025)], AssignmentTyp.FREI, frozenset()
     )
     assert to_create == [(41, 2025)]
+    assert not to_override
+    assert not skipped
+    assert not pending
 
 
 def test_range_mixed_outcomes(session: Session):

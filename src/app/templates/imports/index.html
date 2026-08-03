@@ -19,7 +19,8 @@
     <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:1.25rem">
       Azubi: <code>Nachname, Vorname</code> &nbsp;|&nbsp;
       Abteilung: Kürzel (z.&nbsp;B. <code>ITO-SD</code>)<br>
-      Typ (optional): <code>ABTEILUNG</code> (Standard), <code>BS</code>, <code>HS</code>, <code>URLAUB</code>, <code>FREI</code>
+      Typ (optional): <code>ABTEILUNG</code> (Standard), <code>BS</code>, <code>HS</code>, <code>URLAUB</code>/<code>U</code>, <code>FREI</code><br>
+      <code>URLAUB</code>/<code>U</code> wird als Abwesenheit übernommen (blockiert die Matrix nicht mehr).
     </p>
     <button type="button" class="btn btn-secondary"
             hx-get="/imports/einsaetze/dialog?schoolyear_id={{ schoolyear_id }}"

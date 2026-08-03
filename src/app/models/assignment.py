@@ -6,7 +6,6 @@ from sqlmodel import Field, Index, SQLModel
 
 class AssignmentTyp(str, Enum):
     ABTEILUNG = "ABTEILUNG"
-    URLAUB = "URLAUB"
     BERUFSSCHULE = "BERUFSSCHULE"
     UNI = "UNI"
     FREI = "FREI"

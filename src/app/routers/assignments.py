@@ -18,6 +18,7 @@ from app.models import (
     Schoolyear,
     Trainee,
 )
+from app.services.abwesenheit_utils import abwesenheit_map
 from app.services.auth_service import CurrentUser, allowed_dept_ids, require_roles
 from app.services.conflict_checker import ConflictKind, describe_conflict, find_conflicts
 from app.services.dept_history import visited_department_ids
@@ -32,31 +33,9 @@ DB = Annotated[Session, Depends(get_session)]
 TYP_RANG: dict[AssignmentTyp, int] = {
     AssignmentTyp.BERUFSSCHULE: 3,
     AssignmentTyp.UNI: 3,
-    AssignmentTyp.URLAUB: 2,
     AssignmentTyp.ABTEILUNG: 1,
     AssignmentTyp.FREI: 0,
 }
-
-
-def _is_school_week(db: Session, trainee_id: int, schoolyear_id: str, kw: int, jahr: int) -> bool:
-    trainee = db.get(Trainee, trainee_id)
-    if not trainee or not trainee.klasse_id:
-        return False
-    plan = db.exec(
-        select(SchoolPlan).where(
-            SchoolPlan.klasse_id == trainee.klasse_id,
-            SchoolPlan.schoolyear_id == schoolyear_id,
-        )
-    ).first()
-    if not plan:
-        return False
-    return bool(db.exec(
-        select(SchoolPlanWeek).where(
-            SchoolPlanWeek.plan_id == plan.id,
-            SchoolPlanWeek.kw == kw,
-            SchoolPlanWeek.jahr == jahr,
-        )
-    ).first())
 
 
 def _resolve_range(
@@ -93,11 +72,7 @@ def _resolve_range(
         ).first()
 
         if existing is None:
-            # Implicit block: URLAUB cannot be placed on a school week
-            if new_typ == AssignmentTyp.URLAUB and _is_school_week(db, trainee_id, schoolyear_id, kw, jahr):
-                skipped.append((kw, jahr, "Schulwoche"))
-            else:
-                to_create.append((kw, jahr))
+            to_create.append((kw, jahr))
         else:
             old_rang = TYP_RANG[existing.typ]
             key = f"{kw}:{jahr}"
@@ -754,6 +729,9 @@ def copy_block(
         ).all():
             school_weeks_set.add((spw.kw, spw.jahr))
 
+    # Abwesenheits-Markierungen fuer alle geaenderten Ziel-Zellen in einer Abfrage
+    dst_aw_map = abwesenheit_map(db, [dst_trainee_id], changed_cells).get(dst_trainee_id, {})
+
     # OOB-HTML für jede geänderte Ziel-Zelle + Konfliktzähler
     parts: list[str] = []
     cell_tpl = templates.get_template("_partials/cell.html")
@@ -768,6 +746,7 @@ def copy_block(
         ).first()
         is_school = (kw_i, jahr_i) in school_weeks_set
         is_conflict = (dst_trainee_id, kw_i, jahr_i) in conflict_set
+        aw = dst_aw_map.get(f"{kw_i},{jahr_i}")
 
         cell_html = cell_tpl.render({
             "trainee_id": dst_trainee_id,
@@ -780,6 +759,7 @@ def copy_block(
             "depts": depts,
             "dept_colors": dept_colors,
             "oob": True,
+            "aw": aw,
         })
         parts.append(cell_html)
 
@@ -839,6 +819,9 @@ def _render_cell_response(
     depts = {d.id: d for d in all_depts}
     dept_colors = department_color_map(all_depts)
 
+    aw_map = abwesenheit_map(db, [trainee_id], [(kw, jahr)])
+    aw = aw_map.get(trainee_id, {}).get(f"{kw},{jahr}")
+
     cell_html = templates.get_template("_partials/cell.html").render({
         "trainee_id": trainee_id,
         "kw": kw,
@@ -849,6 +832,7 @@ def _render_cell_response(
         "is_conflict": is_conflict,
         "depts": depts,
         "dept_colors": dept_colors,
+        "aw": aw,
     })
 
     counter_html = templates.get_template("_partials/conflict_counter.html").render({

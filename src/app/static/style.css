@@ -632,6 +632,21 @@ tr.htmx-swapping td { opacity: 0; transition: opacity 0.15s; }
   box-shadow: var(--warning) 0px 0px 0px 1px;
 }
 
+.matrix-abwesend-sample {
+  display: inline-block;
+  width: 16px; height: 12px;
+  border-radius: 2px;
+  background-color: #fff;
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(217, 119, 6, 0.35),
+    rgba(217, 119, 6, 0.35) 3px,
+    transparent 3px,
+    transparent 6px
+  );
+  box-shadow: var(--warning) 0px 0px 0px 1px;
+}
+
 .matrix-scroll {
   overflow-x: auto;
   background: var(--surface);
@@ -800,6 +815,43 @@ tr.htmx-swapping td { opacity: 0; transition: opacity 0.15s; }
   box-shadow: inset var(--warning) 1px 0 0 0, inset var(--warning) -1px 0 0 0;
 }
 
+/* ── Abwesenheits-Markierung (Overlay, siehe abwesenheit_utils.abwesenheit_map) ──
+   Nutzt ausschliesslich background-image (statt der background-Shorthand) und
+   ::before (statt ::after, das ist bereits fuer mc-confirm-* vergeben), damit
+   die Markierung mit mc-today/mc-conflict UND mc-confirm-* koexistieren kann:
+   die Shorthand-Regeln oben (z. B. .matrix-cell.mc-today.mc-conflict, Spezifitaet
+   0-3-0) setzen background-image implizit auf "none". Damit die Schraffur trotzdem
+   gewinnt, braucht der Selektor unten dieselbe Spezifitaet (0-3-0) -- bei
+   gleicher Spezifitaet entscheidet dann die Position im Stylesheet, und diese
+   Regel steht spaeter. background-color bleibt unangetastet und kommt weiterhin
+   aus mc-today/mc-conflict. */
+.matrix-cell.mc-abwesend {
+  position: relative;
+}
+
+.matrix-cell.mc-abwesend::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 7px 7px 0 0;
+  border-color: var(--warning) transparent transparent transparent;
+  pointer-events: none;
+}
+
+.matrix-cell.mc-abwesend.mc-abwesend-voll {
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(217, 119, 6, 0.22),
+    rgba(217, 119, 6, 0.22) 4px,
+    transparent 4px,
+    transparent 9px
+  );
+}
+
 /* ── Cell chips (assignment type labels in matrix) ──────────────── */
 .cell-chip {
   display: inline-flex;
@@ -817,13 +869,12 @@ tr.htmx-swapping td { opacity: 0; transition: opacity 0.15s; }
 .cell-ABTEILUNG   { background: var(--success-light); color: var(--success); }
 .cell-BERUFSSCHULE { background: var(--accent-light);  color: var(--accent); }
 .cell-UNI         { background: var(--warning-light); color: var(--warning); }
-.cell-URLAUB      { background: #fef9c3; color: #854d0e; }
 .cell-FREI        { background: #f1f3f5; color: var(--text-muted); }
 
 /* Unified school chip: BS (Berufsschule) and HS (Uni/DHBW) share blue styling */
 .cell-school { background: var(--accent-light); color: var(--accent); }
 
-/* Unified blocker chip: Urlaub and Frei shown as dark "U" */
+/* Blocker chip: Frei shown as dark "F" */
 .cell-blocker { background: #374151; color: #fff; }
 
 /* ── Conflict hint in page subtitle ─────────────────────────────── */

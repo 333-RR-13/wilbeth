@@ -1,3 +1,4 @@
+from app.models.abwesenheit import Abwesenheit, AbwesenheitQuelle, AbwesenheitTyp
 from app.models.assignment import Assignment, AssignmentSource, AssignmentTyp
 from app.models.department import Department, DepartmentKategorie  # DepartmentKategorie ist jetzt eine DB-Tabelle
 from app.models.einsatz_vorschlag import EinsatzVorschlag
@@ -11,6 +12,9 @@ from app.models.trainee_class_membership import TraineeClassMembership
 from app.models.trainee_wish import TraineeWish
 
 __all__ = [
+    "Abwesenheit",
+    "AbwesenheitQuelle",
+    "AbwesenheitTyp",
     "Assignment",
     "AssignmentSource",
     "AssignmentTyp",

@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}{{ "Abwesenheit bearbeiten" if abwesenheit else "Abwesenheit anlegen" }}{% endblock %}
+
+{% block content %}
+{% set typ_labels = {'URLAUB': 'Urlaub', 'SONSTIGES': 'Sonstiges'} %}
+
+<div class="page-header">
+  <div>
+    <h1 class="page-title">{{ "Abwesenheit bearbeiten" if abwesenheit else "Abwesenheit anlegen" }}</h1>
+  </div>
+</div>
+
+<div class="form-card">
+  <form method="post" action="{{ action_url }}">
+    <div class="form-grid">
+
+      <div class="form-group">
+        <label for="trainee_id">Azubi <span class="required">*</span></label>
+        <select id="trainee_id" name="trainee_id" required>
+          <option value="">– bitte wählen –</option>
+          {% for t in trainees %}
+          <option value="{{ t.id }}" {{ 'selected' if abwesenheit and abwesenheit.trainee_id == t.id else '' }}>
+            {{ t.nachname }}, {{ t.vorname }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-grid form-grid-2">
+        <div class="form-group">
+          <label for="von_datum">Von <span class="required">*</span></label>
+          <input type="date" id="von_datum" name="von_datum"
+                 value="{{ abwesenheit.von_datum.isoformat() if abwesenheit else '' }}" required>
+        </div>
+        <div class="form-group">
+          <label for="bis_datum">Bis <span class="required">*</span></label>
+          <input type="date" id="bis_datum" name="bis_datum"
+                 value="{{ abwesenheit.bis_datum.isoformat() if abwesenheit else '' }}" required>
+          <span class="form-hint">Ganze Tage, keine Halbtage. Muss am/nach "Von" liegen.</span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="typ">Typ <span class="required">*</span></label>
+        <select id="typ" name="typ" required>
+          {% for t in typen %}
+          <option value="{{ t.value }}" {{ 'selected' if (abwesenheit and abwesenheit.typ.value == t.value) or (not abwesenheit and loop.first) else '' }}>
+            {{ typ_labels.get(t.value, t.value) }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="kommentar">Kommentar</label>
+        <textarea id="kommentar" name="kommentar" rows="3">{{ abwesenheit.kommentar if abwesenheit else '' }}</textarea>
+      </div>
+
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Speichern</button>
+      <a href="/abwesenheiten/" class="btn btn-secondary">Abbrechen</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -24,6 +24,7 @@ from app.database import get_session
 from app.models import SchoolPlan, Schoolyear
 from app.services.auth_service import CurrentUser, require_roles
 from app.services.importer import (
+    ParsedUrlaubBlock,
     apply_assignments,
     apply_school_weeks,
     parse_assignments_auto,
@@ -198,11 +199,23 @@ async def einsaetze_import_apply(
     parse_result = parse_assignments_auto(text, db, schoolyear_id, start_kw=parsed_start_kw)
     written, skipped = apply_assignments(db, schoolyear_id, parse_result.valid)
 
-    n = len(written)
+    # written enthaelt sowohl normale Einsaetze (ParsedAssignment) als auch
+    # zu Abwesenheiten zusammengefasste URLAUB-Bloecke (ParsedUrlaubBlock) --
+    # getrennt zaehlen, sonst meldet z. B. eine einzige zusammengefasste
+    # 6-Wochen-Urlaubsbuchung faelschlich "1 Einsatz importiert".
+    n = sum(1 for w in written if not isinstance(w, ParsedUrlaubBlock))
+    m = sum(1 for w in written if isinstance(w, ParsedUrlaubBlock))
     s = len(skipped)
-    parts = []
+
+    counts = []
     if n:
-        parts.append(f"{n} Einsatz{'e' if n != 1 else ''} importiert")
+        counts.append(f"{n} Einsatz{'e' if n != 1 else ''}")
+    if m:
+        counts.append(f"{m} Abwesenheit{'en' if m != 1 else ''}")
+
+    parts = []
+    if counts:
+        parts.append(", ".join(counts) + " importiert")
     if s:
         parts.append(f"{s} uebersprungen")
     msg = ", ".join(parts) if parts else "Keine neuen Einsaetze"

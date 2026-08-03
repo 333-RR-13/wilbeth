@@ -95,8 +95,15 @@ def test_schul_konflikt_abteilung_in_bs_week(session):
     assert any(c.kind == ConflictKind.SCHUL_KONFLIKT and c.trainee_id == trainee.id for c in conflicts)
 
 
-def test_schul_konflikt_urlaub_in_bs_week(session):
-    """URLAUB in a school week is a hard conflict."""
+def test_frei_in_bs_week_no_conflict(session):
+    """FREI in a school week is NOT a conflict.
+
+    Frueher gab es hier einen Test "URLAUB in Schulwoche ist ein
+    Konflikt": URLAUB wurde als Assignment-Typ ersatzlos entfernt (Urlaub
+    ist jetzt eine Abwesenheit, die die Matrix nur ueberlagert und nichts
+    blockiert -- siehe app/models/abwesenheit.py). SCHUL_KONFLIKT prueft
+    seither nur noch ABTEILUNG-Eintraege; FREI in einer Schulwoche ist der
+    neue erwartete Zustand (kein Konflikt)."""
     year, klasse, trainee, plan = _setup_base(session)
 
     session.add(SchoolPlanWeek(plan_id=plan.id, kw=10, jahr=2026, typ=SchoolWeekTyp.BERUFSSCHULE))
@@ -104,12 +111,12 @@ def test_schul_konflikt_urlaub_in_bs_week(session):
 
     session.add(Assignment(
         trainee_id=trainee.id, schoolyear_id=YEAR_ID,
-        kw=10, jahr=2026, typ=AssignmentTyp.URLAUB,
+        kw=10, jahr=2026, typ=AssignmentTyp.FREI,
     ))
     session.flush()
 
     conflicts = find_conflicts(session, YEAR_ID)
-    assert any(c.kind == ConflictKind.SCHUL_KONFLIKT and c.trainee_id == trainee.id for c in conflicts)
+    assert not any(c.kind == ConflictKind.SCHUL_KONFLIKT for c in conflicts)
 
 
 def test_no_schul_konflikt_for_trainee_without_class(session):

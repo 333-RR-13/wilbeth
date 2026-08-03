@@ -35,7 +35,7 @@
     {% endif %}
     {% if skipped %}
     <div class="confirm-summary-item confirm-skip">
-      <strong>{{ skipped | length }}</strong> Einsatz{{ 'ätze' if skipped | length != 1 else '' }} übersprungen (höherrangig oder Schulwoche)
+      <strong>{{ skipped | length }}</strong> Einsatz{{ 'ätze' if skipped | length != 1 else '' }} übersprungen (höherrangiger Eintrag vorhanden)
       <ul class="confirm-list">
         {% for kw, jahr, reason in skipped %}
         <li>KW {{ kw }}/{{ jahr }}: {{ reason }}</li>
@@ -75,7 +75,6 @@
               {{ depts[old.abteilung_id].code if old.abteilung_id and old.abteilung_id in depts else 'ABT' }}
             {% elif old.typ.value == 'BERUFSSCHULE' %}BS
             {% elif old.typ.value == 'UNI' %}UNI
-            {% elif old.typ.value == 'URLAUB' %}URL
             {% else %}FRE{% endif %}
           </span>
         </td>
@@ -84,7 +83,6 @@
             {% if typ == 'ABTEILUNG' %}ABT
             {% elif typ == 'BERUFSSCHULE' %}BS
             {% elif typ == 'UNI' %}UNI
-            {% elif typ == 'URLAUB' %}URL
             {% else %}FRE{% endif %}
           </span>
         </td>

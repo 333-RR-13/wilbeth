@@ -5,6 +5,9 @@ Feedbackbogen-Typen)."""
 from datetime import date
 
 from app.models import (
+    Abwesenheit,
+    AbwesenheitQuelle,
+    AbwesenheitTyp,
     Assignment,
     AssignmentSource,
     AssignmentTyp,
@@ -25,6 +28,8 @@ from app.services.feedback_utils import (
     partner_bogen,
     trainee_bloecke,
 )
+from app.utils.kw import kw_to_monday
+from datetime import timedelta
 
 SY = "2025-2026"
 
@@ -38,6 +43,27 @@ def _make_assignment(session, trainee_id, kw, jahr, typ, dept_id=None):
     session.commit()
     session.refresh(a)
     return a
+
+
+def _make_abwesenheit(
+    session, trainee_id, von_datum, bis_datum,
+    typ: AbwesenheitTyp = AbwesenheitTyp.URLAUB,
+    quelle: AbwesenheitQuelle = AbwesenheitQuelle.SELBST,
+):
+    a = Abwesenheit(
+        trainee_id=trainee_id, von_datum=von_datum, bis_datum=bis_datum,
+        typ=typ, quelle=quelle,
+    )
+    session.add(a)
+    session.commit()
+    session.refresh(a)
+    return a
+
+
+def _make_abwesenheit_volle_kw(session, trainee_id, kw, jahr, typ: AbwesenheitTyp = AbwesenheitTyp.URLAUB):
+    """Abwesenheit ueber die komplette (Mo-Fr) angegebene Kalenderwoche."""
+    montag = kw_to_monday(kw, jahr)
+    return _make_abwesenheit(session, trainee_id, montag, montag + timedelta(days=4), typ=typ)
 
 
 # ── fehlzeiten_vorbelegung ────────────────────────────────────────────────
@@ -73,15 +99,17 @@ def test_fehlzeiten_vorbelegung_urlaub_und_schulwoche_ohne_doppelzaehlung(sessio
     session.refresh(t)
 
     _make_assignment(session, t.id, 8, 2026, AssignmentTyp.BERUFSSCHULE)
-    _make_assignment(session, t.id, 5, 2026, AssignmentTyp.URLAUB)
+    # Urlaub ist jetzt eine Abwesenheit (Overlay), kein Assignment mehr.
+    _make_abwesenheit_volle_kw(session, t.id, 5, 2026)
     # ausserhalb des abgefragten Bereichs -- darf NICHT mitgezaehlt werden
-    _make_assignment(session, t.id, 20, 2026, AssignmentTyp.URLAUB)
+    _make_abwesenheit_volle_kw(session, t.id, 20, 2026)
 
     result = fehlzeiten_vorbelegung(
         session, t.id, SY, kw_von=1, jahr_von=2026, kw_bis=15, jahr_bis=2026,
     )
 
-    assert result == {"urlaub": 1, "schule": 2}
+    # Urlaub jetzt in TAGEN (5 Werktage der KW 5), Schule weiterhin 2 Wochen * 5
+    assert result == {"urlaub": 5, "sonstige": 0, "schule": 10}
 
 
 def test_fehlzeiten_vorbelegung_bereichsgrenzen_inklusive(session):
@@ -91,16 +119,112 @@ def test_fehlzeiten_vorbelegung_bereichsgrenzen_inklusive(session):
     session.commit()
     session.refresh(t)
 
-    _make_assignment(session, t.id, 10, 2026, AssignmentTyp.URLAUB)  # genau kw_von
-    _make_assignment(session, t.id, 12, 2026, AssignmentTyp.URLAUB)  # genau kw_bis
-    _make_assignment(session, t.id, 9, 2026, AssignmentTyp.URLAUB)   # davor -> nicht zaehlen
-    _make_assignment(session, t.id, 13, 2026, AssignmentTyp.URLAUB)  # danach -> nicht zaehlen
+    _make_abwesenheit_volle_kw(session, t.id, 10, 2026)  # genau kw_von
+    _make_abwesenheit_volle_kw(session, t.id, 12, 2026)  # genau kw_bis
+    _make_abwesenheit_volle_kw(session, t.id, 9, 2026)   # davor -> nicht zaehlen
+    _make_abwesenheit_volle_kw(session, t.id, 13, 2026)  # danach -> nicht zaehlen
 
     result = fehlzeiten_vorbelegung(
         session, t.id, SY, kw_von=10, jahr_von=2026, kw_bis=12, jahr_bis=2026,
     )
 
-    assert result == {"urlaub": 2, "schule": 0}
+    # 2 volle Wochen (KW10 + KW12) je 5 Werktage = 10 Tage
+    assert result == {"urlaub": 10, "sonstige": 0, "schule": 0}
+
+
+def test_fehlzeiten_vorbelegung_teilwoche_zaehlt_werktage(session):
+    """Eine Teilwoche zaehlt genau ihre Werktage, nicht die ganze Woche."""
+    session.add(Schoolyear(id=SY, start_kw=1, start_year=2026, end_kw=52, end_year=2026))
+    t = Trainee(vorname="Anna", nachname="Azubi", rolle=TraineeRolle.AZUBI, aktiv=True)
+    session.add(t)
+    session.commit()
+    session.refresh(t)
+
+    # KW10/2026: Montag 2026-03-02 .. Mittwoch 2026-03-04 (3 Werktage)
+    _make_abwesenheit(session, t.id, date(2026, 3, 2), date(2026, 3, 4))
+
+    result = fehlzeiten_vorbelegung(
+        session, t.id, SY, kw_von=10, jahr_von=2026, kw_bis=10, jahr_bis=2026,
+    )
+    assert result == {"urlaub": 3, "sonstige": 0, "schule": 0}
+
+
+def test_fehlzeiten_vorbelegung_urlaub_in_schulwoche_zaehlt_nicht_doppelt(session):
+    """Befund 6: Ein Trainee mit BERUFSSCHULE-Assignment in KW10/2026 UND
+    einer Abwesenheit ueber genau dieselbe Woche (2026-03-02..2026-03-06)
+    darf NICHT 10 Fehltage fuer eine 5-Tage-Woche ergeben. Schultage haben
+    Vorrang -- der Urlaub-Anteil dieser Woche zaehlt nicht zusaetzlich."""
+    session.add(Schoolyear(id=SY, start_kw=1, start_year=2026, end_kw=52, end_year=2026))
+    t = Trainee(vorname="Anna", nachname="Azubi", rolle=TraineeRolle.AZUBI, aktiv=True)
+    session.add(t)
+    session.commit()
+    session.refresh(t)
+
+    _make_assignment(session, t.id, 10, 2026, AssignmentTyp.BERUFSSCHULE)
+    _make_abwesenheit(session, t.id, date(2026, 3, 2), date(2026, 3, 6))  # KW10 komplett, URLAUB
+
+    result = fehlzeiten_vorbelegung(
+        session, t.id, SY, kw_von=10, jahr_von=2026, kw_bis=10, jahr_bis=2026,
+    )
+
+    # Ohne den Fix: {"urlaub": 5, "sonstige": 0, "schule": 5} -> 10 Fehltage/Woche
+    assert result == {"urlaub": 0, "sonstige": 0, "schule": 5}
+
+
+def test_fehlzeiten_vorbelegung_urlaub_ausserhalb_schulwoche_zaehlt_normal(session):
+    """Gegenprobe: eine Abwesenheit AUSSERHALB der Schulwoche zaehlt weiterhin
+    normal als Urlaub -- der Fix darf nur die ueberschneidenden Tage abziehen."""
+    session.add(Schoolyear(id=SY, start_kw=1, start_year=2026, end_kw=52, end_year=2026))
+    t = Trainee(vorname="Anna", nachname="Azubi", rolle=TraineeRolle.AZUBI, aktiv=True)
+    session.add(t)
+    session.commit()
+    session.refresh(t)
+
+    _make_assignment(session, t.id, 10, 2026, AssignmentTyp.BERUFSSCHULE)
+    _make_abwesenheit(session, t.id, date(2026, 3, 9), date(2026, 3, 13))  # KW11, andere Woche
+
+    result = fehlzeiten_vorbelegung(
+        session, t.id, SY, kw_von=10, jahr_von=2026, kw_bis=11, jahr_bis=2026,
+    )
+    assert result == {"urlaub": 5, "sonstige": 0, "schule": 5}
+
+
+def test_fehlzeiten_vorbelegung_teil_ueberschneidung_schulwoche_zieht_nur_ueberschneidende_tage_ab(session):
+    """Ragt die Abwesenheit nur teilweise in die Schulwoche hinein, werden
+    nur die tatsaechlich ueberschneidenden Werktage abgezogen, nicht die
+    ganze Abwesenheit."""
+    session.add(Schoolyear(id=SY, start_kw=1, start_year=2026, end_kw=52, end_year=2026))
+    t = Trainee(vorname="Anna", nachname="Azubi", rolle=TraineeRolle.AZUBI, aktiv=True)
+    session.add(t)
+    session.commit()
+    session.refresh(t)
+
+    _make_assignment(session, t.id, 10, 2026, AssignmentTyp.BERUFSSCHULE)
+    # Do (05.03.) bis Mo naechste Woche (09.03.) -- 2 Tage in KW10 (Do+Fr), 1 Tag in KW11 (Mo)
+    _make_abwesenheit(session, t.id, date(2026, 3, 5), date(2026, 3, 9))
+
+    result = fehlzeiten_vorbelegung(
+        session, t.id, SY, kw_von=10, jahr_von=2026, kw_bis=11, jahr_bis=2026,
+    )
+    # Nur der Montag (KW11) zaehlt noch als Urlaub, Do+Fr (KW10) sind Schultage
+    assert result == {"urlaub": 1, "sonstige": 0, "schule": 5}
+
+
+def test_fehlzeiten_vorbelegung_sonstige_getrennt_von_urlaub(session):
+    """SONSTIGES-Abwesenheiten werden getrennt von URLAUB in Tagen gezaehlt."""
+    session.add(Schoolyear(id=SY, start_kw=1, start_year=2026, end_kw=52, end_year=2026))
+    t = Trainee(vorname="Anna", nachname="Azubi", rolle=TraineeRolle.AZUBI, aktiv=True)
+    session.add(t)
+    session.commit()
+    session.refresh(t)
+
+    _make_abwesenheit(session, t.id, date(2026, 3, 2), date(2026, 3, 3), typ=AbwesenheitTyp.URLAUB)
+    _make_abwesenheit(session, t.id, date(2026, 3, 4), date(2026, 3, 6), typ=AbwesenheitTyp.SONSTIGES)
+
+    result = fehlzeiten_vorbelegung(
+        session, t.id, SY, kw_von=10, jahr_von=2026, kw_bis=10, jahr_bis=2026,
+    )
+    assert result == {"urlaub": 2, "sonstige": 3, "schule": 0}
 
 
 # ── trainee_bloecke ────────────────────────────────────────────────────────

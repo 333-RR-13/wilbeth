@@ -19,8 +19,10 @@ from sqlmodel import Session, select
 
 from app.database import get_session
 from app.models import (
+    Abwesenheit,
+    AbwesenheitQuelle,
+    AbwesenheitTyp,
     Assignment,
-    AssignmentSource,
     AssignmentTyp,
     Department,
     FeedbackBogen,
@@ -33,7 +35,7 @@ from app.models import (
     UnterrichtsTyp,
 )
 from app.models.trainee_wish import prioritaet_label
-from app.routers.assignments import _apply_assignments, _resolve_range
+from app.services.abwesenheit_utils import abwesenheit_map
 from app.services.feedback_def import (
     AUSBILDER_SEKTIONEN,
     AZUBI_SEKTIONEN,
@@ -55,7 +57,7 @@ from app.services.membership_utils import (
     klasse_fuer,
 )
 from app.utils.colors import department_color_map
-from app.utils.kw import format_weekdays, iter_schoolyear_weeks, iter_kw_range, kw_to_monday
+from app.utils.kw import format_weekdays, iter_kw_range, iter_schoolyear_weeks, kw_to_monday
 
 # Badge-Farbklasse je Feedbackbogen-Status -- abgeleitet aus der gemeinsamen
 # Farb-Map in feedback_def.py, damit Staff- und Azubi-UI identisch einfaerben.
@@ -252,6 +254,8 @@ def my_plan(request: Request, token: str, db: DB):
     if klasse and klasse.unterrichts_typ == UnterrichtsTyp.TAGE_FEST:
         schul_tage = format_weekdays(klasse.schul_wochentage, full=True, halbtag=klasse.halbtag_wochentag)
 
+    amap = abwesenheit_map(db, [trainee.id], [(w["kw"], w["jahr"]) for w in weeks]) if weeks else {}
+
     return templates.TemplateResponse(request, "share/plan.html", {
         "trainee": trainee,
         "token": token,
@@ -266,6 +270,7 @@ def my_plan(request: Request, token: str, db: DB):
         "selected_year": sy.id if sy else "",
         "years": years,
         "schul_tage": schul_tage,
+        "abwesenheit_map": amap,
     })
 
 
@@ -289,7 +294,7 @@ def my_class(request: Request, token: str, db: DB):
             "klasse": None,
             "classmates": [], "weeks": [], "cell_map": {}, "school_weeks": {},
             "depts": {}, "dept_colors": {}, "selected_year": selected_year, "years": years, "schul_tage": "",
-            "trainees": [], "highlight_id": trainee.id,
+            "trainees": [], "highlight_id": trainee.id, "abwesenheit_map": {},
         })
 
     if not years:
@@ -350,6 +355,8 @@ def my_class(request: Request, token: str, db: DB):
     depts = {d.id: d for d in all_depts_class}
     dept_colors_class = department_color_map(all_depts_class)
 
+    amap = abwesenheit_map(db, ids, [(w["kw"], w["jahr"]) for w in weeks]) if ids and weeks else {}
+
     return templates.TemplateResponse(request, "share/klasse.html", {
         "trainee": trainee, "token": token, "active": "klasse",
         "klasse": klasse,
@@ -360,6 +367,7 @@ def my_class(request: Request, token: str, db: DB):
         "school_weeks": school_weeks, "depts": depts,
         "dept_colors": dept_colors_class,
         "selected_year": sy.id, "years": years, "schul_tage": schul_tage,
+        "abwesenheit_map": amap,
     })
 
 
@@ -383,7 +391,7 @@ def my_jahrgang(request: Request, token: str, db: DB):
             "my_start": my_start,
             "grouped": [], "weeks": [], "cell_map": {},
             "depts": {}, "dept_colors": {}, "selected_year": selected_year, "years": years,
-            "highlight_id": trainee.id,
+            "highlight_id": trainee.id, "abwesenheit_map": {},
         })
 
     if my_start is None or not years:
@@ -431,6 +439,8 @@ def my_jahrgang(request: Request, token: str, db: DB):
     depts = {d.id: d for d in all_depts}
     dept_colors = department_color_map(all_depts)
 
+    amap = abwesenheit_map(db, ids, [(w["kw"], w["jahr"]) for w in weeks]) if ids and weeks else {}
+
     return templates.TemplateResponse(request, "share/jahrgang.html", {
         "trainee": trainee, "token": token, "active": "jahrgang",
         "my_start": my_start,
@@ -439,89 +449,131 @@ def my_jahrgang(request: Request, token: str, db: DB):
         "depts": depts, "dept_colors": dept_colors,
         "highlight_id": trainee.id,
         "selected_year": sy.id, "years": years,
+        "abwesenheit_map": amap,
     })
 
 
-# ── Urlaub-Seite ─────────────────────────────────────────────────────────────
+# ── Abwesenheit-Seite ────────────────────────────────────────────────────────
 
-@router.get("/{token}/urlaub", response_class=HTMLResponse)
-def urlaub_page(request: Request, token: str, db: DB):
+@router.get("/{token}/abwesenheit", response_class=HTMLResponse)
+def abwesenheit_page(request: Request, token: str, db: DB):
+    """Eigene Abwesenheiten (Urlaub/Sonstiges) eintragen und verwalten.
+
+    Zeigt AUCH vom Planer eingetragene Abwesenheiten (quelle=PLANER) an --
+    loeschbar ist aber nur, was der Azubi selbst angelegt hat (quelle=SELBST),
+    siehe delete_abwesenheit."""
     trainee = _trainee_by_token(db, token)
 
-    own_urlaub = db.exec(
-        select(Assignment).where(
-            Assignment.trainee_id == trainee.id,
-            Assignment.typ == AssignmentTyp.URLAUB,
-            Assignment.source == AssignmentSource.SELBST,
-        ).order_by(Assignment.jahr, Assignment.kw)
+    own_abwesenheiten = db.exec(
+        select(Abwesenheit)
+        .where(Abwesenheit.trainee_id == trainee.id)
+        .order_by(Abwesenheit.von_datum)
     ).all()
 
-    return templates.TemplateResponse(request, "share/urlaub.html", {
+    return templates.TemplateResponse(request, "share/abwesenheit.html", {
         "trainee": trainee,
         "token": token,
-        "active": "urlaub",
-        "own_urlaub": own_urlaub,
+        "active": "abwesenheit",
+        "own_abwesenheiten": own_abwesenheiten,
     })
 
 
-# ── Urlaub eintragen / loeschen ─────────────────────────────────────────────
+# ── Abwesenheit eintragen / loeschen ────────────────────────────────────────
 
-@router.post("/{token}/urlaub", response_class=RedirectResponse)
-def add_urlaub(
+MAX_ZEITRAUM_TAGE = 366  # Befund 3: Plausibilitaetsgrenze (deckt jedes Schuljahr inkl. Schaltjahr ab)
+
+
+@router.post("/{token}/abwesenheit", response_class=RedirectResponse)
+def add_abwesenheit(
     token: str,
     db: DB,
-    kw: Annotated[int, Form()],
-    jahr: Annotated[int, Form()],
-    kw_end: Annotated[str, Form()] = "",
-    jahr_end: Annotated[str, Form()] = "",
+    von: Annotated[str, Form()],
+    bis: Annotated[str, Form()],
+    typ: Annotated[str, Form()] = AbwesenheitTyp.URLAUB.value,
+    kommentar: Annotated[str, Form()] = "",
 ):
+    """Legt eine eigene Abwesenheit an (quelle=SELBST).
+
+    Anders als der fruehere Urlaub-Assignment blockiert das keinen
+    Abteilungseinsatz mehr -- Schulwochen im Zeitraum werden daher nur noch
+    als WEICHER Hinweis (Flash) zurueckgemeldet, nicht mehr uebersprungen.
+    Datums-Parsing ist defensiv: ein manipulierter POST mit kaputtem Datum
+    ergibt 400, nie einen 500er.
+
+    Befund 3: Ein Zeitraum von mehr als MAX_ZEITRAUM_TAGE Tagen (z. B.
+    von=0001-01-01/bis=9999-12-31) wird mit 400 abgelehnt -- ohne diese
+    Grenze wuerde der Trainee in JEDER Woche als voll abwesend gelten (Auto-
+    Plan uebersprungen) und die tageweise Schulwochen-Pruefung wuerde bei
+    einem Datumsbereich dieser Groessenordnung mit OverflowError abstuerzen.
+    Die Schulwochen-Pruefung selbst laeuft daher wochenweise ueber die
+    betroffenen KWs (iter_kw_range), nicht mehr tagweise."""
     trainee = _trainee_by_token(db, token)
 
-    if kw_end and jahr_end:
-        kw_list = list(iter_kw_range(kw, jahr, int(kw_end), int(jahr_end)))
-    else:
-        kw_list = [(kw, jahr)]
+    try:
+        von_datum = date.fromisoformat(von)
+        bis_datum = date.fromisoformat(bis)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Ungueltiges Datum")
 
-    created = skipped = 0
-    for kw_i, jahr_i in kw_list:
-        sy = _schoolyear_for_week(db, kw_i, jahr_i)
-        if sy is None:
-            skipped += 1
-            continue
-        to_create, to_override, sk, pending = _resolve_range(
-            db, trainee.id, sy.id, [(kw_i, jahr_i)], AssignmentTyp.URLAUB, frozenset()
-        )
-        _apply_assignments(
-            db, trainee.id, sy.id, AssignmentTyp.URLAUB, None, "",
-            to_create, to_override, source=AssignmentSource.SELBST,
-        )
-        created += len(to_create) + len(to_override)
-        skipped += len(sk) + len(pending)
-    db.commit()
+    if bis_datum < von_datum:
+        raise HTTPException(status_code=400, detail="Enddatum darf nicht vor dem Startdatum liegen")
 
-    return RedirectResponse(
-        f"/mein-plan/{token}/urlaub?msg=urlaub&n={created}&s={skipped}", status_code=303
+    if (bis_datum - von_datum).days > MAX_ZEITRAUM_TAGE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Zeitraum darf nicht laenger als {MAX_ZEITRAUM_TAGE} Tage sein",
+        )
+
+    try:
+        typ_enum = AbwesenheitTyp(typ)
+    except ValueError:
+        typ_enum = AbwesenheitTyp.URLAUB
+
+    # Weicher Hinweis: liegt im Zeitraum mind. eine Berufsschul-/Uni-Woche
+    # laut Klassen-Schulplan? (blockt NICHT, nur Flash-Hinweis) -- wochenweise
+    # ueber die betroffenen KWs statt tagweise (Befund 3b: bei sehr grossen
+    # Zeitraeumen sonst OverflowError/sehr viele Iterationen).
+    school_weeks = _school_weeks_for_trainee(db, trainee)
+    von_iso, bis_iso = von_datum.isocalendar(), bis_datum.isocalendar()
+    hinweis_schulwoche = any(
+        f"{kw},{jahr}" in school_weeks
+        for kw, jahr in iter_kw_range(von_iso.week, von_iso.year, bis_iso.week, bis_iso.year)
     )
 
+    abwesenheit = Abwesenheit(
+        trainee_id=trainee.id,
+        von_datum=von_datum,
+        bis_datum=bis_datum,
+        typ=typ_enum,
+        kommentar=(kommentar or "").strip(),
+        quelle=AbwesenheitQuelle.SELBST,
+        erstellt_von_upn=trainee.upn if trainee.upn else f"azubi:{trainee.id}",
+        erstellt_am=date.today(),
+    )
+    db.add(abwesenheit)
+    db.commit()
 
-@router.post("/{token}/urlaub/loeschen", response_class=RedirectResponse)
-def delete_urlaub(
+    qs = "msg=abwesenheit"
+    if hinweis_schulwoche:
+        qs += "&hinweis=schulwoche"
+    return RedirectResponse(f"/mein-plan/{token}/abwesenheit?{qs}", status_code=303)
+
+
+@router.post("/{token}/abwesenheit/{abwesenheit_id}/loeschen", response_class=RedirectResponse)
+def delete_abwesenheit(
     token: str,
+    abwesenheit_id: int,
     db: DB,
-    assignment_id: Annotated[int, Form()],
 ):
+    """Nur die EIGENE, SELBST eingetragene Abwesenheit darf entfernt werden --
+    vom Planer eingetragene (quelle=PLANER) oder fremde Eintraege ergeben 404."""
     trainee = _trainee_by_token(db, token)
-    a = db.get(Assignment, assignment_id)
-    # Nur eigene, selbst eingetragene Urlaube duerfen entfernt werden
-    if (
-        a is not None
-        and a.trainee_id == trainee.id
-        and a.typ == AssignmentTyp.URLAUB
-        and a.source == AssignmentSource.SELBST
-    ):
-        db.delete(a)
-        db.commit()
-    return RedirectResponse(f"/mein-plan/{token}/urlaub?msg=urlaub_geloescht", status_code=303)
+    a = db.get(Abwesenheit, abwesenheit_id)
+    if a is None or a.trainee_id != trainee.id or a.quelle != AbwesenheitQuelle.SELBST:
+        raise HTTPException(status_code=404, detail="Abwesenheit nicht gefunden")
+    db.delete(a)
+    db.commit()
+    return RedirectResponse(f"/mein-plan/{token}/abwesenheit?msg=abwesenheit_geloescht", status_code=303)
 
 
 # ── Wuensche-Seite ──────────────────────────────────────────────────────────
@@ -586,9 +638,7 @@ def _ics_summary(a: Assignment, depts: dict[int, Department]) -> str | None:
         return "Berufsschule"
     if a.typ == AssignmentTyp.UNI:
         return "Uni / DHBW"
-    if a.typ == AssignmentTyp.URLAUB:
-        return "Urlaub"
-    return None  # FREI -> kein Termin
+    return None  # URLAUB (jetzt Abwesenheit-Tabelle, siehe unten) / FREI -> kein Termin
 
 
 @router.get("/{token}/calendar.ics")
@@ -599,6 +649,11 @@ def calendar_ics(token: str, db: DB):
         select(Assignment)
         .where(Assignment.trainee_id == trainee.id)
         .order_by(Assignment.jahr, Assignment.kw)
+    ).all()
+    abwesenheiten = db.exec(
+        select(Abwesenheit)
+        .where(Abwesenheit.trainee_id == trainee.id)
+        .order_by(Abwesenheit.von_datum)
     ).all()
 
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -623,6 +678,24 @@ def calendar_ics(token: str, db: DB):
             f"DTEND;VALUE=DATE:{saturday.strftime('%Y%m%d')}",
             f"SUMMARY:{_ics_escape(summary)}",
             f"DESCRIPTION:KW {a.kw}/{a.jahr}" + (f" – {_ics_escape(a.notiz)}" if a.notiz else ""),
+            "TRANSP:TRANSPARENT",
+            "END:VEVENT",
+        ]
+
+    # Abwesenheiten (Urlaub/Sonstiges) kommen NICHT mehr aus Assignments,
+    # sondern ganztaegig mit exaktem von/bis aus der Abwesenheit-Tabelle.
+    # DTEND ist exklusiv -> bis_datum + 1 Tag.
+    for a in abwesenheiten:
+        ende_exklusiv = a.bis_datum + timedelta(days=1)
+        summary = "Urlaub" if a.typ == AbwesenheitTyp.URLAUB else "Abwesend"
+        lines += [
+            "BEGIN:VEVENT",
+            f"UID:wilbeth-abwesenheit-{a.id}@wilbeth",
+            f"DTSTAMP:{stamp}",
+            f"DTSTART;VALUE=DATE:{a.von_datum.strftime('%Y%m%d')}",
+            f"DTEND;VALUE=DATE:{ende_exklusiv.strftime('%Y%m%d')}",
+            f"SUMMARY:{_ics_escape(summary)}",
+        ] + ([f"DESCRIPTION:{_ics_escape(a.kommentar)}"] if a.kommentar else []) + [
             "TRANSP:TRANSPARENT",
             "END:VEVENT",
         ]
@@ -658,6 +731,7 @@ def uebersicht_page(request: Request, token: str, db: DB):
     weeks = []
     cell_map: dict[int, dict[str, Assignment]] = {}
     grouped: list[dict] = []
+    amap: dict[int, dict[str, dict]] = {}
 
     if sy:
         all_active_trainees = db.exec(
@@ -702,6 +776,8 @@ def uebersicht_page(request: Request, token: str, db: DB):
 
         grouped = _group_beruf_klasse(db, visible, sy.id, school_week_map)
 
+        amap = abwesenheit_map(db, trainee_ids, [(w["kw"], w["jahr"]) for w in weeks]) if trainee_ids and weeks else {}
+
     return templates.TemplateResponse(request, "share/uebersicht.html", {
         "trainee": trainee,
         "token": token,
@@ -714,6 +790,7 @@ def uebersicht_page(request: Request, token: str, db: DB):
         "highlight_id": trainee.id,
         "selected_year": sy.id if sy else "",
         "years": years,
+        "abwesenheit_map": amap,
     })
 
 

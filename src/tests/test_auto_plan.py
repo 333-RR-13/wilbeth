@@ -8,9 +8,14 @@ Abgedeckte Faelle:
   (e) Vorschau schreibt nichts, Apply schreibt source=AUTO
 """
 
+from datetime import timedelta
+
 from sqlmodel import Session, select
 
 from app.models import (
+    Abwesenheit,
+    AbwesenheitQuelle,
+    AbwesenheitTyp,
     Assignment,
     AssignmentSource,
     AssignmentTyp,
@@ -26,6 +31,7 @@ from app.models import (
     UnterrichtsTyp,
 )
 from app.services.auto_plan import apply_auto_plan, plan_assignments
+from app.utils.kw import kw_to_monday
 
 # ── KW-Bereich fuer Tests: KW1-KW8/2026 (8 Wochen, ueberschaubar) ────────────
 YEAR_ID = "2025-2026-test"
@@ -607,3 +613,64 @@ def test_prioritaet_label():
     assert prioritaet_label(1) == "Muss"
     assert prioritaet_label(2) == "Sollte"
     assert prioritaet_label(3) == "Kann"
+
+
+# ── (f) Abwesenheits-Overlay: komplett abwesende Wochen werden uebersprungen ──
+
+def _make_abwesenheit(
+    session: Session,
+    trainee_id: int,
+    kw: int,
+    jahr: int,
+    tage: int = 5,
+    typ: AbwesenheitTyp = AbwesenheitTyp.URLAUB,
+) -> Abwesenheit:
+    """Legt eine Abwesenheit an, die die ersten `tage` Werktage (Mo-Fr, 1-5)
+    der angegebenen KW abdeckt (tage=5 -> ganze Woche, tage<5 -> Teilwoche)."""
+    montag = kw_to_monday(kw, jahr)
+    a = Abwesenheit(
+        trainee_id=trainee_id,
+        von_datum=montag,
+        bis_datum=montag + timedelta(days=tage - 1),
+        typ=typ,
+        quelle=AbwesenheitQuelle.PLANER,
+    )
+    session.add(a)
+    session.flush()
+    return a
+
+
+def test_auto_plan_skips_fully_absent_week(session: Session):
+    """Eine Woche, in der der Trainee laut Abwesenheit alle 5 Werktage
+    abwesend ist (woche_komplett_abwesend), bleibt frei -- der Auto-Plan
+    verplant sie nicht, ohne dass dafuer ein Assignment noetig ist."""
+    _make_year(session)
+    t = _make_trainee(session)
+    d = _make_dept(session, "ABS", multi=True)
+    _add_wish(session, t.id, d.id)
+
+    _make_abwesenheit(session, t.id, kw=3, jahr=START_YEAR, tage=5)
+
+    result = plan_assignments(session, YEAR_ID, [t.id], block_length=4)
+
+    planned_kws = {e.kw for e in result.planned}
+    assert 3 not in planned_kws, "KW3 (komplett abwesend) darf nicht verplant werden"
+    assert len(result.planned) == 7  # die restlichen 7 der 8 Wochen
+
+
+def test_auto_plan_plans_partially_absent_week_normally(session: Session):
+    """Nur 2 Abwesenheitstage in einer Woche -> die Woche wird trotzdem
+    normal verplant (Teilabwesenheit wird laut Spezifikation bewusst NICHT
+    beruecksichtigt, nur eine ganze Woche blockt den Auto-Plan)."""
+    _make_year(session)
+    t = _make_trainee(session)
+    d = _make_dept(session, "PART", multi=True)
+    _add_wish(session, t.id, d.id)
+
+    _make_abwesenheit(session, t.id, kw=4, jahr=START_YEAR, tage=2)
+
+    result = plan_assignments(session, YEAR_ID, [t.id], block_length=4)
+
+    planned_kws = {e.kw for e in result.planned}
+    assert 4 in planned_kws, "KW4 (nur teilweise abwesend) muss normal verplant werden"
+    assert len(result.planned) == 8

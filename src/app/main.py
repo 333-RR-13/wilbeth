@@ -9,6 +9,7 @@ from app.config import settings
 from app.database import init_db
 from app.routers import (
     about,
+    abwesenheiten,
     assignments,
     auto_plan,
     auth,
@@ -115,6 +116,7 @@ app.include_router(about.router)
 app.include_router(ausbilder.router)
 app.include_router(vorschlaege.router)
 app.include_router(feedback.router)
+app.include_router(abwesenheiten.router)
 app.include_router(datenexport.router)
 app.include_router(hilfe.router)
 

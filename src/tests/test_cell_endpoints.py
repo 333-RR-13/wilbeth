@@ -1,7 +1,12 @@
 """Tests fuer den Inline-Cell-Edit der Matrix (cell-edit / cell-save / cell-delete)."""
+from datetime import date
+
 from sqlmodel import Session, select
 
 from app.models import (
+    Abwesenheit,
+    AbwesenheitQuelle,
+    AbwesenheitTyp,
     Assignment,
     AssignmentSource,
     AssignmentTyp,
@@ -17,6 +22,19 @@ from app.models import (
 )
 
 SY = "2025-2026"
+
+# KW 40/2025 = Montag 2025-09-29 .. Freitag 2025-10-03 (volle Werktage-Woche).
+KW40_MONTAG = date(2025, 9, 29)
+KW40_FREITAG = date(2025, 10, 3)
+
+
+def _cell_html(r_text: str, trainee_id: int, kw: int, jahr: int) -> str:
+    """Extrahiert das <td ...>...</td>-Fragment einer Matrix-Zelle aus der Antwort."""
+    marker = f'id="cell-{trainee_id}-{kw}-{jahr}"'
+    idx = r_text.find(marker)
+    assert idx != -1, "Zelle nicht in der Antwort gefunden"
+    end = r_text.find("</td>", idx)
+    return r_text[idx:end]
 
 
 def _setup(session: Session) -> dict:
@@ -67,13 +85,13 @@ def test_cell_save_updates_existing(client, session):
 
     r = client.post("/einsaetze/cell-save", data={
         "trainee_id": ids["trainee"], "schoolyear_id": SY, "kw": 40, "jahr": 2025,
-        "typ": "URLAUB", "abteilung_id": "", "notiz": "Urlaub genehmigt",
+        "typ": "FREI", "abteilung_id": "", "notiz": "Frei genehmigt",
     })
     assert r.status_code == 200
 
     rows = session.exec(select(Assignment).where(Assignment.trainee_id == ids["trainee"])).all()
     assert len(rows) == 1  # kein Duplikat
-    assert rows[0].typ == AssignmentTyp.URLAUB
+    assert rows[0].typ == AssignmentTyp.FREI
     assert rows[0].abteilung_id is None  # Abteilung geleert bei Nicht-ABTEILUNG
 
 
@@ -181,3 +199,91 @@ def test_cell_save_conflict_counter(client, session):
     })
     assert r.status_code == 200
     assert "1 Konflikt" in r.text
+
+
+# ── Befund 2: HTMX-Zellen-Rerender verliert die Abwesenheits-Markierung ──────
+#
+# Der Vollseiten-Render von /overview zeigt fuer eine ganze-Woche-abwesende
+# Zelle "mc-abwesend mc-abwesend-voll" + kombinierten Tooltip "Abteilung —
+# Label". _partials/cell.html (genutzt von cell-save/cell-delete/copy/
+# copy-block) muss dieselbe Markierung liefern -- ohne den Fix in cell.html /
+# assignments.py bleiben Klasse und Titel nach einer HTMX-Zellantwort leer.
+
+def test_cell_save_response_shows_abwesenheit_marker_and_tooltip(client, session):
+    """cell-save: die OOB-Zellantwort enthaelt mc-abwesend/-voll UND den
+    kombinierten Tooltip "Abteilung — Label", nicht nur das Voll-Render."""
+    ids = _setup(session)
+    session.add(Abwesenheit(
+        trainee_id=ids["trainee"], von_datum=KW40_MONTAG, bis_datum=KW40_FREITAG,
+        typ=AbwesenheitTyp.URLAUB, quelle=AbwesenheitQuelle.SELBST,
+    ))
+    session.commit()
+
+    r = client.post("/einsaetze/cell-save", data={
+        "trainee_id": ids["trainee"], "schoolyear_id": SY, "kw": 40, "jahr": 2025,
+        "typ": "ABTEILUNG", "abteilung_id": ids["cp"], "notiz": "",
+    })
+    assert r.status_code == 200
+
+    cell = _cell_html(r.text, ids["trainee"], 40, 2025)
+    assert "mc-abwesend" in cell
+    assert "mc-abwesend-voll" in cell
+    assert 'title="Cloud Platform — Urlaub (ganze Woche)"' in cell
+
+
+def test_cell_delete_response_keeps_abwesenheit_marker(client, session):
+    """cell-delete: nach dem Loeschen des Assignments bleibt die (vom
+    Assignment unabhaengige) Abwesenheits-Markierung + Tooltip bestehen."""
+    ids = _setup(session)
+    a = Assignment(trainee_id=ids["trainee"], schoolyear_id=SY, kw=40, jahr=2025,
+                   typ=AssignmentTyp.ABTEILUNG, abteilung_id=ids["cp"],
+                   source=AssignmentSource.MANUAL)
+    session.add(a)
+    session.add(Abwesenheit(
+        trainee_id=ids["trainee"], von_datum=KW40_MONTAG, bis_datum=KW40_FREITAG,
+        typ=AbwesenheitTyp.SONSTIGES, quelle=AbwesenheitQuelle.SELBST,
+    ))
+    session.commit()
+    aid = a.id
+
+    r = client.post("/einsaetze/cell-delete", data={
+        "assignment_id": aid, "trainee_id": ids["trainee"], "schoolyear_id": SY,
+        "kw": 40, "jahr": 2025,
+    })
+    assert r.status_code == 200
+
+    cell = _cell_html(r.text, ids["trainee"], 40, 2025)
+    assert "mc-abwesend" in cell
+    assert "mc-abwesend-voll" in cell
+    # Kein Assignment mehr -> nur das Abwesenheits-Label im Tooltip, keine Abteilung.
+    assert 'title="Sonstiges (ganze Woche)"' in cell
+
+
+def test_copy_block_response_shows_abwesenheit_marker(client, session):
+    """copy-block: die per hx-swap-oob gerenderte Ziel-Zelle traegt ebenfalls
+    die Abwesenheits-Markierung des Ziel-Trainees (separater Codepfad, der
+    cell.html direkt rendert statt ueber _render_cell_response)."""
+    ids = _setup(session)
+    dst = Trainee(vorname="Bea", nachname="Bauer", rolle=TraineeRolle.AZUBI)
+    session.add(dst)
+    session.flush()
+    session.add(Assignment(trainee_id=ids["trainee"], schoolyear_id=SY, kw=40, jahr=2025,
+                           typ=AssignmentTyp.ABTEILUNG, abteilung_id=ids["cp"],
+                           source=AssignmentSource.MANUAL))
+    session.add(Abwesenheit(
+        trainee_id=dst.id, von_datum=KW40_MONTAG, bis_datum=KW40_FREITAG,
+        typ=AbwesenheitTyp.URLAUB, quelle=AbwesenheitQuelle.SELBST,
+    ))
+    session.commit()
+
+    r = client.post("/einsaetze/copy-block", data={
+        "src_trainee_id": ids["trainee"], "src_weeks": "40:2025",
+        "dst_trainee_id": dst.id, "dst_kw": 40, "dst_jahr": 2025,
+        "schoolyear_id": SY,
+    })
+    assert r.status_code == 200
+
+    cell = _cell_html(r.text, dst.id, 40, 2025)
+    assert "mc-abwesend" in cell
+    assert "mc-abwesend-voll" in cell
+    assert 'title="Cloud Platform — Urlaub (ganze Woche)"' in cell

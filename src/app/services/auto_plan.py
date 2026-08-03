@@ -20,6 +20,7 @@ from app.models.school_plan import SchoolPlan, SchoolPlanWeek
 from app.models.schoolyear import Schoolyear
 from app.models.trainee import Trainee
 from app.models.trainee_wish import TraineeWish
+from app.services.abwesenheit_utils import abwesenheit_map
 from app.services.dept_history import visited_department_ids
 from app.services.membership_utils import klasse_fuer
 from app.utils.kw import iter_schoolyear_weeks
@@ -124,6 +125,10 @@ def plan_assignments(
     7. Keine Schul-/Ferien-Konflikte (Schulwochen sind bereits materialisiert
        und damit besetzt -> durch Punkt 2 abgedeckt).
     8. Bestehende Einsaetze nie ueberschreiben.
+    9. Wochen, in denen der Trainee laut Abwesenheit GANZ (alle 5 Werktage)
+       abwesend ist, werden uebersprungen (kein Einsatz, keine "skipped"-
+       Meldung -- die Woche ist schlicht nicht verfuegbar). Teilweise
+       Abwesenheit wird bewusst NICHT beruecksichtigt.
 
     Gibt AutoPlanResult zurueck (kein DB-Write).
     """
@@ -144,6 +149,18 @@ def plan_assignments(
     existing_assignments: list[Assignment] = db.exec(
         select(Assignment).where(Assignment.schoolyear_id == schoolyear_id)
     ).all()
+
+    # Komplett abwesende Wochen je Trainee -- EINE Batch-Abfrage fuer alle
+    # Trainees/Wochen des Lehrjahrs (kein DB-Zugriff pro Woche/Trainee).
+    _abwesenheit_by_trainee = abwesenheit_map(db, trainee_ids, all_weeks)
+    full_abwesend_by_trainee: dict[int, set[tuple[int, int]]] = {
+        tid: {
+            (int(key.split(",")[0]), int(key.split(",")[1]))
+            for key, info in weeks_info.items()
+            if info.get("voll")
+        }
+        for tid, weeks_info in _abwesenheit_by_trainee.items()
+    }
 
     # Abteilungs-Cache (id -> Department)
     dept_cache: dict[int, Department] = {
@@ -205,11 +222,14 @@ def plan_assignments(
         # Auch bereits in diesem Lauf geplante Wochen als besetzt markieren
         planned_busy: set[tuple[int, int]] = set()
 
-        # Freie Wochen des Azubis (chronologisch)
+        # Freie Wochen des Azubis (chronologisch); komplett abwesende Wochen
+        # (alle 5 Werktage) werden uebersprungen, teilweise Abwesenheit nicht.
+        full_abwesend = full_abwesend_by_trainee.get(trainee_id, set())
         free_weeks = [
             (kw, jahr)
             for kw, jahr in all_weeks
             if (kw, jahr) not in trainee_busy
+            and (kw, jahr) not in full_abwesend
         ]
 
         if not free_weeks:

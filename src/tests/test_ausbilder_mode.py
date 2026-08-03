@@ -70,7 +70,7 @@ def test_ausbilder_own_dept_cell_save_sets_confirm_notiz_feedback(client, sessio
     r = client.post("/einsaetze/cell-save", data={
         "trainee_id": ids["trainee"], "schoolyear_id": SY, "kw": 40, "jahr": 2025,
         # Versuchter Typ-/Abteilungswechsel muss ignoriert werden:
-        "typ": "URLAUB", "abteilung_id": "",
+        "typ": "FREI", "abteilung_id": "",
         "bestaetigung": "bestaetigt", "notiz": "Läuft gut", "feedback": "Sehr engagiert",
     })
     assert r.status_code == 200

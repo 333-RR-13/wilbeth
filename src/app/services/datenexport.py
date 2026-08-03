@@ -31,6 +31,7 @@ from sqlalchemy import text
 from sqlmodel import Session, select
 
 from app.models import (
+    Abwesenheit,
     Assignment,
     Department,
     DepartmentKategorie,
@@ -53,6 +54,7 @@ TABELLEN_REGISTRY: list[tuple[str, type]] = [
     ("abteilungskategorien", DepartmentKategorie),
     ("abteilungen", Department),
     ("trainees", Trainee),
+    ("abwesenheiten", Abwesenheit),
     ("schulplaene", SchoolPlan),
     ("schulplan_wochen", SchoolPlanWeek),
     ("ferien", SchoolHoliday),
@@ -162,6 +164,10 @@ Wichtigste Spalten je Datei
                              Einstiegsklasse berechnet und steht bewusst in
                              KEINER CSV-Datei.
 
+- abwesenheiten.csv          Abwesenheiten (Urlaub/Sonstiges) je Trainee,
+                             tagegenau (von_datum/bis_datum, beide inklusive).
+                             Ueberlagert die Einsatzmatrix nur als Markierung
+                             und blockiert dort nichts.
 - schulplaene.csv            Schulplaene je Klasse/Ausbildungsjahr.
 - schulplan_wochen.csv       Einzelne Schulwochen je Schulplan.
 - ferien.csv                 Schulferien.

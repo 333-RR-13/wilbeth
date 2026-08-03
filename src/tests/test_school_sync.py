@@ -192,7 +192,7 @@ def test_sync_after_week_removed_deletes_auto_keeps_manual(session: Session):
         schoolyear_id=SY,
         kw=other_kw + 5,  # noch eine andere Woche ohne Plan
         jahr=JAHR,
-        typ=AssignmentTyp.URLAUB,
+        typ=AssignmentTyp.FREI,
         source=AssignmentSource.MANUAL,
     )
     session.add(manual_other)
@@ -222,7 +222,7 @@ def test_sync_after_week_removed_deletes_auto_keeps_manual(session: Session):
     ).all()
     assert len(auto_other_kw) == 2
 
-    # Manueller Urlaub bleibt
+    # Manueller Eintrag bleibt
     manual_check = session.exec(
         select(Assignment).where(
             Assignment.trainee_id == ids["t1_id"],
@@ -230,7 +230,7 @@ def test_sync_after_week_removed_deletes_auto_keeps_manual(session: Session):
         )
     ).all()
     assert len(manual_check) == 1
-    assert manual_check[0].typ == AssignmentTyp.URLAUB
+    assert manual_check[0].typ == AssignmentTyp.FREI
 
 
 # ── 5. Route POST /trainees/ → AUTO-Eintrag wird angelegt ────────────────────

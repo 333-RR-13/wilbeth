@@ -2,6 +2,8 @@
 Bloecke ueber alle Abteilungen sowie Partner-/Block-Lookup zwischen den
 beiden Bogen-Typen (AUSBILDER/AZUBI)."""
 
+from datetime import timedelta
+
 from sqlmodel import Session, select
 
 from app.models.assignment import Assignment, AssignmentTyp
@@ -10,6 +12,7 @@ from app.models.feedback_bogen import FeedbackBogen
 from app.models.school_plan import SchoolPlan, SchoolPlanWeek
 from app.models.schoolyear import Schoolyear
 from app.models.trainee import Trainee
+from app.services.abwesenheit_utils import tage_im_zeitraum
 from app.services.membership_utils import klasse_fuer
 from app.utils.kw import iter_schoolyear_weeks, kw_to_monday
 
@@ -24,13 +27,26 @@ def fehlzeiten_vorbelegung(
     jahr_bis: int,
 ) -> dict:
     """Zaehlt fuer den KW-Bereich [kw_von/jahr_von .. kw_bis/jahr_bis]
-    (inklusive) die Urlaubs- und Schulwochen des Trainees in WOCHEN.
+    (inklusive) die Fehlzeiten des Trainees in TAGEN (der Papierbogen fragt
+    "Fehlzeiten (Tage)").
 
-    Urlaub: Assignments mit typ URLAUB im Bereich.
+    Urlaub/Sonstiges: abwesende WERKTAGE aus der Abwesenheit-Tabelle
+    (app.services.abwesenheit_utils.tage_im_zeitraum, je AbwesenheitTyp
+    getrennt gezaehlt) -- NICHT mehr aus Assignments. Der Assignment-Typ
+    URLAUB entfaellt: Urlaub ist eine reine Overlay-Markierung und blockiert
+    die Einsatzmatrix nicht mehr.
     Schule: Assignments mit typ BERUFSSCHULE/UNI im Bereich, vereinigt mit
     den Schulwochen aus dem Schulplan der fuer schoolyear_id berechneten
     Klasse (klasse_fuer) -- die Vereinigung (Set) verhindert Doppelzaehlung
-    von Wochen, die bereits als Assignment gezaehlt wurden.
+    von Wochen, die bereits als Assignment gezaehlt wurden; das Ergebnis
+    (Wochenanzahl) wird * 5 in Werktage umgerechnet.
+
+    Befund 6 (Vorrang Schultage): Faellt eine Abwesenheit (Urlaub/Sonstiges)
+    in eine Woche, die bereits als Schulwoche gezaehlt wird, darf derselbe
+    Werktag NICHT zusaetzlich als Urlaub/Sonstiges zaehlen -- sonst ergibt
+    eine einzige 5-Tage-Woche bis zu 10 Fehltage. Die Werktage aller
+    schule_weeks werden daher vorab als exclude_days gebildet und beim
+    Zaehlen von Urlaub/Sonstiges abgezogen (Schultage haben Vorrang).
     """
     range_set = set(iter_schoolyear_weeks(kw_von, jahr_von, kw_bis, jahr_bis))
 
@@ -41,10 +57,6 @@ def fehlzeiten_vorbelegung(
         )
     ).all()
 
-    urlaub_weeks = {
-        (a.kw, a.jahr) for a in rows
-        if a.typ == AssignmentTyp.URLAUB and (a.kw, a.jahr) in range_set
-    }
     schule_weeks = {
         (a.kw, a.jahr) for a in rows
         if a.typ in (AssignmentTyp.BERUFSSCHULE, AssignmentTyp.UNI) and (a.kw, a.jahr) in range_set
@@ -69,7 +81,29 @@ def fehlzeiten_vorbelegung(
                     if key in range_set:
                         schule_weeks.add(key)
 
-    return {"urlaub": len(urlaub_weeks), "schule": len(schule_weeks)}
+    # Werktage der Schulwochen vorab bilden -- diese Tage duerfen NICHT
+    # zusaetzlich als Urlaub/Sonstiges gezaehlt werden (Schultage haben
+    # Vorrang, siehe Befund 6).
+    schul_werktage: set = set()
+    for kw, jahr in schule_weeks:
+        montag = kw_to_monday(kw, jahr)
+        for i in range(5):
+            schul_werktage.add(montag + timedelta(days=i))
+
+    urlaub_tage = tage_im_zeitraum(
+        db, trainee_id, kw_von, jahr_von, kw_bis, jahr_bis, typ="URLAUB",
+        exclude_days=schul_werktage,
+    )
+    sonstige_tage = tage_im_zeitraum(
+        db, trainee_id, kw_von, jahr_von, kw_bis, jahr_bis, typ="SONSTIGES",
+        exclude_days=schul_werktage,
+    )
+
+    return {
+        "urlaub": urlaub_tage,
+        "sonstige": sonstige_tage,
+        "schule": len(schule_weeks) * 5,
+    }
 
 
 def _dept_block(

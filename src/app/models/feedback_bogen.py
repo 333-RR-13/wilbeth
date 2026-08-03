@@ -48,8 +48,10 @@ class FeedbackBogen(SQLModel, table=True):
     # {feld_key: str, ...}
     freitexte: dict = Field(default_factory=dict, sa_column=Column(JSON))
 
-    # Fehlzeiten in WOCHEN (nur Typ AUSBILDER; urlaub/schule werden aus dem
-    # Plan vorbelegt, koennen aber ueberschrieben werden)
+    # Fehlzeiten in TAGEN (nur Typ AUSBILDER; urlaub/schule werden aus dem
+    # Plan vorbelegt, koennen aber ueberschrieben werden). Bestandsboegen vor
+    # Migration 0012_abwesenheit hatten hier WOCHEN -- siehe dort
+    # (_migrate_fehlzeiten_wochen_zu_tagen) fuer die einmalige Umrechnung.
     fehl_krank: int | None = Field(default=None)
     fehl_urlaub: int | None = Field(default=None)
     fehl_schule: int | None = Field(default=None)

@@ -19,6 +19,9 @@ from sqlmodel import Session
 
 from app.config import settings
 from app.models import (
+    Abwesenheit,
+    AbwesenheitQuelle,
+    AbwesenheitTyp,
     Assignment,
     AssignmentSource,
     AssignmentTyp,
@@ -42,7 +45,7 @@ SY = "2025-2026"
 
 ERWARTETE_DATEIEN = {
     "schoolyears.csv", "klassen.csv", "abteilungskategorien.csv",
-    "abteilungen.csv", "trainees.csv", "schulplaene.csv",
+    "abteilungen.csv", "trainees.csv", "abwesenheiten.csv", "schulplaene.csv",
     "schulplan_wochen.csv", "ferien.csv", "einsaetze.csv",
     "memberships.csv", "wuensche.csv", "vorschlaege.csv",
 }
@@ -100,6 +103,13 @@ def _build_full_dataset(session: Session) -> dict:
     )
     session.add(assignment)
 
+    abwesenheit = Abwesenheit(
+        trainee_id=trainee.id, von_datum=date(2026, 3, 2), bis_datum=date(2026, 3, 4),
+        typ=AbwesenheitTyp.URLAUB, kommentar="Reha", quelle=AbwesenheitQuelle.SELBST,
+        erstellt_von_upn="rita.roundtrip@grenke.de", erstellt_am=date(2025, 12, 1),
+    )
+    session.add(abwesenheit)
+
     membership = TraineeClassMembership(trainee_id=trainee.id, schoolyear_id=SY, klasse_id=k1.id)
     session.add(membership)
 
@@ -123,6 +133,7 @@ def _build_full_dataset(session: Session) -> dict:
         "trainee_id": trainee.id,
         "plan_id": plan.id, "week_id": week.id,
         "holiday_id": holiday.id, "assignment_id": assignment.id,
+        "abwesenheit_id": abwesenheit.id,
         "membership_id": membership.id, "wish_id": wish.id,
         "vorschlag_id": vorschlag.id,
     }
@@ -164,6 +175,7 @@ def test_export_enthaelt_liesmich_mit_einstiegsklasse_hinweis(client, session: S
     liesmich = zf.read("LIESMICH.txt").decode("utf-8-sig")
     assert "EINSTIEGSKLASSE" in liesmich
     assert "memberships.csv" in liesmich
+    assert "abwesenheiten.csv" in liesmich
 
 
 def test_roundtrip_mit_liesmich_wird_beim_import_ignoriert(client, session: Session, monkeypatch):
@@ -287,6 +299,17 @@ def test_roundtrip_export_dann_import_stellt_identische_daten_wieder_her(
     assert assignment.source == AssignmentSource.MANUAL
     assert assignment.bestaetigung == "bestaetigt"
     assert assignment.feedback == "Sehr gut gemacht"
+
+    abwesenheit = session.get(Abwesenheit, ids["abwesenheit_id"])
+    assert abwesenheit is not None
+    assert abwesenheit.trainee_id == trainee.id
+    assert abwesenheit.von_datum == date(2026, 3, 2)
+    assert abwesenheit.bis_datum == date(2026, 3, 4)
+    assert abwesenheit.typ == AbwesenheitTyp.URLAUB
+    assert abwesenheit.quelle == AbwesenheitQuelle.SELBST
+    assert abwesenheit.kommentar == "Reha"
+    assert abwesenheit.erstellt_von_upn == "rita.roundtrip@grenke.de"
+    assert abwesenheit.erstellt_am == date(2025, 12, 1)
 
     membership = session.get(TraineeClassMembership, ids["membership_id"])
     assert membership is not None

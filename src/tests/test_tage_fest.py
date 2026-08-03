@@ -64,11 +64,19 @@ def test_tage_fest_abteilung_no_schul_konflikt(session):
     assert not any(c.kind == ConflictKind.SCHUL_KONFLIKT for c in conflicts)
 
 
-def test_tage_fest_urlaub_allowed(session):
-    """Urlaub ist für Bürokaufleute immer erlaubt (keine Schulwochen-Sperre)."""
+def test_tage_fest_frei_allowed(session):
+    """FREI ist fuer TAGE_FEST-Klassen (z. B. Buerokaufleute) immer erlaubt.
+
+    Frueher testete dies explizit den URLAUB-Sonderfall ("Urlaub ist fuer
+    Buerokaufleute immer erlaubt, keine Schulwochen-Sperre"). URLAUB
+    entfaellt als Assignment-Typ komplett (siehe Abwesenheiten-Overlay),
+    und mit ihm auch der einzige Sonderfall in _resolve_range, der ueberhaupt
+    eine Schulwochen-Sperre kannte. TAGE_FEST-Klassen haben ohnehin keine
+    SchoolPlanWeek-Eintraege, daher wird -- unabhaengig vom Typ -- nie etwas
+    blockiert."""
     ids = _tage_fest_class(session)
     to_create, to_override, skipped, pending = _resolve_range(
-        session, ids["trainee"], SY, [(40, 2025)], AssignmentTyp.URLAUB, frozenset()
+        session, ids["trainee"], SY, [(40, 2025)], AssignmentTyp.FREI, frozenset()
     )
     assert to_create == [(40, 2025)]
     assert not skipped

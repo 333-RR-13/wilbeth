@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}Mein Plan{% endblock %} – {{ trainee.vorname }} {{ trainee.nachname }}</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=3">
-  <link rel="stylesheet" href="/static/style.css?v=5">
+  <link rel="stylesheet" href="/static/style.css?v=6">
 </head>
 <body>
 <div class="layout">
@@ -44,12 +44,12 @@
         </svg>
         Mein Jahrgang
       </a>
-      <a href="/mein-plan/{{ token }}/urlaub"
-         class="nav-link {% if active == 'urlaub' %}active{% endif %}">
+      <a href="/mein-plan/{{ token }}/abwesenheit"
+         class="nav-link {% if active == 'abwesenheit' %}active{% endif %}">
         <svg viewBox="0 0 16 16" fill="currentColor">
           <path d="M11 1h1v2H4V1h1V0h1v1h4V0h1v1zM2 4h12v11H2V4zm1 1v9h10V5H3zm2 1h1v1H5V6zm2 0h1v1H7V6zm2 0h1v1H9V6zm2 0h1v1h-1V6zM5 8h1v1H5V8zm2 0h1v1H7V8zm2 0h1v1H9V8zm2 0h1v1h-1V8zM5 10h1v1H5v-1zm2 0h1v1H7v-1zm2 0h1v1H9v-1zm2 0h1v1h-1v-1z"/>
         </svg>
-        Urlaub
+        Abwesenheit
       </a>
       <a href="/mein-plan/{{ token }}/wuensche"
          class="nav-link {% if active == 'wuensche' %}active{% endif %}">
@@ -106,15 +106,15 @@
 
       {# Flash-Nachrichten aus Query-Parameter #}
       {% set msg = request.query_params.get('msg') %}
-      {% if msg == 'urlaub' %}
+      {% if msg == 'abwesenheit' %}
         <div class="flash flash-success">
-          {{ request.query_params.get('n', '0') }} Urlaubswoche(n) eingetragen.
-          {% if request.query_params.get('s', '0') != '0' %}
-            {{ request.query_params.get('s') }} übersprungen (Schulwoche oder bereits verplant).
+          Abwesenheit eingetragen.
+          {% if request.query_params.get('hinweis') == 'schulwoche' %}
+            Hinweis: Im Zeitraum liegt mindestens eine Berufsschul-/Uni-Woche laut Klassen-Schulplan.
           {% endif %}
         </div>
-      {% elif msg == 'urlaub_geloescht' %}
-        <div class="flash flash-info">Urlaub entfernt.</div>
+      {% elif msg == 'abwesenheit_geloescht' %}
+        <div class="flash flash-info">Abwesenheit entfernt.</div>
       {% elif msg == 'wuensche' %}
         <div class="flash flash-success">Wünsche gespeichert.</div>
       {% endif %}

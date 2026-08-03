@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Abwesenheiten{% endblock %}
+
+{% block content %}
+{% set typ_labels = {'URLAUB': 'Urlaub', 'SONSTIGES': 'Sonstiges'} %}
+{% set quelle_labels = {'SELBST': 'Selbst (Azubi)', 'PLANER': 'Planer', 'SAP': 'SAP'} %}
+
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Abwesenheiten</h1>
+    <p class="page-subtitle">{{ rows | length }} Eintrag{{ 'e' if rows | length != 1 else '' }}</p>
+  </div>
+  <a href="/abwesenheiten/neu" class="btn btn-primary">
+    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2Z"/></svg>
+    Abwesenheit anlegen
+  </a>
+</div>
+
+<form class="filter-bar" method="get" action="/abwesenheiten/">
+  <select name="trainee_id">
+    <option value="">Alle Azubis</option>
+    {% for t in trainees_filter %}
+    <option value="{{ t.id }}" {{ 'selected' if (t.id | string) == f_trainee_id else '' }}>{{ t.nachname }}, {{ t.vorname }}</option>
+    {% endfor %}
+  </select>
+  <select name="typ">
+    <option value="">Alle Typen</option>
+    {% for typ in typen %}
+    <option value="{{ typ.value }}" {{ 'selected' if typ.value == f_typ else '' }}>{{ typ_labels.get(typ.value, typ.value) }}</option>
+    {% endfor %}
+  </select>
+  <select name="jahr">
+    <option value="">Alle Jahre</option>
+    {% for j in jahre %}
+    <option value="{{ j }}" {{ 'selected' if (j | string) == f_jahr else '' }}>{{ j }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="btn btn-secondary">Filtern</button>
+</form>
+
+<div class="table-wrapper">
+  <table>
+    <thead>
+      <tr>
+        <th>Azubi</th>
+        <th>Zeitraum</th>
+        <th>Werktage</th>
+        <th>Typ</th>
+        <th>Quelle</th>
+        <th>Kommentar</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in rows %}
+      {% set t = trainee_map.get(a.trainee_id) %}
+      <tr data-href="/abwesenheiten/{{ a.id }}/bearbeiten">
+        <td>{{ (t.nachname ~ ', ' ~ t.vorname) if t else '–' }}</td>
+        <td class="mono">{{ a.von_datum.strftime('%d.%m.%Y') }} – {{ a.bis_datum.strftime('%d.%m.%Y') }}</td>
+        <td>{{ werktage_map.get(a.id, 0) }}</td>
+        <td><span class="badge badge-{{ 'blue' if a.typ.value == 'URLAUB' else 'gray' }}">{{ typ_labels.get(a.typ.value, a.typ.value) }}</span></td>
+        <td class="td-muted">{{ quelle_labels.get(a.quelle.value, a.quelle.value) }}</td>
+        <td class="td-muted">{{ a.kommentar or '–' }}</td>
+        <td class="td-actions">
+          <a href="/abwesenheiten/{{ a.id }}/bearbeiten" class="btn btn-ghost btn-sm">Bearbeiten</a>
+          <form method="post" action="/abwesenheiten/{{ a.id }}/loeschen" style="display:inline"
+                onsubmit="return confirm('Abwesenheit wirklich löschen?');">
+            <button type="submit" class="btn btn-ghost-danger btn-sm">Löschen</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="empty-state">Keine Abwesenheiten gefunden.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -26,10 +26,16 @@ Abgedeckte Faelle:
   (23) apply_assignments schreibt Matrix-Ergebnisse mit source=IMPORT, ueberspringt Vorhandene
 """
 
+from datetime import timedelta
+from urllib.parse import parse_qs, urlparse
+
 import pytest
 from sqlmodel import Session, select
 
 from app.models import (
+    Abwesenheit,
+    AbwesenheitQuelle,
+    AbwesenheitTyp,
     Assignment,
     AssignmentSource,
     AssignmentTyp,
@@ -44,6 +50,7 @@ from app.models import (
     UnterrichtsTyp,
 )
 from app.services.importer import (
+    ParsedUrlaubBlock,
     apply_assignments,
     apply_school_weeks,
     parse_assignments,
@@ -53,6 +60,7 @@ from app.services.importer import (
     _looks_like_matrix,
     _split_rows,
 )
+from app.utils.kw import kw_to_monday
 
 # ── Konstanten ────────────────────────────────────────────────────────────────
 
@@ -382,16 +390,33 @@ def test_parse_assignments_default_typ_abteilung(session: Session):
 
 
 def test_parse_assignments_non_abteilung_typ(session: Session):
-    """Typ URLAUB/FREI/BS/HS korrekt gemappt; Abteilung dann nicht noetig."""
+    """Typ FREI/BS/HS korrekt gemappt; Abteilung dann nicht noetig."""
     _make_year(session)
     _make_trainee(session, "Muster", "Anna")
     session.commit()
 
-    text = "Muster, Anna\t10\t2026\t\tURLAUB"
+    text = "Muster, Anna\t10\t2026\t\tFREI"
     result = parse_assignments(text, session, SY)
     assert len(result.valid) == 1
-    assert result.valid[0].typ == AssignmentTyp.URLAUB
+    assert result.valid[0].typ == AssignmentTyp.FREI
     assert result.valid[0].abteilung_id is None
+
+
+def test_parse_assignments_urlaub_wird_als_abwesenheit_markiert(session: Session):
+    """URLAUB/U im Langformat erzeugt KEINEN AssignmentTyp mehr (der entfaellt),
+    sondern eine als ist_urlaub markierte Zeile (spaeter -> Abwesenheit, siehe
+    apply_assignments)."""
+    _make_year(session)
+    _make_trainee(session, "Muster", "Anna")
+    session.commit()
+
+    text = "Muster, Anna\t10\t2026\t\tURLAUB\nMuster, Anna\t11\t2026\t\tU"
+    result = parse_assignments(text, session, SY)
+    assert len(result.errors) == 0
+    assert len(result.valid) == 2
+    assert all(pa.ist_urlaub for pa in result.valid)
+    assert all(pa.typ.value == "URLAUB" for pa in result.valid)
+    assert all(pa.abteilung_id is None for pa in result.valid)
 
 
 # ── Endpunkt-Tests (HTMX-Partials) ───────────────────────────────────────────
@@ -578,7 +603,8 @@ def test_matrix_name_matching_with_and_without_comma(session: Session):
 # ── 18: Code-Mapping Abteilung/BS/U/Uni/leer ─────────────────────────────────
 
 def test_matrix_code_mapping(session: Session):
-    """DWP/AI/CS → ABTEILUNG+dept; BS → BERUFSSCHULE; U → URLAUB; Uni → UNI; leer → kein Eintrag."""
+    """DWP/AI/CS → ABTEILUNG+dept; BS → BERUFSSCHULE; U → Urlaub-Markierung
+    (ist_urlaub, kein AssignmentTyp mehr); Uni → UNI; leer → kein Eintrag."""
     _make_matrix_setup(session)
 
     # KW36=DWP, KW37=BS, KW38=U, KW39=Uni, KW40=leer, KW41=AI
@@ -593,17 +619,21 @@ def test_matrix_code_mapping(session: Session):
     assert len(result.valid) == 5
 
     typ_map = {pa.kw: pa.typ for pa in result.valid}
+    ist_urlaub_map = {pa.kw: pa.ist_urlaub for pa in result.valid}
     assert typ_map[36] == AssignmentTyp.ABTEILUNG
     assert typ_map[37] == AssignmentTyp.BERUFSSCHULE
-    assert typ_map[38] == AssignmentTyp.URLAUB
+    assert ist_urlaub_map[38] is True
+    assert typ_map[38].value == "URLAUB"
     assert typ_map[39] == AssignmentTyp.UNI
     assert typ_map[41] == AssignmentTyp.ABTEILUNG
+    assert ist_urlaub_map[36] is False and ist_urlaub_map[39] is False
 
     dept_map_result = {pa.kw: pa.abteilung_code for pa in result.valid}
     assert dept_map_result[36] == "DWP"
     assert dept_map_result[41] == "AI"
     # Nicht-Abteilung hat keine abteilung_id
     assert next(pa.abteilung_id for pa in result.valid if pa.kw == 37) is None
+    assert next(pa.abteilung_id for pa in result.valid if pa.kw == 38) is None
 
 
 # ── 19: Legende/Leerzeile wird still uebersprungen ───────────────────────────
@@ -890,3 +920,300 @@ def test_tab_and_csv_delimiters_still_win():
     assert _detect_delimiter("a\tb\tc\nd\te\tf") == "\t"
     assert _detect_delimiter("a,b,c,d\ne,f,g,h") == ","
     assert _split_rows("a,b,c\nd,e,f") == [["a", "b", "c"], ["d", "e", "f"]]
+
+
+# ── URLAUB-Import -> Abwesenheit (Overlay statt Assignment) ──────────────────
+#
+# Der Assignment-Typ URLAUB entfaellt; "URLAUB"/"U" wird beim Import weiterhin
+# akzeptiert, erzeugt aber ueber apply_assignments() eine Abwesenheit
+# (typ=URLAUB, quelle=PLANER) statt eines Assignments. Aufeinanderfolgende KWs
+# desselben Trainees werden dabei zu EINEM Eintrag zusammengefasst (identische
+# Merge-Regel wie die Abwesenheit-Migration 0012_abwesenheit).
+
+def test_apply_assignments_urlaub_erzeugt_abwesenheit(session: Session):
+    """URLAUB-Import erzeugt eine Abwesenheit (typ=URLAUB, quelle=PLANER) fuer
+    Mo-Fr der KW, KEIN Assignment."""
+    _make_year(session)
+    t = _make_trainee(session, "Muster", "Anna")
+    session.commit()
+
+    text = "Muster, Anna\t10\t2026\t\tURLAUB"
+    parsed = parse_assignments(text, session, SY).valid
+    written, skipped = apply_assignments(session, SY, parsed)
+
+    assert len(skipped) == 0
+    assert len(written) == 1
+    assert isinstance(written[0], ParsedUrlaubBlock)
+    assert written[0].kw_von == 10 and written[0].kw_bis == 10
+
+    assignments = session.exec(
+        select(Assignment).where(Assignment.trainee_id == t.id)
+    ).all()
+    assert assignments == []
+
+    abwesenheiten = session.exec(
+        select(Abwesenheit).where(Abwesenheit.trainee_id == t.id)
+    ).all()
+    assert len(abwesenheiten) == 1
+    a = abwesenheiten[0]
+    assert a.typ == AbwesenheitTyp.URLAUB
+    assert a.quelle == AbwesenheitQuelle.PLANER
+    assert a.von_datum == kw_to_monday(10, 2026)
+    assert a.bis_datum == kw_to_monday(10, 2026) + timedelta(days=4)
+
+
+def test_apply_assignments_urlaub_konsekutive_wochen_zusammengefasst(session: Session):
+    """Zwei aufeinanderfolgende URLAUB-Wochen desselben Trainees ergeben EINE
+    Abwesenheit ueber beide Wochen."""
+    _make_year(session)
+    t = _make_trainee(session, "Muster", "Anna")
+    session.commit()
+
+    text = "Muster, Anna\t10\t2026\t\tURLAUB\nMuster, Anna\t11\t2026\t\tURLAUB"
+    parsed = parse_assignments(text, session, SY).valid
+    assert len(parsed) == 2
+
+    written, skipped = apply_assignments(session, SY, parsed)
+    assert len(skipped) == 0
+    assert len(written) == 1
+    block = written[0]
+    assert isinstance(block, ParsedUrlaubBlock)
+    assert (block.kw_von, block.jahr_von) == (10, 2026)
+    assert (block.kw_bis, block.jahr_bis) == (11, 2026)
+
+    abwesenheiten = session.exec(
+        select(Abwesenheit).where(Abwesenheit.trainee_id == t.id)
+    ).all()
+    assert len(abwesenheiten) == 1
+    assert abwesenheiten[0].von_datum == kw_to_monday(10, 2026)
+    assert abwesenheiten[0].bis_datum == kw_to_monday(11, 2026) + timedelta(days=4)
+
+
+def test_apply_assignments_urlaub_luecke_ergibt_zwei_abwesenheiten(session: Session):
+    """Zwei URLAUB-Wochen MIT Luecke dazwischen (KW10, KW12) ergeben ZWEI
+    getrennte Abwesenheiten, kein Zusammenfassen ueber die Luecke hinweg."""
+    _make_year(session)
+    t = _make_trainee(session, "Muster", "Anna")
+    session.commit()
+
+    text = "Muster, Anna\t10\t2026\t\tURLAUB\nMuster, Anna\t12\t2026\t\tURLAUB"
+    parsed = parse_assignments(text, session, SY).valid
+
+    written, skipped = apply_assignments(session, SY, parsed)
+    assert len(skipped) == 0
+    assert len(written) == 2
+
+    abwesenheiten = session.exec(
+        select(Abwesenheit).where(Abwesenheit.trainee_id == t.id)
+    ).all()
+    assert len(abwesenheiten) == 2
+
+
+def test_apply_assignments_urlaub_ueberschneidung_wird_uebersprungen(session: Session):
+    """Ueberschneidet sich ein URLAUB-Import-Block mit einer bestehenden
+    Abwesenheit desselben Trainees, wird er uebersprungen und gemeldet (kein
+    Duplikat)."""
+    _make_year(session)
+    t = _make_trainee(session, "Muster", "Anna")
+    session.add(Abwesenheit(
+        trainee_id=t.id,
+        von_datum=kw_to_monday(10, 2026),
+        bis_datum=kw_to_monday(10, 2026) + timedelta(days=4),
+        typ=AbwesenheitTyp.URLAUB,
+        quelle=AbwesenheitQuelle.SELBST,
+    ))
+    session.commit()
+
+    text = "Muster, Anna\t10\t2026\t\tURLAUB"
+    parsed = parse_assignments(text, session, SY).valid
+
+    written, skipped = apply_assignments(session, SY, parsed)
+    assert len(written) == 0
+    assert len(skipped) == 1
+    assert "Abwesenheit" in skipped[0].reason
+
+    abwesenheiten = session.exec(
+        select(Abwesenheit).where(Abwesenheit.trainee_id == t.id)
+    ).all()
+    assert len(abwesenheiten) == 1  # kein Duplikat
+
+
+def test_apply_assignments_gemischt_urlaub_und_abteilung(session: Session):
+    """Ein Import-Lauf mit ABTEILUNG- UND URLAUB-Zeile verarbeitet beide
+    korrekt (Assignment bzw. Abwesenheit)."""
+    _make_year(session)
+    t = _make_trainee(session, "Muster", "Anna")
+    d = _make_dept(session, "ITO-SD")
+    session.commit()
+
+    text = "Muster, Anna\t10\t2026\tITO-SD\nMuster, Anna\t11\t2026\t\tURLAUB"
+    parsed = parse_assignments(text, session, SY).valid
+    assert len(parsed) == 2
+
+    written, skipped = apply_assignments(session, SY, parsed)
+    assert len(skipped) == 0
+    assert len(written) == 2
+
+    assignments = session.exec(
+        select(Assignment).where(Assignment.trainee_id == t.id)
+    ).all()
+    assert len(assignments) == 1
+    assert assignments[0].typ == AssignmentTyp.ABTEILUNG
+    assert assignments[0].abteilung_id == d.id
+
+    abwesenheiten = session.exec(
+        select(Abwesenheit).where(Abwesenheit.trainee_id == t.id)
+    ).all()
+    assert len(abwesenheiten) == 1
+
+
+def test_apply_assignments_matrix_urlaub_wird_abwesenheit(session: Session):
+    """Matrix-Import mit 'U'-Codes erzeugt ebenfalls Abwesenheiten
+    (zusammengefasst je Trainee), kein Assignment."""
+    ids = _make_matrix_setup(session)
+    t1 = ids["t1"]
+
+    text = (
+        "Woche\t\tKW36\tKW37\n"
+        "Meier, Marvin (2.LJ FISI)\t\tU\tU\n"
+    )
+    parsed = parse_assignments_matrix(text, session, SY_MATRIX).valid
+    assert len(parsed) == 2
+    assert all(pa.ist_urlaub for pa in parsed)
+
+    written, skipped = apply_assignments(session, SY_MATRIX, parsed)
+    assert len(skipped) == 0
+    assert len(written) == 1
+    assert isinstance(written[0], ParsedUrlaubBlock)
+
+    abwesenheiten = session.exec(
+        select(Abwesenheit).where(Abwesenheit.trainee_id == t1.id)
+    ).all()
+    assert len(abwesenheiten) == 1
+    assert abwesenheiten[0].von_datum == kw_to_monday(36, 2025)
+    assert abwesenheiten[0].bis_datum == kw_to_monday(37, 2025) + timedelta(days=4)
+
+
+# ── Regressionstests fuer Review-Befunde ─────────────────────────────────────
+#
+# Befund 5 (importer.py): KW 53 existiert nicht in jedem Jahr (z. B. 2025 hat
+# nur 52 ISO-Kalenderwochen). Ohne Pruefung in _parse_kw_jahr lief eine
+# solche Zeile klaglos durch die Vorschau (0 Fehler) und warf ERST beim
+# Anwenden (apply_assignments -> kw_to_monday -> date.fromisocalendar) einen
+# ValueError -> HTTP 500. Der Fehler muss STATT dessen bereits in der
+# Vorschau als ErrorRow sichtbar werden -- fuer alle Typen, nicht nur URLAUB.
+
+def test_parse_assignments_kw53_nichtexistentes_jahr_ist_fehler(session: Session):
+    """KW 53/2025 existiert nicht (2025 hat nur 52 ISO-Wochen) -> ErrorRow
+    bereits beim Parsen/in der Vorschau, kein valid-Eintrag."""
+    _make_year(session)
+    _make_trainee(session, "Altmann", "Anton")
+    session.commit()
+
+    text = "Altmann, Anton\t53\t2025\t\tU"
+    result = parse_assignments(text, session, SY)
+    assert len(result.valid) == 0
+    assert len(result.errors) == 1
+    assert "53" in result.errors[0].reason
+    assert "2025" in result.errors[0].reason
+
+
+def test_parse_assignments_kw53_nichtexistentes_jahr_gilt_fuer_alle_typen(session: Session):
+    """Die KW53-Pruefung gilt nicht nur fuer URLAUB, sondern auch fuer
+    normale ABTEILUNG-Zeilen (Befund 5 fordert dies explizit)."""
+    _make_year(session)
+    _make_trainee(session, "Muster", "Anna")
+    _make_dept(session, "ITO-SD")
+    session.commit()
+
+    text = "Muster, Anna\t53\t2025\tITO-SD"
+    result = parse_assignments(text, session, SY)
+    assert len(result.valid) == 0
+    assert len(result.errors) == 1
+    assert "existiert" in result.errors[0].reason
+
+
+def test_parse_assignments_kw53_existentes_jahr_bleibt_gueltig(session: Session):
+    """KW 53/2026 existiert (2026 hat 53 ISO-Wochen) -> keine Fehlerzeile
+    (Regression darf gueltige KW53-Jahre nicht faelschlich ablehnen)."""
+    _make_year(session)
+    _make_trainee(session, "Altmann", "Anton")
+    session.commit()
+
+    text = "Altmann, Anton\t53\t2026\t\tU"
+    result = parse_assignments(text, session, SY)
+    assert len(result.errors) == 0
+    assert len(result.valid) == 1
+    assert result.valid[0].kw == 53 and result.valid[0].jahr == 2026
+
+
+def test_einsaetze_import_preview_kw53_zeigt_fehler_statt_crash(client, session: Session):
+    """POST /imports/einsaetze/preview mit KW 53/2025 liefert 200 + eine
+    sichtbare Fehlerzeile, statt erst beim spaeteren /apply mit 500 zu
+    crashen (Regression Befund 5)."""
+    _make_year(session)
+    _make_trainee(session, "Altmann", "Anton")
+    session.commit()
+
+    r = client.post(
+        "/imports/einsaetze/preview",
+        data={
+            "schoolyear_id": SY,
+            "raw_text": "Altmann, Anton\t53\t2025\t\tU",
+        },
+    )
+    assert r.status_code == 200
+    assert "existiert" in r.text
+    assert "53" in r.text
+
+
+# Befund 13 (imports.py): "n = len(written)" zaehlte Einsaetze UND zu
+# Abwesenheiten zusammengefasste URLAUB-Bloecke in einen Topf -- eine reine
+# URLAUB-Importzeile meldete faelschlich "1 Einsatz importiert". Einsaetze
+# und Abwesenheiten muessen getrennt gezaehlt und benannt werden.
+
+def test_einsaetze_import_apply_reiner_urlaub_meldet_abwesenheit_nicht_einsatz(
+    client, session: Session
+):
+    """Ein Import-Lauf nur mit URLAUB-Zeilen (zu einem Block zusammengefasst)
+    meldet '1 Abwesenheit importiert', NICHT '1 Einsatz importiert'."""
+    _make_year(session)
+    _make_trainee(session, "Muster", "Anna")
+    session.commit()
+
+    r = client.post(
+        "/imports/einsaetze/apply",
+        data={
+            "schoolyear_id": SY,
+            "raw_text": "Muster, Anna\t10\t2026\t\tURLAUB\nMuster, Anna\t11\t2026\t\tURLAUB",
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    msg = parse_qs(urlparse(r.headers["location"]).query)["msg"][0]
+    assert "Einsatz" not in msg
+    assert "1 Abwesenheit importiert" in msg
+
+
+def test_einsaetze_import_apply_gemischt_meldet_beide_zahlen_getrennt(
+    client, session: Session
+):
+    """Ein gemischter Import (1 ABTEILUNG-Einsatz + 1 URLAUB-Woche) meldet
+    Einsaetze UND Abwesenheiten getrennt in der Redirect-Message."""
+    _make_year(session)
+    _make_trainee(session, "Muster", "Anna")
+    _make_dept(session, "ITO-SD")
+    session.commit()
+
+    r = client.post(
+        "/imports/einsaetze/apply",
+        data={
+            "schoolyear_id": SY,
+            "raw_text": "Muster, Anna\t10\t2026\tITO-SD\nMuster, Anna\t11\t2026\t\tURLAUB",
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    msg = parse_qs(urlparse(r.headers["location"]).query)["msg"][0]
+    assert "1 Einsatz" in msg
+    assert "1 Abwesenheit" in msg

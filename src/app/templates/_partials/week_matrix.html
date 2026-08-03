@@ -1,15 +1,24 @@
 {#
   Read-only matrix partial.
   Context:
-    weeks        – list of {kw, jahr, monday, is_today}
-    trainees     – list of Trainee objects
-    cell_map     – dict  trainee_id -> {"kw,jahr": Assignment}
-    school_weeks – set of "kw,jahr"
-    depts        – dict  dept_id -> Department
-    dept_colors  – dict  dept_id -> {bg, fg, code, name}
-    highlight_id – int|None  (row gets is-self + "du"-tag)
+    weeks           – list of {kw, jahr, monday, is_today}
+    trainees        – list of Trainee objects
+    cell_map        – dict  trainee_id -> {"kw,jahr": Assignment}
+    school_weeks    – set of "kw,jahr"
+    depts           – dict  dept_id -> Department
+    dept_colors     – dict  dept_id -> {bg, fg, code, name}
+    highlight_id    – int|None  (row gets is-self + "du"-tag)
+    abwesenheit_map – dict trainee_id -> {"kw,jahr": {"tage","voll","typen","label"}}
+                      (optional -- faellt auf leeres Dict zurueck, wenn der
+                      aufrufende Router sie nicht mitgibt)
+
+  Befund 12 (Datenschutz): Fuer FREMDE Zeilen (t.id != highlight_id) wird NUR
+  der generische Hinweis "Abwesend" angezeigt -- Typ (Urlaub/Sonstiges) und
+  Tagesgenauigkeit aus _abw.label sind ausschliesslich in der EIGENEN Zeile
+  sichtbar. Der Abteilungs-Tooltip bleibt in beiden Faellen erhalten.
 #}
 {% from "_partials/chip.html" import cell_content %}
+{% set _amap = abwesenheit_map if abwesenheit_map is defined else {} %}
 <div class="matrix-scroll">
   <table class="matrix-table">
     <thead>
@@ -27,6 +36,7 @@
     <tbody>
       {% for t in trainees %}
       {% set t_cells = cell_map.get(t.id, {}) %}
+      {% set t_abwesend = _amap.get(t.id, {}) %}
       <tr class="{{ 'is-self' if t.id == highlight_id else '' }}">
         <td class="matrix-td-name">
           {{ t.nachname }}, {{ t.vorname }}
@@ -37,7 +47,12 @@
         {% set a = t_cells.get(cell_key) %}
         {% set is_school = cell_key in school_weeks %}
         {% set _dept_c = dept_colors.get(a.abteilung_id) if a and a.typ.value == 'ABTEILUNG' else none %}
-        <td class="matrix-cell{% if w.is_today %} mc-today{% endif %}"{% if _dept_c %} title="{{ _dept_c.name }}"{% endif %}>
+        {% set _abw = t_abwesend.get(cell_key) %}
+        {% set _abw_label = _abw.label if (_abw and t.id == highlight_id) else ('Abwesend' if _abw else none) %}
+        {% set _titles = [] %}
+        {% if _dept_c %}{% set _ = _titles.append(_dept_c.name) %}{% endif %}
+        {% if _abw_label %}{% set _ = _titles.append(_abw_label) %}{% endif %}
+        <td class="matrix-cell{% if w.is_today %} mc-today{% endif %}{% if _abw %} mc-abwesend{% if _abw.voll %} mc-abwesend-voll{% endif %}{% endif %}"{% if _titles %} title="{{ _titles | join(' — ') }}"{% endif %}>
           {{ cell_content(a, dept_colors, school_weeks.get(cell_key) if not a else None) }}
         </td>
         {% endfor %}

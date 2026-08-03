@@ -9,6 +9,17 @@ Parsing:
   - Optionale Kopfzeile wird erkannt und uebersprungen.
   - Leere Zeilen werden ignoriert.
 
+URLAUB/U (Overlay statt Assignment): Der Plan-Typ URLAUB gibt es bei
+AssignmentTyp nicht mehr -- Urlaub ist eine eigene Abwesenheit-Tabelle
+(app.models.abwesenheit), die die Matrix nur noch ueberlagert statt sie zu
+blockieren. Die Import-Formate akzeptieren "URLAUB"/"U" WEITERHIN, markieren
+die betroffene Zeile aber nur (ParsedAssignment.ist_urlaub=True, typ ist ein
+reiner Anzeige-Platzhalter ohne echten AssignmentTyp). apply_assignments()
+fasst aufeinanderfolgende KWs desselben Trainees zu EINER Abwesenheit
+zusammen (identische Merge-Regel wie die Abwesenheit-Migration: naechster
+Montag == vorheriger Freitag + 3 Tage) und legt sie mit
+quelle=AbwesenheitQuelle.PLANER an.
+
 Rueckgabe: ParseResult mit gueltigen Zeilen und Fehlerzeilen.
 """
 
@@ -18,11 +29,15 @@ import csv
 import io
 import re
 from dataclasses import dataclass, field
+from datetime import date, timedelta
 from typing import Any
 
 from sqlmodel import Session, select
 
 from app.models import (
+    Abwesenheit,
+    AbwesenheitQuelle,
+    AbwesenheitTyp,
     Assignment,
     AssignmentSource,
     AssignmentTyp,
@@ -34,7 +49,8 @@ from app.models import (
     Schoolyear,
     Trainee,
 )
-from app.utils.kw import iter_schoolyear_weeks
+from app.services.abwesenheit_utils import ueberlappende
+from app.utils.kw import iter_schoolyear_weeks, kw_to_monday
 
 
 # ── Typ-Kuerzel-Mapping ───────────────────────────────────────────────────────
@@ -54,11 +70,26 @@ _ASSIGNMENT_TYP_MAP: dict[str, AssignmentTyp] = {
     "UNI": AssignmentTyp.UNI,
     "HS": AssignmentTyp.UNI,
     "HOCHSCHULE": AssignmentTyp.UNI,
-    "URLAUB": AssignmentTyp.URLAUB,
-    "U": AssignmentTyp.URLAUB,
     "FREI": AssignmentTyp.FREI,
     "F": AssignmentTyp.FREI,
 }
+
+# URLAUB/U erzeugen KEINEN AssignmentTyp mehr (siehe Modul-Docstring) --
+# eigene Codes, die in parse_assignments/parse_assignments_matrix VOR dem
+# _ASSIGNMENT_TYP_MAP-Lookup abgefangen werden.
+_URLAUB_CODES = frozenset({"URLAUB", "U"})
+
+
+@dataclass(frozen=True)
+class _AnzeigeTyp:
+    """Darstellungs-Platzhalter mit .value fuer Import-Zeilen ohne echten
+    AssignmentTyp (URLAUB -> Abwesenheit). Kompatibel zu Vorschau-Templates,
+    die `row.typ.value` lesen."""
+
+    value: str
+
+
+URLAUB_ANZEIGE = _AnzeigeTyp("URLAUB")
 
 # Kopfzeilen-Schluesselwoerter: falls die erste Zeile eines dieser Woerter (case-insensitive)
 # enthaelt, wird sie als Headerzeile erkannt und uebersprungen.
@@ -84,13 +115,34 @@ class ParsedSchoolWeek:
 
 @dataclass
 class ParsedAssignment:
+    """typ ist normalerweise ein echter AssignmentTyp; fuer URLAUB/U-Zeilen
+    (ist_urlaub=True) ist es stattdessen URLAUB_ANZEIGE (Darstellungs-
+    Platzhalter, kein Assignment -- siehe Modul-Docstring)."""
+
     trainee_id: int
     trainee_name: str
     kw: int
     jahr: int
-    typ: AssignmentTyp
+    typ: AssignmentTyp | _AnzeigeTyp
     abteilung_id: int | None
     abteilung_code: str
+    raw: str = ""
+    ist_urlaub: bool = False
+
+
+@dataclass
+class ParsedUrlaubBlock:
+    """Ergebnis-Eintrag in apply_assignments() fuer einen beim Import zu
+    EINER Abwesenheit zusammengefassten URLAUB-Block (eine oder mehrere
+    aufeinanderfolgende KWs desselben Trainees)."""
+
+    trainee_id: int
+    trainee_name: str
+    kw_von: int
+    jahr_von: int
+    kw_bis: int
+    jahr_bis: int
+    abwesenheit_id: int | None
     raw: str = ""
 
 
@@ -172,7 +224,14 @@ def _is_header(row: list[str]) -> bool:
 
 
 def _parse_kw_jahr(kw_raw: str, jahr_raw: str) -> tuple[int, int] | str:
-    """Gibt (kw, jahr) zurueck oder einen Fehlerstring."""
+    """Gibt (kw, jahr) zurueck oder einen Fehlerstring.
+
+    Prueft zusaetzlich, dass die KW im angegebenen Jahr tatsaechlich
+    existiert (manche Jahre haben nur 52 statt 53 ISO-Kalenderwochen) --
+    ohne diese Pruefung wuerde ein Import mit z. B. KW 53/2025 anstandslos
+    durch die Vorschau laufen und erst beim Anwenden (apply_assignments /
+    Migration) mit ValueError abbrechen.
+    """
     try:
         kw = int(kw_raw)
         jahr = int(jahr_raw)
@@ -182,6 +241,10 @@ def _parse_kw_jahr(kw_raw: str, jahr_raw: str) -> tuple[int, int] | str:
         return f"KW {kw} ausserhalb des gueltigen Bereichs (1-53)"
     if not (2000 <= jahr <= 2100):
         return f"Jahr {jahr} ausserhalb des gueltigen Bereichs"
+    try:
+        date.fromisocalendar(jahr, kw, 1)
+    except ValueError:
+        return f"KW {kw} existiert im Jahr {jahr} nicht"
     return kw, jahr
 
 
@@ -328,9 +391,23 @@ def parse_assignments(text: str, db: Session, schoolyear_id: str) -> AssignmentP
             continue
         kw, jahr = kw_jahr
 
-        # Typ ermitteln (optional, Default ABTEILUNG)
+        # Typ ermitteln (optional, Default ABTEILUNG); URLAUB/U -> Abwesenheit-
+        # Markierung (kein AssignmentTyp mehr, siehe Modul-Docstring)
         if typ_raw.strip():
             typ_key = typ_raw.strip().upper()
+            if typ_key in _URLAUB_CODES:
+                result.valid.append(ParsedAssignment(
+                    trainee_id=trainee.id,
+                    trainee_name=f"{trainee.nachname}, {trainee.vorname}",
+                    kw=kw,
+                    jahr=jahr,
+                    typ=URLAUB_ANZEIGE,
+                    abteilung_id=None,
+                    abteilung_code="",
+                    raw=raw,
+                    ist_urlaub=True,
+                ))
+                continue
             typ = _ASSIGNMENT_TYP_MAP.get(typ_key)
             if typ is None:
                 result.errors.append(ErrorRow(idx, raw, f"Unbekannter Typ '{typ_raw}'"))
@@ -586,10 +663,25 @@ def parse_assignments_matrix(
                 continue
 
             code_upper = code.upper()
+
+            if code_upper in _URLAUB_CODES:
+                result.valid.append(ParsedAssignment(
+                    trainee_id=trainee.id,
+                    trainee_name=f"{trainee.nachname}, {trainee.vorname}",
+                    kw=kw,
+                    jahr=jahr,
+                    typ=URLAUB_ANZEIGE,
+                    abteilung_id=None,
+                    abteilung_code="",
+                    raw=f"{name_raw}\tKW{kw}\t{code}",
+                    ist_urlaub=True,
+                ))
+                continue
+
             typ = _ASSIGNMENT_TYP_MAP.get(code_upper)
 
             if typ is not None and typ != AssignmentTyp.ABTEILUNG:
-                # BS, Uni, Urlaub, Frei
+                # BS, Uni, Frei (Urlaub bereits oben behandelt)
                 result.valid.append(ParsedAssignment(
                     trainee_id=trainee.id,
                     trainee_name=f"{trainee.nachname}, {trainee.vorname}",
@@ -771,20 +863,58 @@ def apply_holidays(
     return written, skipped
 
 
+def _gruppiere_urlaub_bloecke(rows_sorted: list[ParsedAssignment]) -> list[list[ParsedAssignment]]:
+    """Gruppiert nach (jahr, kw) sortierte URLAUB-Importzeilen EINES Trainees
+    zu Bloecken aufeinanderfolgender Wochen.
+
+    Identische Merge-Regel wie die Abwesenheit-Migration (0012_abwesenheit):
+    zwei Wochen gelten als aufeinanderfolgend, wenn der Montag der naechsten
+    Woche gleich Freitag + 3 Tage der vorherigen ist.
+    """
+    bloecke: list[list[ParsedAssignment]] = []
+    current: list[ParsedAssignment] = []
+    prev_friday: date | None = None
+    for pa in rows_sorted:
+        monday = kw_to_monday(pa.kw, pa.jahr)
+        if current and prev_friday is not None and monday == prev_friday + timedelta(days=3):
+            current.append(pa)
+        else:
+            if current:
+                bloecke.append(current)
+            current = [pa]
+        prev_friday = monday + timedelta(days=4)
+    if current:
+        bloecke.append(current)
+    return bloecke
+
+
 def apply_assignments(
     db: Session,
     schoolyear_id: str,
     parsed: list[ParsedAssignment],
-) -> tuple[list[ParsedAssignment], list[ErrorRow]]:
+) -> tuple[list[ParsedAssignment | ParsedUrlaubBlock], list[ErrorRow]]:
     """Schreibt gueltige Einsaetze in die DB.
 
     Bereits vorhandene (trainee_id, kw, jahr) werden uebersprungen und gemeldet.
-    Gibt (geschriebene, uebersprungene) zurueck.
+
+    URLAUB/U-Zeilen (ist_urlaub=True) werden NICHT als Assignment gespeichert,
+    sondern je Trainee zu Bloecken aufeinanderfolgender KWs zusammengefasst
+    (siehe _gruppiere_urlaub_bloecke) und als EINE Abwesenheit je Block
+    angelegt (typ=URLAUB, quelle=PLANER). Ueberschneidet sich ein Block mit
+    einer bereits bestehenden Abwesenheit desselben Trainees, wird der
+    GESAMTE Block uebersprungen und gemeldet (kein Teil-Import eines Blocks).
+
+    Gibt (geschriebene, uebersprungene) zurueck -- geschriebene enthaelt fuer
+    normale Einsaetze ParsedAssignment-, fuer URLAUB-Bloecke
+    ParsedUrlaubBlock-Eintraege.
     """
-    written: list[ParsedAssignment] = []
+    written: list[ParsedAssignment | ParsedUrlaubBlock] = []
     skipped: list[ErrorRow] = []
 
-    for i, pa in enumerate(parsed, start=1):
+    normal_rows = [pa for pa in parsed if not pa.ist_urlaub]
+    urlaub_rows = [pa for pa in parsed if pa.ist_urlaub]
+
+    for i, pa in enumerate(normal_rows, start=1):
         existing = db.exec(
             select(Assignment).where(
                 Assignment.trainee_id == pa.trainee_id,
@@ -809,6 +939,53 @@ def apply_assignments(
             source=AssignmentSource.IMPORT,
         ))
         written.append(pa)
+
+    # URLAUB -> Abwesenheit (Overlay statt Assignment), je Trainee
+    # aufeinanderfolgende KWs zu einem Eintrag zusammengefasst.
+    by_trainee: dict[int, list[ParsedAssignment]] = {}
+    for pa in urlaub_rows:
+        by_trainee.setdefault(pa.trainee_id, []).append(pa)
+
+    block_nr = 0
+    for trainee_id, rows in by_trainee.items():
+        rows_sorted = sorted(rows, key=lambda pa: (pa.jahr, pa.kw))
+        for block in _gruppiere_urlaub_bloecke(rows_sorted):
+            block_nr += 1
+            first, last = block[0], block[-1]
+            von_datum = kw_to_monday(first.kw, first.jahr)
+            bis_datum = kw_to_monday(last.kw, last.jahr) + timedelta(days=4)
+            raw = "; ".join(r.raw for r in block)
+
+            if ueberlappende(db, trainee_id, von_datum, bis_datum):
+                zeitraum = (
+                    f"KW {first.kw}/{first.jahr}" if first is last
+                    else f"KW {first.kw}/{first.jahr}–KW {last.kw}/{last.jahr}"
+                )
+                skipped.append(ErrorRow(
+                    block_nr, raw,
+                    f"{first.trainee_name} {zeitraum}: Abwesenheit ueberschneidet "
+                    f"sich mit bestehender – uebersprungen",
+                ))
+                continue
+
+            abwesenheit = Abwesenheit(
+                trainee_id=trainee_id,
+                von_datum=von_datum,
+                bis_datum=bis_datum,
+                typ=AbwesenheitTyp.URLAUB,
+                quelle=AbwesenheitQuelle.PLANER,
+                erstellt_am=date.today(),
+            )
+            db.add(abwesenheit)
+            db.flush()
+            written.append(ParsedUrlaubBlock(
+                trainee_id=trainee_id,
+                trainee_name=first.trainee_name,
+                kw_von=first.kw, jahr_von=first.jahr,
+                kw_bis=last.kw, jahr_bis=last.jahr,
+                abwesenheit_id=abwesenheit.id,
+                raw=raw,
+            ))
 
     db.commit()
     return written, skipped

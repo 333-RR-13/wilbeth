@@ -81,10 +81,10 @@ def test_annehmen_skips_occupied_weeks_and_creates_confirmed_cells(client, sessi
     ids = _setup(session)
     v = _make_vorschlag(session, ids, kw_von=10, jahr_von=2026, kw_bis=12, jahr_bis=2026)
 
-    # KW 11/2026 bereits belegt (z.B. Urlaub) -> darf nicht ueberschrieben werden
+    # KW 11/2026 bereits belegt (z.B. Frei) -> darf nicht ueberschrieben werden
     occupied = Assignment(
         trainee_id=ids["trainee"], schoolyear_id=SY, kw=11, jahr=2026,
-        typ=AssignmentTyp.URLAUB, abteilung_id=None, source=AssignmentSource.SELBST,
+        typ=AssignmentTyp.FREI, abteilung_id=None, source=AssignmentSource.SELBST,
     )
     session.add(occupied)
     session.commit()
@@ -115,9 +115,9 @@ def test_annehmen_skips_occupied_weeks_and_creates_confirmed_cells(client, sessi
     assert row12 is not None
     assert row12.bestaetigung == "bestaetigt"
 
-    # KW11 blieb unangetastet (weiterhin URLAUB, nicht ueberschrieben)
+    # KW11 blieb unangetastet (weiterhin FREI, nicht ueberschrieben)
     row11 = session.get(Assignment, occupied.id)
-    assert row11.typ == AssignmentTyp.URLAUB
+    assert row11.typ == AssignmentTyp.FREI
 
     updated_v = session.get(EinsatzVorschlag, v.id)
     assert updated_v.status == "angenommen"

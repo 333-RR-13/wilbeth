@@ -4,6 +4,9 @@ from datetime import date
 from sqlmodel import Session, select
 
 from app.models import (
+    Abwesenheit,
+    AbwesenheitQuelle,
+    AbwesenheitTyp,
     Assignment,
     AssignmentSource,
     AssignmentTyp,
@@ -95,7 +98,7 @@ def test_my_plan_sidebar_links(client, session):
     for href in [
         f"/mein-plan/{TOKEN}/klasse",
         f"/mein-plan/{TOKEN}/jahrgang",
-        f"/mein-plan/{TOKEN}/urlaub",
+        f"/mein-plan/{TOKEN}/abwesenheit",
         f"/mein-plan/{TOKEN}/wuensche",
         f"/mein-plan/{TOKEN}/ueber",
     ]:
@@ -104,11 +107,11 @@ def test_my_plan_sidebar_links(client, session):
     assert "th-kw-num" in r.text
 
 
-def test_urlaub_page_renders(client, session):
+def test_abwesenheit_page_renders(client, session):
     _setup(session)
-    r = client.get(f"/mein-plan/{TOKEN}/urlaub")
+    r = client.get(f"/mein-plan/{TOKEN}/abwesenheit")
     assert r.status_code == 200
-    assert "Urlaub" in r.text
+    assert "Abwesenheit" in r.text
 
 
 def test_wuensche_page_renders(client, session):
@@ -118,60 +121,83 @@ def test_wuensche_page_renders(client, session):
     assert "Wünsche" in r.text or "Priorität" in r.text
 
 
-# ── Urlaub eintragen ─────────────────────────────────────────────
+# ── Abwesenheit eintragen ─────────────────────────────────────────
 
-def test_urlaub_create(client, session):
+def test_abwesenheit_create(client, session):
     ids = _setup(session)
-    r = client.post(f"/mein-plan/{TOKEN}/urlaub", data={"kw": 50, "jahr": 2025}, follow_redirects=False)
+    r = client.post(f"/mein-plan/{TOKEN}/abwesenheit",
+                     data={"von": "2025-12-08", "bis": "2025-12-10", "typ": "URLAUB"},
+                     follow_redirects=False)
     assert r.status_code == 303
 
-    a = session.exec(select(Assignment).where(Assignment.trainee_id == ids["trainee"])).first()
+    a = session.exec(select(Abwesenheit).where(Abwesenheit.trainee_id == ids["trainee"])).first()
     assert a is not None
-    assert a.typ == AssignmentTyp.URLAUB
-    assert a.source == AssignmentSource.SELBST
-    assert (a.kw, a.jahr) == (50, 2025)
+    assert a.typ == AbwesenheitTyp.URLAUB
+    assert a.quelle == AbwesenheitQuelle.SELBST
+    assert (a.von_datum, a.bis_datum) == (date(2025, 12, 8), date(2025, 12, 10))
 
 
-def test_urlaub_range(client, session):
+def test_abwesenheit_range_ueber_mehrere_wochen(client, session):
+    """Ein Zeitraum ueber mehrere Kalenderwochen ergibt EINEN Abwesenheits-
+    Eintrag (Overlay-Modell), keine Assignments mehr pro Woche."""
     ids = _setup(session)
-    client.post(f"/mein-plan/{TOKEN}/urlaub",
-                data={"kw": 50, "jahr": 2025, "kw_end": 1, "jahr_end": 2026},
+    client.post(f"/mein-plan/{TOKEN}/abwesenheit",
+                data={"von": "2025-12-08", "bis": "2025-12-19"},  # KW50+KW51/2025
                 follow_redirects=False)
-    rows = session.exec(select(Assignment).where(Assignment.trainee_id == ids["trainee"])).all()
-    # KW50, 51, 52 (2025) + KW1 (2026) = 4 Wochen
-    assert len(rows) == 4
-    assert all(a.typ == AssignmentTyp.URLAUB for a in rows)
+    rows = session.exec(select(Abwesenheit).where(Abwesenheit.trainee_id == ids["trainee"])).all()
+    assert len(rows) == 1
+    assert rows[0].von_datum == date(2025, 12, 8)
+    assert rows[0].bis_datum == date(2025, 12, 19)
 
 
-def test_urlaub_skips_school_week(client, session):
+def test_abwesenheit_in_school_week_wird_angelegt_mit_hinweis(client, session):
+    """Gegenteil des frueheren Verhaltens: Abwesenheit in einer Schulwoche wird
+    ANGELEGT (nicht mehr uebersprungen) -- nur ein weicher Flash-Hinweis."""
     ids = _setup(session, with_class=True)
-    # KW41/2025 ist Schulwoche -> wird uebersprungen
-    client.post(f"/mein-plan/{TOKEN}/urlaub", data={"kw": 41, "jahr": 2025}, follow_redirects=False)
-    rows = session.exec(select(Assignment).where(Assignment.trainee_id == ids["trainee"])).all()
-    assert len(rows) == 0
+    # KW41/2025 ist Schulwoche laut Klassen-Schulplan (Mo 2025-10-06 .. Fr 2025-10-10)
+    r = client.post(f"/mein-plan/{TOKEN}/abwesenheit",
+                     data={"von": "2025-10-06", "bis": "2025-10-10"},
+                     follow_redirects=False)
+    assert r.status_code == 303
+    assert "hinweis=schulwoche" in r.headers["location"]
+
+    rows = session.exec(select(Abwesenheit).where(Abwesenheit.trainee_id == ids["trainee"])).all()
+    assert len(rows) == 1
 
 
-def test_urlaub_delete_own(client, session):
+def test_abwesenheit_bis_vor_von_ergibt_400(client, session):
+    _setup(session)
+    r = client.post(f"/mein-plan/{TOKEN}/abwesenheit",
+                     data={"von": "2025-12-10", "bis": "2025-12-08"},
+                     follow_redirects=False)
+    assert r.status_code == 400
+
+
+def test_abwesenheit_delete_own(client, session):
     ids = _setup(session)
-    client.post(f"/mein-plan/{TOKEN}/urlaub", data={"kw": 50, "jahr": 2025}, follow_redirects=False)
-    a = session.exec(select(Assignment).where(Assignment.trainee_id == ids["trainee"])).first()
+    client.post(f"/mein-plan/{TOKEN}/abwesenheit",
+                data={"von": "2025-12-08", "bis": "2025-12-10"}, follow_redirects=False)
+    a = session.exec(select(Abwesenheit).where(Abwesenheit.trainee_id == ids["trainee"])).first()
     aid = a.id
 
-    client.post(f"/mein-plan/{TOKEN}/urlaub/loeschen", data={"assignment_id": aid}, follow_redirects=False)
-    assert session.get(Assignment, aid) is None
+    r = client.post(f"/mein-plan/{TOKEN}/abwesenheit/{aid}/loeschen", follow_redirects=False)
+    assert r.status_code == 303
+    assert session.get(Abwesenheit, aid) is None
 
 
-def test_urlaub_delete_only_self_entered(client, session):
+def test_abwesenheit_delete_only_self_entered(client, session):
     ids = _setup(session)
-    # Von der Planerin gesetzter Urlaub (source=MANUAL) darf NICHT vom Azubi geloescht werden
-    a = Assignment(trainee_id=ids["trainee"], schoolyear_id=SY, kw=50, jahr=2025,
-                   typ=AssignmentTyp.URLAUB, source=AssignmentSource.MANUAL)
+    # Von der Planerin eingetragene Abwesenheit (quelle=PLANER) darf NICHT
+    # vom Azubi geloescht werden -> 404 statt stillem No-Op.
+    a = Abwesenheit(trainee_id=ids["trainee"], von_datum=date(2025, 12, 8), bis_datum=date(2025, 12, 10),
+                    typ=AbwesenheitTyp.URLAUB, quelle=AbwesenheitQuelle.PLANER)
     session.add(a)
     session.commit()
     aid = a.id
 
-    client.post(f"/mein-plan/{TOKEN}/urlaub/loeschen", data={"assignment_id": aid}, follow_redirects=False)
-    assert session.get(Assignment, aid) is not None  # bleibt erhalten
+    r = client.post(f"/mein-plan/{TOKEN}/abwesenheit/{aid}/loeschen", follow_redirects=False)
+    assert r.status_code == 404
+    assert session.get(Abwesenheit, aid) is not None  # bleibt erhalten
 
 
 # ── Wünsche ──────────────────────────────────────────────────────

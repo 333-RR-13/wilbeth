@@ -93,11 +93,11 @@ def test_visited_ids_distinct(session: Session):
 
 
 def test_visited_ids_ignores_non_abteilung(session: Session):
-    """URLAUB, BERUFSSCHULE etc. werden nicht gezaehlt."""
+    """FREI, BERUFSSCHULE etc. werden nicht gezaehlt."""
     ids = _setup(session)
     session.add(Assignment(
         trainee_id=ids["trainee"], schoolyear_id=SY, kw=40, jahr=2025,
-        typ=AssignmentTyp.URLAUB, abteilung_id=None,
+        typ=AssignmentTyp.FREI, abteilung_id=None,
         source=AssignmentSource.MANUAL,
     ))
     session.add(Assignment(

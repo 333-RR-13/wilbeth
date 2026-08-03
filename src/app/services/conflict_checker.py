@@ -1,7 +1,7 @@
 """Konflikt-Erkennung fuer Einsatzplanung.
 
 Drei Konflikt-Arten:
-1. SCHUL_KONFLIKT   – ABTEILUNG oder URLAUB in einer Schulwoche laut SchoolPlan.
+1. SCHUL_KONFLIKT   – ABTEILUNG in einer Schulwoche laut SchoolPlan.
 2. FERIEN_KONFLIKT  – BERUFSSCHULE oder UNI in einer Schulferienswoche.
 3. DOPPELBELEGUNG   – Mehrere Trainees in derselben Abteilung in derselben KW
                       (ausser wenn erlaubt_mehrfachbelegung = True).
@@ -93,8 +93,8 @@ def find_conflicts(session: Session, schoolyear_id: str) -> list[Conflict]:
             if dept:
                 dept_allows_multi[a.abteilung_id] = dept.erlaubt_mehrfachbelegung
 
-        # 1. SCHUL_KONFLIKT: ABTEILUNG or URLAUB entry falls in a school week
-        if a.typ in (AssignmentTyp.ABTEILUNG, AssignmentTyp.URLAUB):
+        # 1. SCHUL_KONFLIKT: ABTEILUNG entry falls in a school week
+        if a.typ == AssignmentTyp.ABTEILUNG:
             klasse_id = trainee_class_map.get(a.trainee_id)
             if klasse_id and (klasse_id, a.kw, a.jahr) in school_weeks:
                 conflicts.append(Conflict(
@@ -163,9 +163,9 @@ def describe_conflict(
             "who": trainee_names.get(c.trainee_id, "Unbekannt"),
             "why": (
                 "In dieser Woche ist die Klasse laut Schulplan in der "
-                "Berufsschule bzw. Uni. Ein Abteilungs- oder Urlaubs-Einsatz "
-                "passt da nicht — die Person kann nicht gleichzeitig im "
-                "Betrieb und in der Schule sein."
+                "Berufsschule bzw. Uni. Ein Abteilungs-Einsatz passt da "
+                "nicht — die Person kann nicht gleichzeitig im Betrieb und "
+                "in der Schule sein."
             ),
         }
 

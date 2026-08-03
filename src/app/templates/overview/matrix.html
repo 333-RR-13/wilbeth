@@ -275,7 +275,8 @@
   <span class="legend-item"><span class="cell-chip" style="background:#A855F7;color:#fff">ABT</span> Abteilung (eigene Farbe)</span>
   <span class="legend-item"><span class="cell-chip cell-school">BS</span> Berufsschule</span>
   <span class="legend-item"><span class="cell-chip cell-school">HS</span> Hochschule/Uni</span>
-  <span class="legend-item"><span class="cell-chip cell-blocker">U</span> Urlaub</span>
+  <span class="legend-item"><span class="cell-chip cell-blocker">F</span> Frei</span>
+  <span class="legend-item"><span class="matrix-abwesend-sample"></span> Abwesend (Urlaub/Sonstiges)</span>
   <span class="legend-item"><span class="matrix-conflict-sample"></span> Konflikt</span>
   <span class="legend-item"><span class="matrix-today-sample"></span> Aktuelle KW</span>
 </div>
@@ -329,9 +330,13 @@
           {% set _is_abteilung = a and a.typ.value == 'ABTEILUNG' %}
           {% set _bestaetigung = (a.bestaetigung if a.bestaetigung else 'offen') if _is_abteilung else none %}
           {% set _dept_c = dept_colors.get(a.abteilung_id) if _is_abteilung else none %}
+          {% set _aw = abwesenheit_map.get(t.id, {}).get(cell_key) %}
+          {% set _title_parts = [] %}
+          {% if _dept_c %}{% set _ = _title_parts.append(_dept_c.name) %}{% endif %}
+          {% if _aw %}{% set _ = _title_parts.append(_aw.label) %}{% endif %}
           <td id="cell-{{ t.id }}-{{ w.kw }}-{{ w.jahr }}"
-              {% if _dept_c %}title="{{ _dept_c.name }}"{% endif %}
-              class="matrix-cell cell-clickable{% if is_conflict %} mc-conflict{% endif %}{% if w.is_today %} mc-today{% endif %}{% if _is_abteilung %} mc-confirm-{{ _bestaetigung }}{% endif %}"
+              {% if _title_parts %}title="{{ _title_parts | join(' — ') }}"{% endif %}
+              class="matrix-cell cell-clickable{% if is_conflict %} mc-conflict{% endif %}{% if w.is_today %} mc-today{% endif %}{% if _is_abteilung %} mc-confirm-{{ _bestaetigung }}{% endif %}{% if _aw %} mc-abwesend{% if _aw.voll %} mc-abwesend-voll{% endif %}{% endif %}"
               data-trainee="{{ t.id }}"
               data-kw="{{ w.kw }}"
               data-jahr="{{ w.jahr }}"

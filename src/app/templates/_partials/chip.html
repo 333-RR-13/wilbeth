@@ -20,8 +20,8 @@
       <span class="cell-chip cell-school">BS</span>
     {%- elif a.typ.value == 'UNI' -%}
       <span class="cell-chip cell-school">HS</span>
-    {%- elif a.typ.value == 'URLAUB' or a.typ.value == 'FREI' -%}
-      <span class="cell-chip cell-blocker" title="Urlaub/Frei">U</span>
+    {%- elif a.typ.value == 'FREI' -%}
+      <span class="cell-chip cell-blocker" title="Frei">F</span>
     {%- endif -%}
   {%- elif school_typ -%}
     {%- if school_typ == 'BERUFSSCHULE' -%}

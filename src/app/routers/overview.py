@@ -20,6 +20,7 @@ from app.models import (
     TraineeClass,
     UnterrichtsTyp,
 )
+from app.services.abwesenheit_utils import abwesenheit_map
 from app.services.conflict_checker import describe_conflict, find_conflicts
 from app.services.membership_utils import (
     aktuelles_schuljahr_id,
@@ -263,6 +264,7 @@ def overview(request: Request, db: DB):
         dept_colors = department_color_map(all_depts)
         resp = templates.TemplateResponse(request, "overview/matrix.html", {
             "trainees": [], "grouped": [], "weeks": [], "cell_map": {}, "conflict_cells": set(),
+            "abwesenheit_map": {},
             "conflict_count": 0, "years": years, "classes": classes,
             "beruf_tree": beruf_tree,
             "depts": {}, "all_depts": all_depts, "school_week_map": {}, "trainee_klasse_map": {},
@@ -355,6 +357,10 @@ def overview(request: Request, db: DB):
     for a in assignments:
         cell_map.setdefault(a.trainee_id, {})[f"{a.kw},{a.jahr}"] = a
 
+    # Abwesenheits-Overlay (Urlaub/Sonstiges) je Trainee + Woche -- blockt NICHTS,
+    # wird in der Matrix nur als Markierung ueberlagert (siehe abwesenheit_utils).
+    aw_map = abwesenheit_map(db, trainee_ids, [(w["kw"], w["jahr"]) for w in weeks])
+
     # Conflict detection. Fuer Doppelbelegungen (trainee_id=None) werden alle
     # beteiligten Trainees markiert, damit auch sie in der Matrix rot erscheinen.
     raw_conflicts = find_conflicts(db, schoolyear_id)
@@ -446,6 +452,7 @@ def overview(request: Request, db: DB):
         "grouped": grouped,
         "weeks": weeks,
         "cell_map": cell_map,
+        "abwesenheit_map": aw_map,
         "conflict_cells": conflict_cells,
         "conflict_count": len(raw_conflicts),
         "years": years,

@@ -24,7 +24,7 @@ def _setup(session: Session) -> dict:
     a1 = Assignment(trainee_id=t.id, schoolyear_id=SY, kw=1, jahr=2026,
                     typ=AssignmentTyp.ABTEILUNG, source=AssignmentSource.MANUAL)
     a2 = Assignment(trainee_id=t.id, schoolyear_id=SY, kw=2, jahr=2026,
-                    typ=AssignmentTyp.URLAUB, source=AssignmentSource.MANUAL)
+                    typ=AssignmentTyp.BERUFSSCHULE, source=AssignmentSource.MANUAL)
     a3 = Assignment(trainee_id=t.id, schoolyear_id=SY, kw=3, jahr=2026,
                     typ=AssignmentTyp.FREI, source=AssignmentSource.MANUAL)
     session.add_all([a1, a2, a3])

@@ -1,0 +1,79 @@
+{% extends "share/_base.html" %}
+{% block title %}Abwesenheit{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Abwesenheit eintragen</h1>
+    <p class="page-subtitle">Urlaub oder sonstige Abwesenheit tagegenau eintragen – dein Abteilungseinsatz bleibt dabei bestehen.</p>
+  </div>
+</div>
+
+<div class="card card-body" style="margin-bottom:20px">
+  <form method="post" action="/mein-plan/{{ token }}/abwesenheit" class="share-urlaub-form">
+    <div class="share-field">
+      <label>Von</label>
+      <input type="date" name="von" required>
+    </div>
+    <div class="share-field">
+      <label>Bis</label>
+      <input type="date" name="bis" required>
+    </div>
+    <div class="share-field">
+      <label>Typ</label>
+      <select name="typ">
+        <option value="URLAUB">Urlaub</option>
+        <option value="SONSTIGES">Sonstiges</option>
+      </select>
+    </div>
+    <div class="share-field">
+      <label>Kommentar (optional)</label>
+      <input type="text" name="kommentar" maxlength="200">
+    </div>
+    <button type="submit" class="btn btn-primary">Abwesenheit eintragen</button>
+  </form>
+</div>
+
+<div class="table-wrapper">
+  {% if own_abwesenheiten %}
+  <table class="share-urlaub-list">
+    <thead>
+      <tr>
+        <th>Von</th>
+        <th>Bis</th>
+        <th>Typ</th>
+        <th>Kommentar</th>
+        <th>Quelle</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in own_abwesenheiten %}
+      <tr>
+        <td class="mono">{{ a.von_datum.strftime('%d.%m.%Y') }}</td>
+        <td class="mono">{{ a.bis_datum.strftime('%d.%m.%Y') }}</td>
+        <td>{{ 'Urlaub' if a.typ.value == 'URLAUB' else 'Sonstiges' }}</td>
+        <td>{{ a.kommentar or '–' }}</td>
+        <td>
+          {% if a.quelle.value == 'SELBST' %}Selbst
+          {% elif a.quelle.value == 'PLANER' %}Planer
+          {% else %}SAP{% endif %}
+        </td>
+        <td class="td-actions">
+          {% if a.quelle.value == 'SELBST' %}
+          <form method="post" action="/mein-plan/{{ token }}/abwesenheit/{{ a.id }}/loeschen"
+                onsubmit="return confirm('Abwesenheit vom {{ a.von_datum.strftime('%d.%m.%Y') }} bis {{ a.bis_datum.strftime('%d.%m.%Y') }} entfernen?')">
+            <button type="submit" class="btn btn-ghost-danger btn-sm">Entfernen</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty-state">Noch keine Abwesenheit eingetragen.</div>
+  {% endif %}
+</div>
+
+{% endblock %}
