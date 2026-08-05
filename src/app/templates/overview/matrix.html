@@ -42,13 +42,13 @@
 
 /* Bestaetigungsstatus-Marker fuer ABTEILUNG-Zellen (scoped) */
 .matrix-cell.mc-confirm-offen,
-.matrix-cell.mc-confirm-ok,
+.matrix-cell.mc-confirm-bestaetigt,
 .matrix-cell.mc-confirm-abgelehnt {
   position: relative;
 }
 
 .matrix-cell.mc-confirm-offen::after,
-.matrix-cell.mc-confirm-ok::after,
+.matrix-cell.mc-confirm-bestaetigt::after,
 .matrix-cell.mc-confirm-abgelehnt::after {
   content: "";
   position: absolute;
@@ -63,7 +63,7 @@
   background: var(--warning, #d97706);
 }
 
-.matrix-cell.mc-confirm-ok::after {
+.matrix-cell.mc-confirm-bestaetigt::after {
   background: var(--success, #16a34a);
 }
 

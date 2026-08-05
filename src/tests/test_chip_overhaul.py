@@ -462,3 +462,25 @@ def test_overview_zelle_zeigt_u_kuerzel_bei_abwesenheit(client, session: Session
     assert 'class="cell-chip cell-blocker">U</span>' not in cell2
     assert ">CP</span>" in cell2
     assert "mc-abwesend" in cell2
+
+
+def test_bestaetigt_marker_hat_passende_css_regel(client, session: Session):
+    """Regression: Das Template rendert die Klasse aus dem gespeicherten Status
+    ('bestaetigt'), das scoped CSS definierte aber nur '.mc-confirm-ok' --
+    bestaetigte Einsaetze hatten dadurch GAR KEINEN Punkt. Klassenname im
+    Markup und im CSS muessen zusammenpassen."""
+    ids = _setup_overview(session)
+    session.add(Assignment(
+        trainee_id=ids["trainee_id"], schoolyear_id=SY, kw=40, jahr=2025,
+        typ=AssignmentTyp.ABTEILUNG, abteilung_id=ids["cp_id"],
+        source=AssignmentSource.MANUAL, bestaetigung="bestaetigt",
+    ))
+    session.commit()
+
+    r = client.get("/overview", params={"schoolyear_id": SY, "halbjahr": "1"})
+    assert r.status_code == 200
+    cell = _cell_html(r.text, ids["trainee_id"], 40, 2025)
+    assert "mc-confirm-bestaetigt" in cell
+    # ... und dafuer existiert auch eine CSS-Regel mit Farbe
+    assert ".matrix-cell.mc-confirm-bestaetigt::after" in r.text
+    assert "mc-confirm-ok" not in r.text
