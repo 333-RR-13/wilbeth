@@ -361,14 +361,17 @@ def _legend_html(r_text: str) -> str:
 
 def test_overview_legend_shows_f_frei_not_u_urlaub(client, session: Session):
     """Die Legende zeigt 'F' / 'Frei' (das Kuerzel, das chip.html fuer FREI
-    tatsaechlich rendert) statt des veralteten 'U' / 'Urlaub'-Eintrags."""
+    tatsaechlich rendert). Das 'U' steht seit dem Abwesenheiten-Umbau nicht
+    mehr fuer den alten Plan-Typ URLAUB, sondern fuer eine Abwesenheit in einer
+    sonst leeren Woche -- es muss also mit 'Urlaub' beschriftet sein und darf
+    nicht laenger als FREI-Kuerzel auftauchen."""
     _setup_overview(session)
     r = client.get("/overview", params={"schoolyear_id": SY})
     assert r.status_code == 200
     legend = _legend_html(r.text)
     assert "cell-blocker\">F</span> Frei" in legend
-    assert "Urlaub</span>" not in legend
-    assert ">U</span>" not in legend
+    assert "cell-blocker\">U</span> Urlaub" in legend
+    assert "cell-blocker\">A</span> sonstige Abwesenheit" in legend
 
 
 def test_overview_legend_has_abwesend_sample(client, session: Session):
@@ -379,7 +382,7 @@ def test_overview_legend_has_abwesend_sample(client, session: Session):
     assert r.status_code == 200
     legend = _legend_html(r.text)
     assert "matrix-abwesend-sample" in legend
-    assert "Abwesend (Urlaub/Sonstiges)" in legend
+    assert "Abwesend in einer verplanten Woche" in legend
 
 
 @pytest.mark.parametrize("template_name", [
@@ -396,10 +399,9 @@ def test_share_legend_shows_f_frei_and_abwesend_sample(template_name):
         Path(__file__).resolve().parents[1] / "app" / "templates" / template_name
     ).read_text(encoding="utf-8")
     assert "cell-blocker\">F</span> Frei" in src
-    assert "Urlaub</span>" not in src
-    assert ">U</span>" not in src
+    assert "cell-blocker\">U</span> Urlaub" in src
     assert "matrix-abwesend-sample" in src
-    assert "Abwesend (Urlaub/Sonstiges)" in src
+    assert "Abwesend in einer verplanten Woche" in src
 
 
 # ── Befund 11: CSS-Spezifitaet der Abwesend-Schraffur ───────────────────────
@@ -422,3 +424,41 @@ def test_cell_urlaub_dead_css_removed():
     und der Kommentar ueber 'Urlaub and Frei shown as dark U' ist veraltet."""
     assert ".cell-URLAUB" not in STYLE_CSS
     assert "Urlaub and Frei shown as dark" not in STYLE_CSS
+
+
+def test_overview_zelle_zeigt_u_kuerzel_bei_abwesenheit(client, session: Session):
+    """Eine Woche, in der der Trainee abwesend ist und sonst nichts geplant ist,
+    zeigt das Kuerzel 'U' (Urlaub) bzw. 'A' (Sonstiges) -- vorher stand dort nur
+    eine leere Zelle mit Schraffur (Wunsch aus dem Praxis-Feedback)."""
+    from datetime import date
+
+    from app.models import Abwesenheit, AbwesenheitQuelle, AbwesenheitTyp
+
+    ids = _setup_overview(session)
+    # KW 12/2026 = Mo 16.03. bis Fr 20.03.
+    session.add(Abwesenheit(
+        trainee_id=ids["trainee_id"], von_datum=date(2026, 3, 16), bis_datum=date(2026, 3, 20),
+        typ=AbwesenheitTyp.URLAUB, quelle=AbwesenheitQuelle.PLANER,
+    ))
+    session.commit()
+
+    r = client.get("/overview", params={"schoolyear_id": SY, "halbjahr": ""})
+    assert r.status_code == 200
+    # Gezielt die Zelle pruefen -- die Legende enthaelt das Kuerzel ebenfalls
+    cell = _cell_html(r.text, ids["trainee_id"], 12, 2026)
+    assert 'class="cell-chip cell-blocker">U</span>' in cell
+    assert "mc-abwesend" in cell
+
+    # Liegt in derselben Woche ein Einsatz, bleibt dessen Chip stehen (kein U daneben)
+    session.add(Assignment(
+        trainee_id=ids["trainee_id"], schoolyear_id=SY, kw=12, jahr=2026,
+        typ=AssignmentTyp.ABTEILUNG, abteilung_id=ids["cp_id"], source=AssignmentSource.MANUAL,
+    ))
+    session.commit()
+    cell2 = _cell_html(
+        client.get("/overview", params={"schoolyear_id": SY, "halbjahr": ""}).text,
+        ids["trainee_id"], 12, 2026,
+    )
+    assert 'class="cell-chip cell-blocker">U</span>' not in cell2
+    assert ">CP</span>" in cell2
+    assert "mc-abwesend" in cell2
