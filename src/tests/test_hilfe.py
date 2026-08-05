@@ -99,3 +99,24 @@ def test_nav_zeigt_kein_datensicherung_fuer_ausbilder(client, session: Session, 
     assert r.status_code == 200
     assert "Datensicherung" not in r.text
     assert 'href="/daten/"' not in r.text
+
+
+def test_nav_zeigt_keine_dev_tools_sektion_fuer_ausbilder(client, session: Session, monkeypatch):
+    """Nav-Aufraeumung: die Sektion 'Dev-Tools' (Import, Datensicherung) ist
+    orga/admin vorbehalten -- fuer einen Ausbilder darf nicht einmal die
+    Sektions-Ueberschrift auftauchen (sonst stuende eine leere Ueberschrift
+    in der Sidebar)."""
+    _login(client, monkeypatch, "ausbilder")
+    r = client.get("/trainees/")
+    assert r.status_code == 200
+    assert "Dev-Tools" not in r.text
+    assert 'href="/import"' not in r.text
+
+
+def test_nav_zeigt_dev_tools_sektion_fuer_admin(client, session: Session, monkeypatch):
+    _login(client, monkeypatch, "admin")
+    r = client.get("/trainees/")
+    assert r.status_code == 200
+    assert "Dev-Tools" in r.text
+    assert 'href="/import"' in r.text
+    assert 'href="/daten/"' in r.text

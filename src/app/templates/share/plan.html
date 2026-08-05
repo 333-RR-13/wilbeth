@@ -36,6 +36,11 @@
 
 {% include "_partials/week_matrix.html" %}
 
+<div style="margin-top:16px;">
+  <a href="/mein-plan/{{ token }}/calendar.ics" class="btn btn-secondary">als Kalenderdatei (.ics) herunterladen</a>
+  <p class="fb-hinweis">Die Datei lässt sich z.&nbsp;B. in Outlook importieren.</p>
+</div>
+
 {% else %}
 <div class="card card-body" style="text-align:center; color:var(--text-muted)">
   Noch kein Plan hinterlegt.

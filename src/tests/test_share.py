@@ -261,6 +261,26 @@ def test_ics_export(client, session):
     assert "DTSTART;VALUE=DATE:" in body
 
 
+def test_ics_nav_link_removed_but_download_button_present(client, session):
+    """Nav-Aufraeumung: der Kalender-Link steht nicht mehr in der Sidebar
+    (die Route /calendar.ics bleibt aber bestehen, siehe test_ics_export
+    oben) -- stattdessen gibt es unterhalb der Einsatztabelle auf
+    'Meine Einsaetze' einen Download-Button, der auf dieselbe URL zeigt."""
+    ids = _setup(session)
+    session.add(Assignment(trainee_id=ids["trainee"], schoolyear_id=SY, kw=40, jahr=2025,
+                           typ=AssignmentTyp.ABTEILUNG, abteilung_id=ids["cp"],
+                           source=AssignmentSource.MANUAL))
+    session.commit()
+
+    r = client.get(f"/mein-plan/{TOKEN}")
+    assert r.status_code == 200
+    # Kalender-Link nicht mehr in der Sidebar-Nav
+    assert "Kalender (.ics)" not in r.text
+    # Stattdessen: Download-Button unterhalb der Einsatztabelle
+    assert f'href="/mein-plan/{TOKEN}/calendar.ics" class="btn btn-secondary"' in r.text
+    assert "als Kalenderdatei (.ics) herunterladen" in r.text
+
+
 # ── Token-Rotation über Admin ────────────────────────────────────
 
 def test_token_rotation_invalidates_old(client, session):

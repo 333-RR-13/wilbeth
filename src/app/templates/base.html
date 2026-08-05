@@ -68,7 +68,23 @@
         </svg>
         Einsätze
       </a>
+      {% if cu and cu.rolle in ("orga", "admin") %}
+      <a href="/auto-plan" class="nav-link {% if active_nav == 'auto_plan' %}active{% endif %}">
+        <svg viewBox="0 0 16 16" fill="currentColor">
+          <path d="M2 2h12v2H2zm0 4h8v2H2zm0 4h5v2H2zm8 1 4-3-4-3v2H7v2h3v2z"/>
+        </svg>
+        Auto-Plan
+      </a>
+      <a href="/abwesenheiten/" class="nav-link {% if active_nav == 'abwesenheiten' %}active{% endif %}">
+        <svg viewBox="0 0 16 16" fill="currentColor">
+          <path d="M6 2h4a1 1 0 0 1 1 1v1h3v2H2V4h3V3a1 1 0 0 1 1-1zm0 1.5v.5h4v-.5H6zM2 8h12v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V8zm3 2.5v3h1v-3H5zm5 0v3h1v-3h-1z"/>
+        </svg>
+        Abwesenheiten
+      </a>
+      {% endif %}
+
       {% if cu and cu.rolle in ("ausbilder", "orga", "admin") %}
+      <div class="nav-section-label">Ausbilder</div>
       <a href="/meine-abteilung/" class="nav-link {% if active_nav == 'meine_abteilung' %}active{% endif %}">
         <svg viewBox="0 0 16 16" fill="currentColor">
           <path d="M1 3h14v2H1zm2 4h10v2H3zm2 4h6v2H5z"/>
@@ -81,32 +97,14 @@
         </svg>
         Feedback
       </a>
-      {% endif %}
-      {% if cu and cu.rolle in ("orga", "admin") %}
-      <a href="/abwesenheiten/" class="nav-link {% if active_nav == 'abwesenheiten' %}active{% endif %}">
-        <svg viewBox="0 0 16 16" fill="currentColor">
-          <path d="M6 2h4a1 1 0 0 1 1 1v1h3v2H2V4h3V3a1 1 0 0 1 1-1zm0 1.5v.5h4v-.5H6zM2 8h12v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V8zm3 2.5v3h1v-3H5zm5 0v3h1v-3h-1z"/>
-        </svg>
-        Abwesenheiten
-      </a>
+      {% if cu.rolle in ("orga", "admin") %}
       <a href="/vorschlaege/" class="nav-link {% if active_nav == 'vorschlaege' %}active{% endif %}">
         <svg viewBox="0 0 16 16" fill="currentColor">
           <path d="M2 2h9l3 3v9H2V2zm1 1v10h10V5.4L10.6 3H3zm2 3h6v1H5V6zm0 3h6v1H5V9zm0 3h4v1H5v-1z"/>
         </svg>
         Vorschläge
       </a>
-      <a href="/auto-plan" class="nav-link {% if active_nav == 'auto_plan' %}active{% endif %}">
-        <svg viewBox="0 0 16 16" fill="currentColor">
-          <path d="M2 2h12v2H2zm0 4h8v2H2zm0 4h5v2H2zm8 1 4-3-4-3v2H7v2h3v2z"/>
-        </svg>
-        Auto-Plan
-      </a>
-      <a href="/import" class="nav-link {% if active_nav == 'import' %}active{% endif %}">
-        <svg viewBox="0 0 16 16" fill="currentColor">
-          <path d="M8 1v8.5l-3-3-.7.7L8 11l3.7-3.8-.7-.7-3 3V1H8zM2 13h12v2H2z"/>
-        </svg>
-        Import
-      </a>
+      {% endif %}
       {% endif %}
 
       <div class="nav-section-label">Stammdaten</div>
@@ -154,13 +152,25 @@
         </svg>
         Trainees
       </a>
-      {% if cu and cu.rolle == "admin" %}
-      <a href="/daten/" class="nav-link {% if active_nav == 'daten' %}active{% endif %}">
+
+      {% if cu and cu.rolle in ("orga", "admin") %}
+      <div class="nav-section-label">Dev-Tools</div>
+      <a href="/import" class="nav-link {% if active_nav == 'import' %}active{% endif %}">
         <svg viewBox="0 0 16 16" fill="currentColor">
           <path d="M8 1v8.5l-3-3-.7.7L8 11l3.7-3.8-.7-.7-3 3V1H8zM2 13h12v2H2z"/>
         </svg>
+        Import
+      </a>
+      {% if cu.rolle == "admin" %}
+      <a href="/daten/" class="nav-link {% if active_nav == 'daten' %}active{% endif %}">
+        {# Archiv-/Tresor-Icon: bewusst anders als der Import-Pfeil darueber,
+           damit die beiden Eintraege der Sektion unterscheidbar bleiben #}
+        <svg viewBox="0 0 16 16" fill="currentColor">
+          <path d="M1 2h14v3H1V2zm1 4h12v8a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6zm4 2v1.5h4V8H6z"/>
+        </svg>
         Datensicherung
       </a>
+      {% endif %}
       {% endif %}
     </nav>
 
