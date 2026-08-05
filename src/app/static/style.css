@@ -1654,3 +1654,324 @@ td[draggable="true"]:active {
   font-size: 12px;
   font-weight: 500;
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   Feedbackbögen (Staff + Azubi-Ansicht, gemeinsames Layout)
+   Präfix fb-* -- genutzt von feedback/form.html, feedback/detail.html,
+   share/feedback_form.html und share/feedback.html. Zentral hier statt in
+   <style>-Blöcken der einzelnen Templates, damit Staff- und Azubi-Fassung
+   optisch identisch sind (siehe Aufgabenstellung "Feedbackbögen kosmetisch
+   überarbeiten").
+   ══════════════════════════════════════════════════════════════════════ */
+
+.fb-section {
+  margin-bottom: 24px;
+  padding: 28px 32px;
+}
+
+.fb-section-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.fb-gruppe { margin-bottom: 26px; }
+.fb-gruppe:last-child { margin-bottom: 0; }
+
+.fb-gruppe-titel {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 12px;
+}
+
+/* ── Kopf-Fakten (Azubi, Zeitraum, Abteilung, Status) ───────────────────── */
+.fb-kopf-card { position: relative; }
+
+.fb-kopf-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px 28px;
+}
+
+.fb-kopf-item { display: flex; flex-direction: column; gap: 5px; }
+
+.fb-kopf-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.fb-kopf-value { font-size: 15px; color: var(--text-primary); font-weight: 500; }
+.fb-kopf-value .badge { font-size: 12px; }
+
+.fb-print-head-spacer { display: none; }
+
+/* ── Skala-Bewertungstabelle ─────────────────────────────────────────── */
+.fb-skala-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.fb-skala-table {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+}
+
+.fb-skala-table th,
+.fb-skala-table td { border-bottom: 1px solid var(--border); }
+
+.fb-skala-table tbody tr:last-child td { border-bottom: none; }
+.fb-skala-table tbody tr:nth-child(even) { background: var(--page-bg); }
+
+.fb-skala-th-frage {
+  text-align: left;
+  padding: 10px 16px;
+  background: var(--surface);
+}
+
+.fb-skala-th-wert {
+  text-align: center;
+  vertical-align: bottom;
+  padding: 10px 6px;
+  width: 92px;
+  min-width: 84px;
+  background: var(--surface);
+  white-space: normal;
+}
+
+.fb-skala-th-num {
+  display: block;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.fb-skala-th-label {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+  line-height: 1.3;
+  margin-top: 3px;
+  text-transform: none;
+  white-space: normal;
+}
+
+.fb-skala-td-frage {
+  padding: 12px 16px;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.fb-skala-td-radio { padding: 0; text-align: center; height: 44px; }
+
+.fb-skala-radio-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 44px;
+  cursor: pointer;
+}
+
+.fb-skala-radio-label:hover { background: var(--accent-light); }
+
+.fb-skala-radio-label:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.fb-skala-radio-label input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.fb-skala-print-mark { display: none; }
+
+.fb-skala-td-mark { text-align: center; height: 44px; position: relative; }
+
+.fb-skala-td-mark--active { background: var(--accent-light); }
+
+.fb-skala-td-mark--active::after {
+  content: "";
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* ── Lernziel-Tabelle (read-only) + Zeilen (editierbar) ─────────────────── */
+.fb-lernziel-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+
+.fb-lernziel-table th {
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+.fb-lernziel-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 14px; }
+.fb-lernziel-table tr:last-child td { border-bottom: none; }
+
+.fb-lernziel-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.fb-lernziel-row:last-child { margin-bottom: 0; }
+
+.fb-lernziel-row input[type="text"] { flex: 1 1 auto; min-width: 0; }
+.fb-lernziel-row select { width: 260px; flex-shrink: 0; }
+
+/* ── Freitext-Bereich ────────────────────────────────────────────────── */
+.fb-freitext { margin-bottom: 22px; }
+.fb-freitext:last-child { margin-bottom: 0; }
+.fb-freitext label { display: block; margin-bottom: 8px; }
+.fb-freitext textarea { width: 100%; min-height: 130px; }
+
+.fb-freitext-value {
+  font-size: 14px;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+/* ── Fehlzeiten (kompakte Zahlenfelder nebeneinander) ───────────────────── */
+.fb-fehlzeiten-grid { display: flex; flex-wrap: wrap; gap: 22px; }
+.fb-fehlzeiten-item { display: flex; flex-direction: column; gap: 6px; }
+.fb-fehlzeiten-item label { white-space: nowrap; }
+.fb-fehlzeiten-item input[type="number"] { width: 100px; }
+
+/* ── Radiogruppe (z. B. "Weiterer Einsatz?") ─────────────────────────── */
+.fb-radio-group { display: flex; flex-wrap: wrap; gap: 18px; }
+
+.fb-radio-option {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.fb-radio-option input[type="radio"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* ── Status-Verlauf ──────────────────────────────────────────────────── */
+.fb-status-liste { padding-left: 20px; }
+.fb-status-liste li { color: var(--text-secondary); line-height: 1.8; font-size: 14px; }
+
+/* ── "Als besprochen markieren"-Mini-Form im Detail-Header ─────────────── */
+.fb-besprochen-form { display: inline-flex; gap: 8px; align-items: center; }
+
+/* ── Hinweistexte (Partner-Bogen-Link, Bestätigungs-Hinweis, ...) ──────── */
+.fb-hinweis { font-size: 13px; color: var(--text-secondary); margin-top: 10px; }
+
+/* ── Bestätigen-Mini-Form (Azubi: "Zur Kenntnis genommen") ─────────────── */
+.fb-bestaetigen-form { margin-top: 16px; }
+
+/* ── Übersicht der Abteilungs-Blöcke (share/feedback.html) ─────────────── */
+.fb-block-list { display: flex; flex-direction: column; gap: 14px; }
+
+.fb-block-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 12px; margin-bottom: 12px; flex-wrap: wrap;
+}
+
+.fb-block-dept { font-weight: 600; }
+.fb-block-zeitraum { font-size: 13px; color: var(--text-muted); }
+.fb-block-rows { display: flex; flex-direction: column; }
+
+.fb-block-row {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  padding: 12px 0; border-top: 1px solid var(--border); flex-wrap: wrap;
+}
+
+.fb-block-row:first-child { border-top: none; }
+.fb-block-row-label { color: var(--text-secondary); font-size: 14px; }
+.fb-block-row-value { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.fb-not-yet { color: var(--text-muted); font-size: 13px; font-style: italic; }
+
+/* ── Drucken-Button ──────────────────────────────────────────────────── */
+.fb-print-btn { flex-shrink: 0; }
+
+/* ── Print: Sidebar/Buttons/Filter/Flash ausblenden, Kopf wiederholen ──── */
+@media print {
+  .flash { display: none !important; }
+  .fb-no-print { display: none !important; }
+
+  .fb-section {
+    box-shadow: none;
+    border: 1px solid var(--border);
+    break-inside: avoid;
+    margin-bottom: 14px;
+  }
+
+  .fb-skala-wrap { overflow: visible; border: none; }
+  .fb-skala-table { min-width: 0; font-size: 11px; }
+  .fb-skala-th-label { font-size: 8.5px; }
+
+  /* Native Radios drucken oft leer -> eigenes Kästchen über :checked anzeigen */
+  .fb-skala-radio-label { position: relative; }
+
+  .fb-skala-radio-label input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+  }
+
+  .fb-skala-print-mark {
+    display: inline-block;
+    width: 13px;
+    height: 13px;
+    border: 1.4px solid var(--text-secondary);
+    border-radius: 50%;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .fb-skala-radio-label input[type="radio"]:checked ~ .fb-skala-print-mark {
+    background: var(--text-primary);
+    border-color: var(--text-primary);
+  }
+
+  /* Kopfbereich (Azubi/Zeitraum/Abteilung/Status) auf jeder Druckseite wiederholen */
+  .fb-kopf-card {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 10px 18px;
+    font-size: 11px;
+    border: none;
+    border-bottom: 1px solid var(--border);
+    z-index: 10;
+  }
+
+  .fb-kopf-grid { gap: 4px 22px; }
+  .fb-kopf-label { font-size: 8px; }
+  .fb-kopf-value { font-size: 11px; }
+  .fb-print-head-spacer { display: block; height: 86px; }
+}

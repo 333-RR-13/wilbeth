@@ -4,41 +4,34 @@
 {% block content %}
 {# status_colors kommt aus dem Router-Kontext (feedback_def.STATUS_BADGE_FARBE) #}
 
-<style>
-  .feedback-kopf-facts {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 4px 16px;
-    font-size: 14px;
-  }
-  .feedback-kopf-facts dt { color: var(--text-muted); font-weight: 500; }
-  .feedback-kopf-facts dd { margin: 0; color: var(--text-primary); }
-
-  .feedback-gruppe-titel {
-    font-size: 13px; font-weight: 600; color: var(--text-secondary);
-    margin: 16px 0 8px;
-  }
-  .feedback-gruppe-titel:first-of-type { margin-top: 4px; }
-
-  .feedback-antwort-list {
-    display: grid; grid-template-columns: 1fr auto; gap: 6px 16px;
-    font-size: 14px; margin-bottom: 8px;
-  }
-  .feedback-antwort-list dt { color: var(--text-primary); }
-  .feedback-antwort-list dd { margin: 0; color: var(--text-secondary); font-weight: 500; white-space: nowrap; }
-
-  .feedback-freitext-label { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
-  .feedback-freitext-value { font-size: 14px; color: var(--text-primary); white-space: pre-wrap; }
-
-  .feedback-partner-hint { margin-top: 12px; font-size: 13px; color: var(--text-secondary); }
-
-  .feedback-card { margin-bottom: 20px; }
-
-  .status-verlauf-list { padding-left: 20px; }
-  .status-verlauf-list li { color: var(--text-secondary); line-height: 1.7; }
-
-  .besprochen-form { display: inline-flex; gap: 8px; align-items: center; }
-</style>
+{% macro skala_matrix_readonly(items, skala, antworten) %}
+<div class="fb-skala-wrap">
+  <table class="fb-skala-table">
+    <thead>
+      <tr>
+        <th class="fb-skala-th-frage" scope="col"></th>
+        {% for wert, label in skala %}
+        <th class="fb-skala-th-wert" scope="col">
+          <span class="fb-skala-th-num">{{ wert }}</span>
+          <span class="fb-skala-th-label">{{ label }}</span>
+        </th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in items %}
+      <tr>
+        <td class="fb-skala-td-frage">{{ item.text }}</td>
+        {% for wert, label in skala %}
+        <td class="fb-skala-td-mark{{ ' fb-skala-td-mark--active' if antworten.get(item.key) == wert else '' }}"
+            aria-label="{{ label }}{{ ' – ausgewählt' if antworten.get(item.key) == wert else '' }}"></td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endmacro %}
 
 <div class="page-header">
   <div>
@@ -50,8 +43,9 @@
     </p>
   </div>
   <div class="btn-group">
+    <button type="button" class="btn btn-ghost fb-print-btn" onclick="window.print()">Drucken / als PDF</button>
     {% if bogen.status == 'abgeschlossen' %}
-    <form method="post" action="/feedback/{{ bogen.id }}/besprochen" class="besprochen-form">
+    <form method="post" action="/feedback/{{ bogen.id }}/besprochen" class="fb-besprochen-form">
       <input type="date" name="besprochen_am" value="{{ today }}">
       <button type="submit" class="btn btn-primary">Als besprochen markieren</button>
     </form>
@@ -70,105 +64,105 @@
   </div>
 </div>
 
-<div class="card card-body feedback-card">
-  <dl class="feedback-kopf-facts">
-    <dt>Azubi</dt><dd>{{ (trainee.nachname ~ ', ' ~ trainee.vorname) if trainee else '–' }}</dd>
-    <dt>Ausbildungsrichtung</dt><dd>{{ beruf_lang if beruf_lang else '–' }}</dd>
-    <dt>Jahrgang</dt><dd>{{ jahrgang if jahrgang else '–' }}</dd>
-    <dt>Team</dt><dd>{{ (department.code ~ ' – ' ~ department.name) if department else '–' }}</dd>
-    <dt>Zeitraum</dt><dd class="mono">KW {{ bogen.kw_von }}/{{ bogen.jahr_von }} – KW {{ bogen.kw_bis }}/{{ bogen.jahr_bis }}</dd>
-    <dt>Einsatzart</dt><dd>{{ bogen.einsatzart or '–' }}</dd>
+<div class="card fb-section fb-kopf-card">
+  <div class="fb-kopf-grid">
+    <div class="fb-kopf-item"><span class="fb-kopf-label">Azubi</span><span class="fb-kopf-value">{{ (trainee.nachname ~ ', ' ~ trainee.vorname) if trainee else '–' }}</span></div>
+    <div class="fb-kopf-item"><span class="fb-kopf-label">Ausbildungsrichtung</span><span class="fb-kopf-value">{{ beruf_lang if beruf_lang else '–' }}</span></div>
+    <div class="fb-kopf-item"><span class="fb-kopf-label">Jahrgang</span><span class="fb-kopf-value">{{ jahrgang if jahrgang else '–' }}</span></div>
+    <div class="fb-kopf-item"><span class="fb-kopf-label">Team</span><span class="fb-kopf-value">{{ (department.code ~ ' – ' ~ department.name) if department else '–' }}</span></div>
+    <div class="fb-kopf-item"><span class="fb-kopf-label">Zeitraum</span><span class="fb-kopf-value mono">KW {{ bogen.kw_von }}/{{ bogen.jahr_von }} – KW {{ bogen.kw_bis }}/{{ bogen.jahr_bis }}</span></div>
+    <div class="fb-kopf-item"><span class="fb-kopf-label">Einsatzart</span><span class="fb-kopf-value">{{ bogen.einsatzart or '–' }}</span></div>
     {% if typ == 'AUSBILDER' %}
-    <dt>Fachausbilder</dt><dd>{{ bogen.fachausbilder_name or '–' }}</dd>
+    <div class="fb-kopf-item"><span class="fb-kopf-label">Fachausbilder</span><span class="fb-kopf-value">{{ bogen.fachausbilder_name or '–' }}</span></div>
     {% endif %}
-  </dl>
+    <div class="fb-kopf-item"><span class="fb-kopf-label">Status</span><span class="fb-kopf-value"><span class="badge badge-{{ status_colors.get(bogen.status, 'gray') }}">{{ status_labels.get(bogen.status, bogen.status) }}</span></span></div>
+  </div>
   {% if partner %}
-  <p class="feedback-partner-hint">
+  <p class="fb-hinweis">
     {% if partner.typ == 'AZUBI' %}Zugehöriger Azubi-Bogen:{% else %}Zugehöriger Ausbilder-Bogen:{% endif %}
     <a href="/feedback/{{ partner.id }}">ansehen</a>
   </p>
   {% endif %}
 </div>
+<div class="fb-print-head-spacer" aria-hidden="true"></div>
 
 {% if lernziele %}
-<div class="card card-body feedback-card">
-  <h2 class="form-section-title">Lernziele</h2>
-  <dl class="feedback-antwort-list">
+<div class="card fb-section">
+  <h2 class="fb-section-title">Lernziele</h2>
+  <table class="fb-lernziel-table">
+    <thead><tr><th>Lernziel</th><th>Bewertung</th></tr></thead>
+    <tbody>
     {% for lz in lernziele %}
-    <dt>{{ lz.text }}</dt>
-    <dd>{{ skala_lernziele_dict.get(lz.bewertung, '–') }}</dd>
+    <tr><td>{{ lz.text }}</td><td>{{ skala_lernziele_dict.get(lz.bewertung, '–') }}</td></tr>
     {% endfor %}
-  </dl>
+    </tbody>
+  </table>
 </div>
 {% endif %}
 
 {% for sektion in sektionen %}
-<div class="card card-body feedback-card">
-  <h2 class="form-section-title">{{ sektion.titel }}</h2>
+<div class="card fb-section">
+  <h2 class="fb-section-title">{{ sektion.titel }}</h2>
   {% if 'gruppen' in sektion %}
     {% for gruppe in sektion.gruppen %}
-    <h3 class="feedback-gruppe-titel">{{ gruppe.titel }}</h3>
-    <dl class="feedback-antwort-list">
-      {% for item in gruppe['items'] %}
-      <dt>{{ item.text }}</dt>
-      <dd>{{ skala_dict.get(antworten.get(item.key), '–') }}</dd>
-      {% endfor %}
-    </dl>
+    <div class="fb-gruppe">
+      <h3 class="fb-gruppe-titel">{{ gruppe.titel }}</h3>
+      {{ skala_matrix_readonly(gruppe['items'], skala, antworten) }}
+    </div>
     {% endfor %}
   {% else %}
-    <dl class="feedback-antwort-list">
-      {% for item in sektion['items'] %}
-      <dt>{{ item.text }}</dt>
-      <dd>{{ skala_dict.get(antworten.get(item.key), '–') }}</dd>
-      {% endfor %}
-    </dl>
+    {{ skala_matrix_readonly(sektion['items'], skala, antworten) }}
   {% endif %}
 </div>
 {% endfor %}
 
 {% if freitext_felder %}
-<div class="card card-body feedback-card">
-  <h2 class="form-section-title">Kommentare</h2>
+<div class="card fb-section">
+  <h2 class="fb-section-title">Kommentare</h2>
   {% for feld in freitext_felder %}
-  <div style="margin-bottom:14px;">
-    <p class="feedback-freitext-label">{{ feld.label }}</p>
-    <p class="feedback-freitext-value">{{ freitexte.get(feld.key) or '–' }}</p>
+  <div class="fb-freitext">
+    <label>{{ feld.label }}</label>
+    <div class="fb-freitext-value">{{ freitexte.get(feld.key) or '–' }}</div>
   </div>
   {% endfor %}
 </div>
 {% endif %}
 
 {% if typ == 'AUSBILDER' %}
-<div class="card card-body feedback-card">
-  <h2 class="form-section-title">Fehlzeiten (in Tagen)</h2>
-  <dl class="feedback-kopf-facts">
-    <dt>Krank</dt><dd>{{ bogen.fehl_krank if bogen.fehl_krank is not none else '–' }}</dd>
-    <dt>Urlaub</dt><dd>{{ bogen.fehl_urlaub if bogen.fehl_urlaub is not none else '–' }}</dd>
-    <dt>Schule</dt><dd>{{ bogen.fehl_schule if bogen.fehl_schule is not none else '–' }}</dd>
-    <dt>Sonstige</dt><dd>{{ bogen.fehl_sonstige if bogen.fehl_sonstige is not none else '–' }}</dd>
-  </dl>
+<div class="card fb-section">
+  <h2 class="fb-section-title">Fehlzeiten (in Tagen)</h2>
+  <div class="fb-fehlzeiten-grid">
+    <div class="fb-kopf-item"><span class="fb-kopf-label">Krank</span><span class="fb-kopf-value">{{ bogen.fehl_krank if bogen.fehl_krank is not none else '–' }}</span></div>
+    <div class="fb-kopf-item"><span class="fb-kopf-label">Urlaub</span><span class="fb-kopf-value">{{ bogen.fehl_urlaub if bogen.fehl_urlaub is not none else '–' }}</span></div>
+    <div class="fb-kopf-item"><span class="fb-kopf-label">Schule</span><span class="fb-kopf-value">{{ bogen.fehl_schule if bogen.fehl_schule is not none else '–' }}</span></div>
+    <div class="fb-kopf-item"><span class="fb-kopf-label">Sonstige</span><span class="fb-kopf-value">{{ bogen.fehl_sonstige if bogen.fehl_sonstige is not none else '–' }}</span></div>
+  </div>
 </div>
 {% endif %}
 
-<div class="card card-body feedback-card">
-  <h2 class="form-section-title">Abschluss</h2>
-  <dl class="feedback-kopf-facts">
-    <dt>Weiterer Einsatz vorstellbar?</dt>
-    <dd>
-      {%- if bogen.weiterer_einsatz == 'ja' %}Ja
-      {%- elif bogen.weiterer_einsatz == 'nein' %}Nein
-      {%- else %}–{% endif %}
-    </dd>
+<div class="card fb-section">
+  <h2 class="fb-section-title">Abschluss</h2>
+  <div class="fb-kopf-grid">
+    <div class="fb-kopf-item">
+      <span class="fb-kopf-label">Weiterer Einsatz vorstellbar?</span>
+      <span class="fb-kopf-value">
+        {%- if bogen.weiterer_einsatz == 'ja' %}Ja
+        {%- elif bogen.weiterer_einsatz == 'nein' %}Nein
+        {%- else %}–{% endif %}
+      </span>
+    </div>
     {% if typ == 'AUSBILDER' %}
-    <dt>Zugriffsberechtigungen gelöscht?</dt>
-    <dd>{{ 'Ja' if bogen.zugriffe_geloescht else 'Nein' }}</dd>
+    <div class="fb-kopf-item">
+      <span class="fb-kopf-label">Zugriffsberechtigungen gelöscht?</span>
+      <span class="fb-kopf-value">{{ 'Ja' if bogen.zugriffe_geloescht else 'Nein' }}</span>
+    </div>
     {% endif %}
-  </dl>
+  </div>
 </div>
 
-<div class="card card-body">
-  <h2 class="form-section-title">Status-Verlauf</h2>
-  <ul class="status-verlauf-list">
+<div class="card fb-section">
+  <h2 class="fb-section-title">Status-Verlauf</h2>
+  <ul class="fb-status-liste">
     <li>Erstellt am {{ bogen.erstellt_am.strftime('%d.%m.%Y') if bogen.erstellt_am else '–' }}{% if bogen.erstellt_von_upn %} von {{ bogen.erstellt_von_upn }}{% endif %}</li>
     {% if bogen.aktualisiert_am %}
     <li>Zuletzt aktualisiert am {{ bogen.aktualisiert_am.strftime('%d.%m.%Y') }}</li>
