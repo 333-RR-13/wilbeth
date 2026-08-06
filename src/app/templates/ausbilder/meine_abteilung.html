@@ -122,7 +122,6 @@
 <div class="card card-body" style="margin-bottom:24px;">
   <div class="form-section-title">Einsatz vorschlagen</div>
   <form method="post" action="/meine-abteilung/vorschlag">
-    <input type="hidden" name="schoolyear_id" value="{{ selected_year }}">
     <div class="vorschlag-form-grid">
       <div class="form-group">
         <label for="vor-trainee">Azubi</label>
@@ -141,20 +140,28 @@
         </select>
       </div>
       <div class="form-group">
-        <label for="vor-kw-von">KW von</label>
-        <input type="number" id="vor-kw-von" name="kw_von" min="1" max="53" required>
+        <label for="vor-schoolyear">Ausbildungsjahr</label>
+        <select id="vor-schoolyear" name="schoolyear_id" required>
+          {% for y in years %}
+          <option value="{{ y.id }}" {{ 'selected' if y.id == selected_year else '' }}>{{ y.id }}</option>
+          {% endfor %}
+        </select>
       </div>
       <div class="form-group">
-        <label for="vor-jahr-von">Jahr von</label>
-        <input type="number" id="vor-jahr-von" name="jahr_von" required>
+        <label for="vor-kw-von">von Woche</label>
+        <select id="vor-kw-von" name="von" required>
+          {% for opt in weeks_by_year.get(selected_year, []) %}
+          <option value="{{ opt.value }}">{{ opt.label }}</option>
+          {% endfor %}
+        </select>
       </div>
       <div class="form-group">
-        <label for="vor-kw-bis">KW bis</label>
-        <input type="number" id="vor-kw-bis" name="kw_bis" min="1" max="53" required>
-      </div>
-      <div class="form-group">
-        <label for="vor-jahr-bis">Jahr bis</label>
-        <input type="number" id="vor-jahr-bis" name="jahr_bis" required>
+        <label for="vor-kw-bis">bis Woche</label>
+        <select id="vor-kw-bis" name="bis" required>
+          {% for opt in weeks_by_year.get(selected_year, []) %}
+          <option value="{{ opt.value }}">{{ opt.label }}</option>
+          {% endfor %}
+        </select>
       </div>
     </div>
     <div class="form-group" style="margin-bottom:16px;">
@@ -164,6 +171,37 @@
     <button type="submit" class="btn btn-primary">Vorschlag einreichen</button>
   </form>
 </div>
+
+<script>
+(function () {
+  // Wochen-Optionen je Schuljahr (siehe app.routers.ausbilder._week_options) --
+  // ermoeglicht das Nachladen der KW-Selects bei Jahreswechsel im Formular
+  // ohne Server-Roundtrip. Ohne JS bleiben die serverseitig vorbelegten
+  // Wochen des aktuell gewaehlten Jahres stehen -- das Formular funktioniert
+  // dann weiterhin fuer dieses Jahr.
+  var WEEKS_BY_YEAR = {{ weeks_by_year_json | safe }};
+  var yearSelect = document.getElementById('vor-schoolyear');
+  var vonSelect = document.getElementById('vor-kw-von');
+  var bisSelect = document.getElementById('vor-kw-bis');
+  if (!yearSelect || !vonSelect || !bisSelect) return;
+
+  function fillWeeks(select, weeks) {
+    select.innerHTML = '';
+    weeks.forEach(function (w) {
+      var opt = document.createElement('option');
+      opt.value = w.value;
+      opt.textContent = w.label;
+      select.appendChild(opt);
+    });
+  }
+
+  yearSelect.addEventListener('change', function () {
+    var weeks = WEEKS_BY_YEAR[yearSelect.value] || [];
+    fillWeeks(vonSelect, weeks);
+    fillWeeks(bisSelect, weeks);
+  });
+})();
+</script>
 
 <div class="form-section-title">Meine Vorschläge</div>
 <div class="table-wrapper">

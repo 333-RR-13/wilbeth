@@ -34,7 +34,7 @@ from app.models import (
     TraineeWish,
     UnterrichtsTyp,
 )
-from app.models.trainee_wish import prioritaet_label
+from app.models.trainee_wish import group_wishes_by_priority, prioritaet_label
 from app.services.abwesenheit_utils import abwesenheit_map
 from app.services.feedback_def import (
     AUSBILDER_SEKTIONEN,
@@ -582,17 +582,27 @@ def delete_abwesenheit(
 def wuensche_page(request: Request, token: str, db: DB):
     trainee = _trainee_by_token(db, token)
 
-    wishes = {
-        w.department_id: w.prioritaet
-        for w in db.exec(select(TraineeWish).where(TraineeWish.trainee_id == trainee.id)).all()
-    }
+    # order_by(id) = gespeicherte Reihenfolge (Einfuege-Reihenfolge beim
+    # letzten Speichern) fuer die gruppierte Zusammenfassung unten.
+    own_wishes = db.exec(
+        select(TraineeWish)
+        .where(TraineeWish.trainee_id == trainee.id)
+        .order_by(TraineeWish.id)
+    ).all()
+    wishes = {w.department_id: w.prioritaet for w in own_wishes}
     all_depts = db.exec(select(Department).order_by(Department.code)).all()
+    depts_by_id = {d.id: d for d in all_depts}
+    wish_groups = group_wishes_by_priority([
+        (w.prioritaet, depts_by_id[w.department_id].code if w.department_id in depts_by_id else "?")
+        for w in own_wishes
+    ])
 
     return templates.TemplateResponse(request, "share/wuensche.html", {
         "trainee": trainee,
         "token": token,
         "active": "wuensche",
         "wishes": wishes,
+        "wish_groups": wish_groups,
         "wunsch_notiz": trainee.wunsch_notiz or "",
         "all_depts": all_depts,
     })

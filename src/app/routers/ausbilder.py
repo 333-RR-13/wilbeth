@@ -13,6 +13,7 @@
 Sicherheit: allowed_dept_ids(db, user) ist in beiden POST-Routen die alleinige
 Quelle der Wahrheit fuer "eigene Abteilung" -- jede Abweichung ist ein 403.
 """
+import json
 from datetime import date
 from typing import Annotated
 
@@ -35,11 +36,39 @@ from app.services.auth_service import CurrentUser, allowed_dept_ids, require_rol
 from app.services.block_utils import apply_to_block, assignment_blocks
 from app.services.feedback_utils import bogen_fuer_block
 from app.services.membership_utils import aktuelles_schuljahr_id
-from app.utils.kw import iter_schoolyear_weeks
+from app.utils.kw import iter_schoolyear_weeks, kw_to_monday
 
 router = APIRouter(prefix="/meine-abteilung", tags=["meine-abteilung"])
 templates = Jinja2Templates(directory=Path(__file__).resolve().parents[1] / "templates")
 DB = Annotated[Session, Depends(get_session)]
+
+
+# ── KW-Auswahl fuers Vorschlag-Formular ─────────────────────────────────────
+
+def _week_options(sy: Schoolyear) -> list[dict]:
+    """Baut die Wochen-Optionen (Wert 'kw,jahr' + Label) fuer die KW-Selects des
+    Vorschlag-Formulars -- deckt den Jahreswechsel innerhalb eines Schuljahres
+    ab (z. B. KW36/2025 .. KW35/2026)."""
+    options = []
+    for kw, jahr in iter_schoolyear_weeks(sy.start_kw, sy.start_year, sy.end_kw, sy.end_year):
+        monday = kw_to_monday(kw, jahr)
+        options.append({
+            "value": f"{kw},{jahr}",
+            "label": f"KW {kw} / {jahr} (ab {monday.strftime('%d.%m.')})",
+        })
+    return options
+
+
+def _parse_kw_kombi(raw: str) -> tuple[int | None, int | None]:
+    """Parst eine KW-Select-Option im Format 'kw,jahr' robust: alles
+    Ungueltige/Leere ergibt (None, None) statt eines 500ers."""
+    parts = (raw or "").split(",")
+    if len(parts) != 2:
+        return None, None
+    kw_str, jahr_str = parts[0].strip(), parts[1].strip()
+    if not kw_str.isdigit() or not jahr_str.isdigit():
+        return None, None
+    return int(kw_str), int(jahr_str)
 
 
 # ── Uebersicht ────────────────────────────────────────────────────────────
@@ -64,12 +93,21 @@ def meine_abteilung(
         # eine leere Seite zeigen). Fallback: neuestes nicht-archiviertes Jahr.
         schoolyear_id = aktuelles_schuljahr_id(db)
 
+    # KW-Optionen je (nicht-archiviertem) Schuljahr fuers Vorschlag-Formular --
+    # weeks_by_year fuer die serverseitige Vorbelegung (kein-JS-Fallback),
+    # weeks_by_year_json fuers Nachladen der Wochen-Selects bei Jahreswechsel
+    # im Formular (ohne Server-Roundtrip).
+    weeks_by_year = {y.id: _week_options(y) for y in years}
+    weeks_by_year_json = json.dumps(weeks_by_year)
+
     if not dept_ids:
         return templates.TemplateResponse(request, "ausbilder/meine_abteilung.html", {
             "no_dept": True,
             "user": user,
             "years": years,
             "selected_year": schoolyear_id,
+            "weeks_by_year": weeks_by_year,
+            "weeks_by_year_json": weeks_by_year_json,
             "active_nav": "meine_abteilung",
         })
 
@@ -121,6 +159,8 @@ def meine_abteilung(
         "own_vorschlaege": own_vorschlaege,
         "trainee_map": trainee_map,
         "dept_map": dept_map,
+        "weeks_by_year": weeks_by_year,
+        "weeks_by_year_json": weeks_by_year_json,
         "active_nav": "meine_abteilung",
     })
 
@@ -177,20 +217,23 @@ def create_vorschlag(
     trainee_id: Annotated[int, Form()],
     department_id: Annotated[int, Form()],
     schoolyear_id: Annotated[str, Form()],
-    kw_von: Annotated[int, Form()],
-    jahr_von: Annotated[int, Form()],
-    kw_bis: Annotated[int, Form()],
-    jahr_bis: Annotated[int, Form()],
+    von: Annotated[str, Form()],
+    bis: Annotated[str, Form()],
     kommentar: Annotated[str, Form()] = "",
 ):
+    """`von`/`bis` kommen aus den KW-Selects im Format 'kw,jahr' (siehe
+    _week_options) -- robust geparst, jede Ungueltigkeit ergibt 400, nie 500."""
     if department_id not in allowed_dept_ids(db, user):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
 
     sy = db.get(Schoolyear, schoolyear_id)
     if sy is None:
-        return RedirectResponse(
-            f"/meine-abteilung/?msg=error&schoolyear_id={schoolyear_id}", status_code=303
-        )
+        raise HTTPException(status_code=400, detail="Unbekanntes Ausbildungsjahr")
+
+    kw_von, jahr_von = _parse_kw_kombi(von)
+    kw_bis, jahr_bis = _parse_kw_kombi(bis)
+    if kw_von is None or kw_bis is None:
+        raise HTTPException(status_code=400, detail="Ungueltige Kalenderwoche")
 
     week_idx = {
         wk: i
@@ -200,10 +243,10 @@ def create_vorschlag(
     }
     idx_von = week_idx.get((kw_von, jahr_von))
     idx_bis = week_idx.get((kw_bis, jahr_bis))
-    if idx_von is None or idx_bis is None or idx_von > idx_bis:
-        return RedirectResponse(
-            f"/meine-abteilung/?msg=error&schoolyear_id={schoolyear_id}", status_code=303
-        )
+    if idx_von is None or idx_bis is None:
+        raise HTTPException(status_code=400, detail="Woche liegt nicht im gewaehlten Ausbildungsjahr")
+    if idx_von > idx_bis:
+        raise HTTPException(status_code=400, detail="'Bis'-Woche darf nicht vor der 'Von'-Woche liegen")
 
     db.add(EinsatzVorschlag(
         trainee_id=trainee_id,

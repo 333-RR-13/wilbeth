@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}Wilbeth{% endblock %} – Einsatzplanung</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=3">
-  <link rel="stylesheet" href="/static/style.css?v=8">
+  <link rel="stylesheet" href="/static/style.css?v=9">
   <style>
     .user-badge {
       padding: 10px 8px;
@@ -120,14 +120,6 @@
         </svg>
         Klassen
       </a>
-      {% if cu and cu.rolle == "admin" %}
-      <a href="/jahresabschluss/" class="nav-link {% if active_nav == 'jahreswechsel' %}active{% endif %}">
-        <svg viewBox="0 0 16 16" fill="currentColor">
-          <path d="M1 8a7 7 0 1 0 14 0A7 7 0 0 0 1 8zm7-5v1.5l2.5 1.5-.75 1.3L7 5.7V3H8zm0 10a5 5 0 1 1 0-10 5 5 0 0 1 0 10z"/>
-        </svg>
-        Jahresabschluss
-      </a>
-      {% endif %}
       <a href="/schulplaene/" class="nav-link {% if active_nav == 'schulplaene' %}active{% endif %}">
         <svg viewBox="0 0 16 16" fill="currentColor">
           <path d="M2 1h12a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1zm1 2v10h10V3H3zm2 2h6v1H5V5zm0 2h6v1H5V7zm0 2h4v1H5V9z"/>
@@ -169,6 +161,12 @@
           <path d="M1 2h14v3H1V2zm1 4h12v8a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6zm4 2v1.5h4V8H6z"/>
         </svg>
         Datensicherung
+      </a>
+      <a href="/jahresabschluss/" class="nav-link {% if active_nav == 'jahreswechsel' %}active{% endif %}">
+        <svg viewBox="0 0 16 16" fill="currentColor">
+          <path d="M1 8a7 7 0 1 0 14 0A7 7 0 0 0 1 8zm7-5v1.5l2.5 1.5-.75 1.3L7 5.7V3H8zm0 10a5 5 0 1 1 0-10 5 5 0 0 1 0 10z"/>
+        </svg>
+        Jahresabschluss
       </a>
       {% endif %}
       {% endif %}

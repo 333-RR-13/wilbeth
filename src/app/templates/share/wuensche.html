@@ -9,6 +9,28 @@
   </div>
 </div>
 
+{% if wish_groups or wunsch_notiz %}
+<div class="card card-body" style="margin-bottom: 20px;">
+  <h2 class="form-section-title">Deine gespeicherte Wunschliste</h2>
+  {% for label, codes in wish_groups %}
+  <div class="wish-group">
+    <div class="wish-group-label">{{ label }}</div>
+    <div class="wish-chips">
+      {% for code in codes %}
+      <span class="wish-chip">{{ code }}</span>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+  {% if wunsch_notiz %}
+  <div class="wish-group">
+    <div class="wish-group-label">Notizen / Anmerkungen</div>
+    <p class="wish-notiz">{{ wunsch_notiz }}</p>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
 <div class="card card-body">
   <form method="post" action="/mein-plan/{{ token }}/wuensche">
     <table class="share-wish-table">

@@ -156,10 +156,8 @@ def test_post_vorschlag_creates_einsatz_vorschlag(client, session, monkeypatch):
         "trainee_id": ids["trainee"],
         "department_id": ids["own"],
         "schoolyear_id": SY,
-        "kw_von": 10,
-        "jahr_von": 2026,
-        "kw_bis": 12,
-        "jahr_bis": 2026,
+        "von": "10,2026",
+        "bis": "12,2026",
         "kommentar": "Bitte einplanen",
     }, follow_redirects=False)
     assert r.status_code == 303
@@ -185,13 +183,71 @@ def test_post_vorschlag_foreign_department_forbidden(client, session, monkeypatc
         "trainee_id": ids["trainee"],
         "department_id": ids["foreign"],
         "schoolyear_id": SY,
-        "kw_von": 10,
-        "jahr_von": 2026,
-        "kw_bis": 12,
-        "jahr_bis": 2026,
+        "von": "10,2026",
+        "bis": "12,2026",
         "kommentar": "",
     })
     assert r.status_code == 403
+    assert session.exec(select(EinsatzVorschlag)).first() is None
+
+
+# ── (e2) Vorschlag-Formular: KW-Selects statt Handeingabe ────────────────────
+
+def test_meine_abteilung_zeigt_kw_selects_statt_freitextfelder(client, session, monkeypatch):
+    """Die frueheren Zahl-Eingabefelder (kw_von/jahr_von/kw_bis/jahr_bis) sind
+    weg -- stattdessen ein Ausbildungsjahr-Select sowie 'von'/'bis'-Wochen-
+    Selects, deren Optionen genau die Wochen des gewaehlten Schuljahres
+    abdecken (SY 2025-2026 = KW36/2025 .. KW35/2026)."""
+    _dev_mode(monkeypatch)
+    _setup(session)
+    _login(client, "ausbilder")
+
+    r = client.get(f"/meine-abteilung/?schoolyear_id={SY}")
+    assert r.status_code == 200
+    assert 'id="vor-schoolyear"' in r.text
+    assert 'id="vor-kw-von"' in r.text
+    assert 'id="vor-kw-bis"' in r.text
+    assert 'name="kw_von"' not in r.text
+    assert 'name="jahr_von"' not in r.text
+    # Erste und letzte Woche des Schuljahres sind als Option vorhanden
+    assert 'value="36,2025"' in r.text
+    assert 'value="35,2026"' in r.text
+    assert "KW 36 / 2025" in r.text
+    # Wochen aller Schuljahre stehen fuers JS-Nachladen ohne Server-Roundtrip zur Verfuegung
+    assert "WEEKS_BY_YEAR" in r.text
+
+
+def test_post_vorschlag_bis_vor_von_ergibt_400(client, session, monkeypatch):
+    _dev_mode(monkeypatch)
+    ids = _setup(session)
+    _login(client, "ausbilder")
+
+    r = client.post("/meine-abteilung/vorschlag", data={
+        "trainee_id": ids["trainee"],
+        "department_id": ids["own"],
+        "schoolyear_id": SY,
+        "von": "12,2026",
+        "bis": "10,2026",
+        "kommentar": "",
+    })
+    assert r.status_code == 400
+    assert session.exec(select(EinsatzVorschlag)).first() is None
+
+
+def test_post_vorschlag_ungueltige_kw_ergibt_400_kein_500(client, session, monkeypatch):
+    _dev_mode(monkeypatch)
+    ids = _setup(session)
+    _login(client, "ausbilder")
+
+    r = client.post("/meine-abteilung/vorschlag", data={
+        "trainee_id": ids["trainee"],
+        "department_id": ids["own"],
+        "schoolyear_id": SY,
+        "von": "nicht-numerisch",
+        "bis": "12,2026",
+        "kommentar": "",
+    })
+    assert r.status_code == 400
     assert session.exec(select(EinsatzVorschlag)).first() is None
 
 

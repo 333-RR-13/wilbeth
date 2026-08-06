@@ -19,6 +19,26 @@ def prioritaet_label(p: int) -> str:
     return PRIORITAET_LABELS.get(p, str(p))
 
 
+def group_wishes_by_priority(entries: list[tuple[int, str]]) -> list[tuple[str, list[str]]]:
+    """Gruppiert (prioritaet, abteilungs_code)-Paare nach Prioritaet.
+
+    Reihenfolge der Gruppen ist immer Muss -> Sollte -> Kann (Stufen ohne
+    Eintraege werden weggelassen); innerhalb einer Gruppe bleibt die
+    uebergebene Reihenfolge der Eintraege erhalten.
+
+    >>> group_wishes_by_priority([(2, "BA"), (1, "CP"), (2, "AI")])
+    [('Muss', ['CP']), ('Sollte', ['BA', 'AI'])]
+    """
+    groups: dict[int, list[str]] = {}
+    for prioritaet, code in entries:
+        groups.setdefault(prioritaet, []).append(code)
+    return [
+        (prioritaet_label(p), groups[p])
+        for p in sorted(PRIORITAET_LABELS)
+        if p in groups
+    ]
+
+
 class TraineeWish(SQLModel, table=True):
     """Abteilungs-Wunsch eines Trainees mit Prioritaet.
 

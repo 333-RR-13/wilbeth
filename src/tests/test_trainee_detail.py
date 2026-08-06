@@ -16,6 +16,7 @@ from app.models import (
     TraineeClass,
     TraineeClassMembership,
     TraineeRolle,
+    TraineeWish,
     UnterrichtsTyp,
 )
 
@@ -186,6 +187,59 @@ def test_detail_conflict_highlight(client, session):
     r = client.get(f"/trainees/{t.id}")
     assert r.status_code == 200
     assert "row-conflict" in r.text
+
+
+def test_wuensche_gruppiert_nach_prioritaet(client, session):
+    """Wuensche erscheinen nach Prioritaet gruppiert (Muss/Sollte/Kann-
+    Ueberschriften in dieser Reihenfolge), mit den Abteilungs-Kuerzeln je
+    Stufe -- der Notiztext kommt darunter unter 'Notizen / Anmerkungen'."""
+    _schoolyear(session)
+    cp = Department(code="CP", name="Cloud Platform")
+    ba = Department(code="BA", name="Business Applications")
+    ai = Department(code="AI", name="Artificial Intelligence")
+    session.add_all([cp, ba, ai])
+    session.flush()
+    t = Trainee(vorname="Wanda", nachname="Wunsch", rolle=TraineeRolle.AZUBI,
+                wunsch_notiz="Bitte fair verteilen")
+    session.add(t)
+    session.flush()
+    session.add_all([
+        TraineeWish(trainee_id=t.id, department_id=cp.id, prioritaet=1),
+        TraineeWish(trainee_id=t.id, department_id=ba.id, prioritaet=2),
+        TraineeWish(trainee_id=t.id, department_id=ai.id, prioritaet=3),
+    ])
+    session.commit()
+
+    r = client.get(f"/trainees/{t.id}")
+    assert r.status_code == 200
+    muss_pos = r.text.index("Muss")
+    sollte_pos = r.text.index("Sollte")
+    kann_pos = r.text.index("Kann")
+    cp_pos = r.text.index(">CP<")
+    ba_pos = r.text.index(">BA<")
+    ai_pos = r.text.index(">AI<")
+    assert muss_pos < cp_pos < sollte_pos < ba_pos < kann_pos < ai_pos
+    assert "Notizen / Anmerkungen" in r.text
+    assert "Bitte fair verteilen" in r.text
+
+
+def test_wuensche_stufen_ohne_eintraege_werden_weggelassen(client, session):
+    """Prioritaetsstufen ohne Wuensche bekommen keine Ueberschrift."""
+    _schoolyear(session)
+    cp = Department(code="CP", name="Cloud Platform")
+    session.add(cp)
+    session.flush()
+    t = Trainee(vorname="Erik", nachname="Einzel", rolle=TraineeRolle.AZUBI)
+    session.add(t)
+    session.flush()
+    session.add(TraineeWish(trainee_id=t.id, department_id=cp.id, prioritaet=1))
+    session.commit()
+
+    r = client.get(f"/trainees/{t.id}")
+    assert r.status_code == 200
+    assert "Muss" in r.text
+    assert "Sollte" not in r.text
+    assert "Kann" not in r.text
 
 
 def test_list_links_to_detail(client, session):

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}Mein Plan{% endblock %} – {{ trainee.vorname }} {{ trainee.nachname }}</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=3">
-  <link rel="stylesheet" href="/static/style.css?v=8">
+  <link rel="stylesheet" href="/static/style.css?v=9">
 </head>
 <body>
 <div class="layout">
@@ -46,8 +46,14 @@
       </a>
       <a href="/mein-plan/{{ token }}/uebersicht"
          class="nav-link {% if active == 'uebersicht' %}active{% endif %}">
+        {# Personengruppen-Icon (drei Koepfe + gemeinsame Schulter) -- bewusst
+           anders als "Meine Klasse" (eine Person), damit beide Eintraege
+           unterscheidbar bleiben. #}
         <svg viewBox="0 0 16 16" fill="currentColor">
-          <path d="M1 1h6v6H1zm8 0h6v6H9zM1 9h6v6H1zm8 0h6v6H9z"/>
+          <path d="M0 14c0-4 3-7 8-7s8 3 8 7v1H0v-1z"/>
+          <circle cx="4" cy="5" r="1.6"/>
+          <circle cx="8" cy="3.4" r="1.9"/>
+          <circle cx="12" cy="5" r="1.6"/>
         </svg>
         Alle Azubis &amp; Studis
       </a>

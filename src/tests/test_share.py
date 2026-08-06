@@ -107,6 +107,24 @@ def test_my_plan_sidebar_links(client, session):
     assert "th-kw-num" in r.text
 
 
+def test_uebersicht_icon_ist_gruppe_nicht_kachel(client, session):
+    """'Alle Azubis & Studis' bekommt ein Personengruppen-Icon (drei Koepfe) --
+    das alte Kachel-Icon (vier Quadrate) ist weg. 'Meine Klasse' behaelt ihr
+    eigenes (Einzelperson-)Icon, damit beide Eintraege unterscheidbar bleiben.
+    """
+    _setup(session)
+    r = client.get(f"/mein-plan/{TOKEN}")
+    assert r.status_code == 200
+    # Altes Kachel-Icon (vier Quadrate) ist verschwunden
+    assert "M1 1h6v6H1zm8 0h6v6H9zM1 9h6v6H1zm8 0h6v6H9z" not in r.text
+    # Neues Gruppen-Icon: drei Kopf-Kreise ueber einer gemeinsamen Schulter
+    assert 'cx="4" cy="5" r="1.6"' in r.text
+    assert 'cx="8" cy="3.4" r="1.9"' in r.text
+    assert 'cx="12" cy="5" r="1.6"' in r.text
+    # "Meine Klasse" behaelt ihr bisheriges Einzelperson-Icon unveraendert
+    assert "M5 3.5a3 3 0 1 1 6 0 3 3 0 0 1-6 0zm3-1.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM0 13c0-3.3 3.1-6 8-6s8 2.7 8 6H0z" in r.text
+
+
 def test_abwesenheit_page_renders(client, session):
     _setup(session)
     r = client.get(f"/mein-plan/{TOKEN}/abwesenheit")
@@ -119,6 +137,33 @@ def test_wuensche_page_renders(client, session):
     r = client.get(f"/mein-plan/{TOKEN}/wuensche")
     assert r.status_code == 200
     assert "Wünsche" in r.text or "Priorität" in r.text
+
+
+def test_wuensche_page_zeigt_gruppierte_zusammenfassung(client, session):
+    """Die gespeicherten Wuensche erscheinen oberhalb des Formulars gruppiert
+    nach Prioritaet (Ueberschrift + Abteilungs-Kuerzel je Stufe), inkl. der
+    Notizen -- rein lesend, das Bearbeitungsformular bleibt unveraendert."""
+    ids = _setup(session)
+    session.add_all([
+        TraineeWish(trainee_id=ids["trainee"], department_id=ids["cp"], prioritaet=1),
+        TraineeWish(trainee_id=ids["trainee"], department_id=ids["ba"], prioritaet=3),
+    ])
+    trainee = session.get(Trainee, ids["trainee"])
+    trainee.wunsch_notiz = "Bitte Ruecksicht auf Zwischenpruefung"
+    session.add(trainee)
+    session.commit()
+
+    r = client.get(f"/mein-plan/{TOKEN}/wuensche")
+    assert r.status_code == 200
+    muss_pos = r.text.index("Muss")
+    kann_pos = r.text.index("Kann")
+    assert muss_pos < kann_pos
+    assert ">CP<" in r.text
+    assert ">BA<" in r.text
+    assert "Notizen / Anmerkungen" in r.text
+    assert "Bitte Ruecksicht auf Zwischenpruefung" in r.text
+    # Das Bearbeitungsformular (Selects je Abteilung) ist weiterhin vorhanden
+    assert 'name="prio_' in r.text
 
 
 # ── Abwesenheit eintragen ─────────────────────────────────────────

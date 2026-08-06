@@ -152,23 +152,25 @@
 </div>
 {% endif %}
 
-{# ── Wünsche des Azubis ─────────────────────────────────────────── #}
-{% if wishes or trainee.wunsch_notiz %}
+{# ── Wünsche des Azubis (gruppiert nach Prioritaet: Muss/Sollte/Kann) ────── #}
+{% if wish_groups or trainee.wunsch_notiz %}
 <div class="card card-body" style="margin-bottom: 24px;">
   <h2 class="form-section-title">Wünsche</h2>
-  {% if wishes %}
-  <div class="wish-chips">
-    {% for w in wishes %}
-    <span class="wish-chip">
-      <span class="wish-prio">{{ prioritaet_label(w.prioritaet) }}</span>
-      {{ depts[w.department_id].code if w.department_id in depts else '?' }}
-      <span class="wish-dept-name">{{ depts[w.department_id].name if w.department_id in depts else '' }}</span>
-    </span>
-    {% endfor %}
+  {% for label, codes in wish_groups %}
+  <div class="wish-group">
+    <div class="wish-group-label">{{ label }}</div>
+    <div class="wish-chips">
+      {% for code in codes %}
+      <span class="wish-chip">{{ code }}</span>
+      {% endfor %}
+    </div>
   </div>
-  {% endif %}
+  {% endfor %}
   {% if trainee.wunsch_notiz %}
-  <p class="wish-notiz">{{ trainee.wunsch_notiz }}</p>
+  <div class="wish-group">
+    <div class="wish-group-label">Notizen / Anmerkungen</div>
+    <p class="wish-notiz">{{ trainee.wunsch_notiz }}</p>
+  </div>
   {% endif %}
 </div>
 {% endif %}

@@ -1411,22 +1411,27 @@ td[draggable="true"]:active {
   font-weight: 500;
 }
 
-.wish-prio {
-  font-size: 11px;
-  font-weight: 700;
-  background: var(--accent);
-  color: #fff;
-  border-radius: var(--radius-sm);
-  padding: 0 5px;
+.wish-group {
+  margin-bottom: 14px;
+}
+.wish-group:last-child {
+  margin-bottom: 0;
 }
 
-.wish-dept-name { color: var(--text-secondary); font-weight: 400; }
+.wish-group-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
 
 .wish-notiz {
   font-size: 14px;
   color: var(--text-secondary);
   white-space: pre-wrap;
-  margin-top: 4px;
+  margin-top: 0;
 }
 
 /* ── Self-Service-Seite (/mein-plan) ────────────────────────────── */

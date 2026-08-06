@@ -20,7 +20,7 @@ from app.models import (
     TraineeRolle,
     TraineeWish,
 )
-from app.models.trainee_wish import prioritaet_label
+from app.models.trainee_wish import group_wishes_by_priority, prioritaet_label
 from app.services.auth_service import CurrentUser, require_roles
 from app.services.conflict_checker import find_conflicts
 from app.services.membership_utils import (
@@ -253,12 +253,18 @@ def trainee_detail(request: Request, trainee_id: int, db: DB):
     _today = date.today().isocalendar()
     today_key = f"{_today.week}~{_today.year}"
 
-    # Wuensche des Trainees (fuer die Planerin sichtbar), nach Prioritaet sortiert
+    # Wuensche des Trainees (fuer die Planerin sichtbar), gruppiert nach
+    # Prioritaet (Muss/Sollte/Kann); order_by(id) = gespeicherte Reihenfolge
+    # innerhalb einer Gruppe.
     wishes = db.exec(
         select(TraineeWish)
         .where(TraineeWish.trainee_id == trainee_id)
-        .order_by(TraineeWish.prioritaet)
+        .order_by(TraineeWish.id)
     ).all()
+    wish_groups = group_wishes_by_priority([
+        (w.prioritaet, depts[w.department_id].code if w.department_id in depts else "?")
+        for w in wishes
+    ])
 
     # ── Visitenkarte ────────────────────────────────────────────────
     # Klasse ueber klasse_fuer ermitteln (laufendes Schuljahr = berechneter Anker;
@@ -297,6 +303,7 @@ def trainee_detail(request: Request, trainee_id: int, db: DB):
         "conflict_cells": conflict_cells,
         "today_key": today_key,
         "wishes": wishes,
+        "wish_groups": wish_groups,
         "beruf_lang": beruf_lang,
         "ausbildungsbeginn": trainee.ausbildungsbeginn,
         "active_nav": "trainees",

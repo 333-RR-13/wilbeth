@@ -183,3 +183,34 @@ def test_archivierte_jahre_sektion_zeigt_archivierte_jahre(client, session: Sess
     assert r.status_code == 200
     assert "Archivierte Jahre" in r.text
     assert archiv.id in r.text
+
+
+# ── (f) Jahresabschluss-Link: Dev-Tools statt Stammdaten, admin-only ──────
+
+def test_jahresabschluss_link_liegt_unter_dev_tools_fuer_admin(client, session: Session, monkeypatch):
+    """Der Sidebar-Link ist unveraendert (/jahresabschluss/, admin-only),
+    wandert aber von der Sektion 'Stammdaten' ans Ende von 'Dev-Tools' --
+    nach Import und Datensicherung."""
+    _login(client, monkeypatch, "admin")
+    r = client.get("/trainees/")
+    assert r.status_code == 200
+    assert 'href="/jahresabschluss/"' in r.text
+
+    stammdaten_pos = r.text.index("Stammdaten")
+    dev_tools_pos = r.text.index("Dev-Tools")
+    import_pos = r.text.index("Import")
+    daten_pos = r.text.index("Datensicherung")
+    jahresabschluss_pos = r.text.index("Jahresabschluss")
+    assert stammdaten_pos < dev_tools_pos < import_pos < daten_pos < jahresabschluss_pos
+
+
+def test_jahresabschluss_link_fuer_orga_unsichtbar(client, session: Session, monkeypatch):
+    """Orga sieht die Dev-Tools-Sektion (Import), aber weder Datensicherung
+    noch Jahresabschluss -- beide bleiben admin-only."""
+    _login(client, monkeypatch, "orga")
+    r = client.get("/trainees/")
+    assert r.status_code == 200
+    assert "Dev-Tools" in r.text
+    assert "Import" in r.text
+    assert "Jahresabschluss" not in r.text
+    assert "Datensicherung" not in r.text
