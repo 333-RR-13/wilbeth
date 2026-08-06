@@ -51,6 +51,17 @@ def test_describe_doppelbelegung():
     assert "keine Mehrfachbelegung" in d["why"]
 
 
+def test_describe_bereich_konflikt():
+    c = Conflict(ConflictKind.BEREICH_KONFLIKT, trainee_id=3, kw=12, jahr=2026,
+                 message="x", dept_id=9, trainee_ids=(3,),
+                 detail="Kaufmaennische/r Azubi in einer reinen IT-Abteilung")
+    d = describe_conflict(c, {3: "Weber, Wiebke"}, {})
+    assert d["title"] == "Bereichs-Konflikt"
+    assert d["who"] == "Weber, Wiebke"
+    assert "Kaufmaennische/r Azubi in einer reinen IT-Abteilung" in d["why"]
+    assert "kein Blocker" in d["why"]
+
+
 # ── Setup-Helfer fuer Route-Tests ────────────────────────────────
 
 def _schul_konflikt(session: Session) -> dict:

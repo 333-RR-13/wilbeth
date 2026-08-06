@@ -1,5 +1,5 @@
 """Tests fuer den Azubi-Self-Service unter /mein-plan/{token}."""
-from datetime import date
+from datetime import date, timedelta
 
 from sqlmodel import Session, select
 
@@ -164,6 +164,71 @@ def test_wuensche_page_zeigt_gruppierte_zusammenfassung(client, session):
     assert "Bitte Ruecksicht auf Zwischenpruefung" in r.text
     # Das Bearbeitungsformular (Selects je Abteilung) ist weiterhin vorhanden
     assert 'name="prio_' in r.text
+
+
+def _week_offset(weeks: int) -> tuple[int, int]:
+    """(kw, jahr) fuer "heute plus/minus 'weeks' Wochen" -- deterministisch
+    relativ zu date.today()."""
+    iso = (date.today() + timedelta(weeks=weeks)).isocalendar()
+    return iso.week, iso.year
+
+
+def test_wuensche_erfuellter_wunsch_erscheint_unter_bereits_erfuellt(client, session):
+    """Ein Wunsch mit vergangenem Einsatz in genau dieser Abteilung
+    verschwindet aus der Prio-Gruppe und erscheint unter "Bereits erfuellt";
+    das Bearbeitungsformular bleibt vorhanden (der Azubi darf weiter aendern),
+    bekommt aber einen dezenten Hinweis an der betroffenen Zeile."""
+    ids = _setup(session)
+    session.add(TraineeWish(trainee_id=ids["trainee"], department_id=ids["cp"], prioritaet=1))
+    kw, jahr = _week_offset(-8)
+    session.add(Assignment(
+        trainee_id=ids["trainee"], schoolyear_id=SY, kw=kw, jahr=jahr,
+        typ=AssignmentTyp.ABTEILUNG, abteilung_id=ids["cp"], source=AssignmentSource.MANUAL,
+    ))
+    session.commit()
+
+    r = client.get(f"/mein-plan/{TOKEN}/wuensche")
+    assert r.status_code == 200
+    assert "Bereits erfüllt" in r.text
+    # keine offene Prio-Gruppe mehr (Ueberschrift "Muss" als Gruppen-Label,
+    # nicht zu verwechseln mit dem statischen Subtitle-Text der Seite)
+    assert '<div class="wish-group-label">Muss</div>' not in r.text
+    assert '<span class="wish-chip wish-chip-erfuellt">CP</span>' in r.text
+    # Formular bleibt bearbeitbar
+    assert 'name="prio_' in r.text
+    assert "warst du bereits" in r.text
+
+
+def test_wuensche_zukuenftiger_einsatz_bleibt_in_prio_gruppe(client, session):
+    """Ein bereits geplanter, aber noch nicht abgeschlossener Einsatz zaehlt
+    NICHT als erfuellt -- der Wunsch bleibt in der Prio-Gruppe."""
+    ids = _setup(session)
+    session.add(TraineeWish(trainee_id=ids["trainee"], department_id=ids["cp"], prioritaet=1))
+    kw, jahr = _week_offset(8)
+    session.add(Assignment(
+        trainee_id=ids["trainee"], schoolyear_id=SY, kw=kw, jahr=jahr,
+        typ=AssignmentTyp.ABTEILUNG, abteilung_id=ids["cp"], source=AssignmentSource.MANUAL,
+    ))
+    session.commit()
+
+    r = client.get(f"/mein-plan/{TOKEN}/wuensche")
+    assert r.status_code == 200
+    assert "Muss" in r.text
+    assert ">CP<" in r.text
+    assert "Bereits erfüllt" not in r.text
+
+
+def test_wuensche_ohne_einsatz_bleibt_unveraendert(client, session):
+    """Ein Wunsch ohne jeden Einsatz bleibt unveraendert in seiner Prio-Gruppe."""
+    ids = _setup(session)
+    session.add(TraineeWish(trainee_id=ids["trainee"], department_id=ids["cp"], prioritaet=1))
+    session.commit()
+
+    r = client.get(f"/mein-plan/{TOKEN}/wuensche")
+    assert r.status_code == 200
+    assert "Muss" in r.text
+    assert ">CP<" in r.text
+    assert "Bereits erfüllt" not in r.text
 
 
 # ── Abwesenheit eintragen ─────────────────────────────────────────

@@ -1411,6 +1411,11 @@ td[draggable="true"]:active {
   font-weight: 500;
 }
 
+.wish-chip-erfuellt {
+  background: #f1f3f5;
+  color: var(--text-muted);
+}
+
 .wish-group {
   margin-bottom: 14px;
 }

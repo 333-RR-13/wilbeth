@@ -36,6 +36,7 @@ from app.models import (
 )
 from app.models.trainee_wish import group_wishes_by_priority, prioritaet_label
 from app.services.abwesenheit_utils import abwesenheit_map
+from app.services.dept_history import visited_department_ids
 from app.services.feedback_def import (
     AUSBILDER_SEKTIONEN,
     AZUBI_SEKTIONEN,
@@ -592,10 +593,21 @@ def wuensche_page(request: Request, token: str, db: DB):
     wishes = {w.department_id: w.prioritaet for w in own_wishes}
     all_depts = db.exec(select(Department).order_by(Department.code)).all()
     depts_by_id = {d.id: d for d in all_depts}
+
+    # Wuensche, die bereits (in der Vergangenheit) in genau dieser Abteilung
+    # erfuellt wurden, erscheinen nicht mehr in den Prioritaets-Gruppen,
+    # sondern separat unter "Bereits erfuellt" -- das Bearbeitungsformular
+    # unten bleibt unveraendert, bekommt aber einen dezenten Hinweis je Zeile.
+    erfuellt_ids = visited_department_ids(db, trainee.id, nur_vergangenheit=True)
+    offene_wishes = [w for w in own_wishes if w.department_id not in erfuellt_ids]
+    erfuellte_wishes = [w for w in own_wishes if w.department_id in erfuellt_ids]
     wish_groups = group_wishes_by_priority([
         (w.prioritaet, depts_by_id[w.department_id].code if w.department_id in depts_by_id else "?")
-        for w in own_wishes
+        for w in offene_wishes
     ])
+    erfuellte_codes = sorted(
+        depts_by_id[w.department_id].code for w in erfuellte_wishes if w.department_id in depts_by_id
+    )
 
     return templates.TemplateResponse(request, "share/wuensche.html", {
         "trainee": trainee,
@@ -603,6 +615,8 @@ def wuensche_page(request: Request, token: str, db: DB):
         "active": "wuensche",
         "wishes": wishes,
         "wish_groups": wish_groups,
+        "erfuellte_codes": erfuellte_codes,
+        "erfuellt_ids": erfuellt_ids,
         "wunsch_notiz": trainee.wunsch_notiz or "",
         "all_depts": all_depts,
     })

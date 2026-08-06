@@ -27,6 +27,18 @@
       </div>
 
       <div class="form-group">
+        <label for="bereich">Ausbildungsbereich <span class="required">*</span></label>
+        <select id="bereich" name="bereich" required>
+          {% for wert, label in bereich_labels.items() %}
+          <option value="{{ wert }}" {{ 'selected' if (cls.bereich if cls else 'IT') == wert else '' }}>
+            {{ label }}
+          </option>
+          {% endfor %}
+        </select>
+        <span class="form-hint">IT-Azubis (FISI/FIAE) oder kaufmännische Azubis (Bürokaufleute, BWL-Studiengänge).</span>
+      </div>
+
+      <div class="form-group">
         <label for="unterrichts_typ">Unterrichtstyp <span class="required">*</span></label>
         <select id="unterrichts_typ" name="unterrichts_typ" required onchange="syncTageFest()">
           {% for t in typen %}

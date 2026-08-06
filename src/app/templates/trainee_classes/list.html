@@ -37,7 +37,7 @@
 <div class="table-wrapper">
   <table>
     <tbody>
-      <tr><td colspan="4" class="empty-state">Noch keine Klassen angelegt.</td></tr>
+      <tr><td colspan="5" class="empty-state">Noch keine Klassen angelegt.</td></tr>
     </tbody>
   </table>
 </div>
@@ -52,6 +52,7 @@
         <tr>
           <th>Name</th>
           <th>Berufsschule</th>
+          <th>Bereich</th>
           <th>Typ</th>
           <th></th>
         </tr>
@@ -61,6 +62,13 @@
         <tr id="row-c-{{ c.id }}" data-href="/klassen/{{ c.id }}/bearbeiten">
           <td><strong>{{ c.name }}</strong></td>
           <td class="td-muted">{{ c.berufsschule }}</td>
+          <td>
+            {% if c.bereich == 'KAUFMAENNISCH' %}
+              <span class="badge badge-yellow">{{ bereich_labels.get(c.bereich, c.bereich) }}</span>
+            {% else %}
+              <span class="badge badge-blue">{{ bereich_labels.get(c.bereich, c.bereich) }}</span>
+            {% endif %}
+          </td>
           <td>
             {% if c.unterrichts_typ.value == 'BLOCK_FEST' %}
               <span class="badge badge-blue">Block fest</span>

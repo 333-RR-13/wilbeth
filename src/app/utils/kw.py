@@ -33,6 +33,20 @@ def kw_to_monday(kw: int, year: int) -> date:
     return date.fromisocalendar(year, kw, 1)
 
 
+def kw_to_friday(kw: int, year: int) -> date:
+    """ISO 8601 calendar week → Freitag dieser Woche (Montag + 4 Tage)."""
+    return kw_to_monday(kw, year) + timedelta(days=4)
+
+
+def week_is_past(kw: int, year: int, today: date | None = None) -> bool:
+    """True, wenn die Woche VOLLSTAENDIG in der Vergangenheit liegt
+    (Freitag der KW < heute). Eine laufende oder zukuenftige Woche liefert
+    False."""
+    if today is None:
+        today = date.today()
+    return kw_to_friday(kw, year) < today
+
+
 def monday_to_kw(d: date) -> tuple[int, int]:
     """Date → (kw, year) tuple."""
     iso = d.isocalendar()

@@ -1,4 +1,6 @@
 """Tests fuer app/services/dept_history.py und zugehoerige UI-Integration."""
+from datetime import date, timedelta
+
 from sqlmodel import Session
 
 from app.models import (
@@ -14,6 +16,14 @@ from app.services.dept_history import visited_department_ids, visited_department
 
 SY = "2025-2026"
 SY2 = "2024-2025"
+
+
+def _week_offset(weeks: int) -> tuple[int, int]:
+    """Liefert (kw, jahr) fuer "heute plus/minus 'weeks' Wochen" -- deterministisch
+    relativ zu date.today(), unabhaengig vom tatsaechlichen Testdatum."""
+    d = date.today() + timedelta(weeks=weeks)
+    iso = d.isocalendar()
+    return iso.week, iso.year
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -154,6 +164,73 @@ def test_visited_ids_exclude_only_matching_cell(session: Session):
     assert result == {ids["cp"]}
 
 
+# ── Unit-Tests fuer nur_vergangenheit (Wunsch "bereits erfuellt") ────────────
+
+def test_visited_ids_nur_vergangenheit_includes_past_week(session: Session):
+    """Ein Einsatz, dessen Woche vollstaendig vorbei ist, zaehlt als erfuellt."""
+    ids = _setup(session)
+    kw, jahr = _week_offset(-8)  # deutlich in der Vergangenheit
+    session.add(Assignment(
+        trainee_id=ids["trainee"], schoolyear_id=SY, kw=kw, jahr=jahr,
+        typ=AssignmentTyp.ABTEILUNG, abteilung_id=ids["cp"],
+        source=AssignmentSource.MANUAL,
+    ))
+    session.commit()
+    result = visited_department_ids(session, ids["trainee"], nur_vergangenheit=True)
+    assert result == {ids["cp"]}
+
+
+def test_visited_ids_nur_vergangenheit_excludes_future_week(session: Session):
+    """Ein erst geplanter, zukuenftiger Einsatz zaehlt NICHT als erfuellt."""
+    ids = _setup(session)
+    kw, jahr = _week_offset(8)  # deutlich in der Zukunft
+    session.add(Assignment(
+        trainee_id=ids["trainee"], schoolyear_id=SY, kw=kw, jahr=jahr,
+        typ=AssignmentTyp.ABTEILUNG, abteilung_id=ids["cp"],
+        source=AssignmentSource.MANUAL,
+    ))
+    session.commit()
+    result = visited_department_ids(session, ids["trainee"], nur_vergangenheit=True)
+    assert result == set()
+
+
+def test_visited_ids_default_still_counts_future_week(session: Session):
+    """Das bestehende Verhalten (nur_vergangenheit=False, Default) zaehlt
+    laufende/zukuenftige Einsaetze weiterhin -- unveraendert fuer die
+    Planer-Uebersicht ("War bereits in") und den Auto-Planer."""
+    ids = _setup(session)
+    kw, jahr = _week_offset(8)
+    session.add(Assignment(
+        trainee_id=ids["trainee"], schoolyear_id=SY, kw=kw, jahr=jahr,
+        typ=AssignmentTyp.ABTEILUNG, abteilung_id=ids["cp"],
+        source=AssignmentSource.MANUAL,
+    ))
+    session.commit()
+    assert visited_department_ids(session, ids["trainee"]) == {ids["cp"]}
+    assert visited_department_ids(session, ids["trainee"], nur_vergangenheit=False) == {ids["cp"]}
+
+
+def test_visited_ids_nur_vergangenheit_mixed_past_and_future(session: Session):
+    """Bei mehreren Abteilungen zaehlt nur_vergangenheit=True ausschliesslich
+    die mit einer vollstaendig vergangenen Woche."""
+    ids = _setup(session)
+    past_kw, past_jahr = _week_offset(-8)
+    future_kw, future_jahr = _week_offset(8)
+    session.add(Assignment(
+        trainee_id=ids["trainee"], schoolyear_id=SY, kw=past_kw, jahr=past_jahr,
+        typ=AssignmentTyp.ABTEILUNG, abteilung_id=ids["cp"],
+        source=AssignmentSource.MANUAL,
+    ))
+    session.add(Assignment(
+        trainee_id=ids["trainee"], schoolyear_id=SY, kw=future_kw, jahr=future_jahr,
+        typ=AssignmentTyp.ABTEILUNG, abteilung_id=ids["dp"],
+        source=AssignmentSource.MANUAL,
+    ))
+    session.commit()
+    assert visited_department_ids(session, ids["trainee"], nur_vergangenheit=True) == {ids["cp"]}
+    assert visited_department_ids(session, ids["trainee"]) == {ids["cp"], ids["dp"]}
+
+
 # ── Unit-Tests fuer visited_departments ──────────────────────────────────────
 
 def test_visited_departments_empty(session: Session):
@@ -197,6 +274,26 @@ def test_overview_shows_visited_chip(client, session: Session):
     r = client.get("/overview", params={"schoolyear_id": SY})
     assert r.status_code == 200
     # CP-Code als visited-col-chip in der rechten Spalte sichtbar
+    assert "visited-col-chip" in r.text
+    assert ">CP<" in r.text
+
+
+def test_overview_shows_chip_for_future_assignment(client, session: Session):
+    """Die Uebersichts-Spalte ("War bereits in") zaehlt weiterhin auch einen
+    erst geplanten, zukuenftigen Einsatz -- ihr Verhalten aendert sich NICHT
+    durch die neue nur_vergangenheit-Option (die ist ausschliesslich fuer
+    "Wunsch bereits erfuellt" gedacht)."""
+    ids = _setup(session)
+    kw, jahr = _week_offset(8)
+    session.add(Assignment(
+        trainee_id=ids["trainee"], schoolyear_id=SY, kw=kw, jahr=jahr,
+        typ=AssignmentTyp.ABTEILUNG, abteilung_id=ids["cp"],
+        source=AssignmentSource.MANUAL,
+    ))
+    session.commit()
+
+    r = client.get("/overview", params={"schoolyear_id": SY})
+    assert r.status_code == 200
     assert "visited-col-chip" in r.text
     assert ">CP<" in r.text
 

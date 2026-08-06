@@ -9,6 +9,11 @@ class UnterrichtsTyp(str, Enum):
     TAGE_FEST = "TAGE_FEST"     # Wochentag-Schule (Bürokaufleute) – feste Schultage je Woche
 
 
+# Ausbildungsbereich einer Klasse: "IT" (FISI/FIAE) oder "KAUFMAENNISCH"
+# (Buerokaufleute, BWL-Studiengaenge). Label fuer die Anzeige im Formular/UI.
+BEREICH_LABELS: dict[str, str] = {"IT": "IT", "KAUFMAENNISCH": "Kaufmännisch"}
+
+
 class TraineeClass(SQLModel, table=True):
     __tablename__ = "trainee_class"
 
@@ -27,3 +32,10 @@ class TraineeClass(SQLModel, table=True):
         foreign_key="trainee_class.id",
         nullable=True,
     )
+    # Ausbildungsbereich ("IT" | "KAUFMAENNISCH"), Default "IT". Die Klasse
+    # kennt den Beruf, dadurch gilt die Zuordnung automatisch auch nach dem
+    # Aufruecken (naechste Klasse ueber next_class_id/Namenskonvention) --
+    # es braucht dafuer KEIN eigenes Feld am Trainee. Genutzt fuer die
+    # Bereich/Zielgruppe-Konfliktpruefung (siehe services/conflict_checker.py,
+    # ConflictKind.BEREICH_KONFLIKT).
+    bereich: str = Field(default="IT", max_length=32)

@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 
 from app.models.assignment import Assignment, AssignmentTyp
 from app.models.department import Department
+from app.utils.kw import week_is_past
 
 
 def visited_department_ids(
@@ -15,14 +16,26 @@ def visited_department_ids(
     trainee_id: int,
     exclude_kw: int | None = None,
     exclude_jahr: int | None = None,
+    nur_vergangenheit: bool = False,
 ) -> set[int]:
     """Gibt die Menge der abteilung_id-Werte zurueck, in denen der Trainee
     bereits einen ABTEILUNG-Einsatz hatte (ueber alle Schuljahre).
 
     Wenn exclude_kw und exclude_jahr angegeben sind, wird der Einsatz in
     genau dieser KW/Jahr-Kombination aus der Berechnung ausgeschlossen.
+
+    nur_vergangenheit=False (Default): bisheriges Verhalten, zaehlt JEDEN
+    ABTEILUNG-Einsatz -- auch einen laufenden oder erst geplanten
+    zukuenftigen. Wird u. a. von der Planer-Uebersicht ("War bereits in")
+    und dem Auto-Planer genutzt, deren Verhalten sich NICHT aendern soll.
+
+    nur_vergangenheit=True: zaehlt nur Einsaetze, deren Woche vollstaendig
+    in der Vergangenheit liegt (Freitag der KW < heute, siehe
+    app.utils.kw.week_is_past). Genutzt um einen Abteilungswunsch als
+    "bereits erfuellt" zu erkennen -- ein nur geplanter, aber noch nicht
+    abgeschlossener Einsatz zaehlt dafuer nicht.
     """
-    q = select(Assignment.abteilung_id).where(
+    q = select(Assignment.abteilung_id, Assignment.kw, Assignment.jahr).where(
         Assignment.trainee_id == trainee_id,
         Assignment.typ == AssignmentTyp.ABTEILUNG,
         Assignment.abteilung_id.is_not(None),  # type: ignore[union-attr]
@@ -32,7 +45,12 @@ def visited_department_ids(
             ~((Assignment.kw == exclude_kw) & (Assignment.jahr == exclude_jahr))
         )
     rows = db.exec(q).all()
-    return {r for r in rows if r is not None}
+    if nur_vergangenheit:
+        return {
+            abteilung_id for abteilung_id, kw, jahr in rows
+            if abteilung_id is not None and week_is_past(kw, jahr)
+        }
+    return {abteilung_id for abteilung_id, kw, jahr in rows if abteilung_id is not None}
 
 
 def visited_departments(db: Session, trainee_id: int) -> list[Department]:

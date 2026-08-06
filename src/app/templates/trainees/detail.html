@@ -153,7 +153,7 @@
 {% endif %}
 
 {# ── Wünsche des Azubis (gruppiert nach Prioritaet: Muss/Sollte/Kann) ────── #}
-{% if wish_groups or trainee.wunsch_notiz %}
+{% if wish_groups or erfuellte_codes or trainee.wunsch_notiz %}
 <div class="card card-body" style="margin-bottom: 24px;">
   <h2 class="form-section-title">Wünsche</h2>
   {% for label, codes in wish_groups %}
@@ -166,6 +166,16 @@
     </div>
   </div>
   {% endfor %}
+  {% if erfuellte_codes %}
+  <div class="wish-group">
+    <div class="wish-group-label">Bereits erfüllt</div>
+    <div class="wish-chips">
+      {% for code in erfuellte_codes %}
+      <span class="wish-chip wish-chip-erfuellt">{{ code }}</span>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
   {% if trainee.wunsch_notiz %}
   <div class="wish-group">
     <div class="wish-group-label">Notizen / Anmerkungen</div>

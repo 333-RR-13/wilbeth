@@ -75,6 +75,18 @@
         <span class="form-hint">Aktivieren z. B. für BA – mehrere Trainees in derselben KW ohne Warnung.</span>
       </div>
 
+      <div class="form-group">
+        <label for="zielgruppe">Zielgruppe <span class="required">*</span></label>
+        <select id="zielgruppe" name="zielgruppe" required>
+          {% for wert, label in zielgruppe_labels.items() %}
+          <option value="{{ wert }}" {{ 'selected' if (department.zielgruppe if department else 'BEIDE') == wert else '' }}>
+            {{ label }}
+          </option>
+          {% endfor %}
+        </select>
+        <span class="form-hint">Welche Azubi-Bereiche diese Abteilung grundsätzlich aufnimmt. Bei Abweichung erscheint nur eine Warnung, kein Block.</span>
+      </div>
+
     </div>
     <div class="form-actions">
       <button type="submit" class="btn btn-primary">Speichern</button>

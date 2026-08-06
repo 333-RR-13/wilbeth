@@ -9,7 +9,7 @@
   </div>
 </div>
 
-{% if wish_groups or wunsch_notiz %}
+{% if wish_groups or erfuellte_codes or wunsch_notiz %}
 <div class="card card-body" style="margin-bottom: 20px;">
   <h2 class="form-section-title">Deine gespeicherte Wunschliste</h2>
   {% for label, codes in wish_groups %}
@@ -22,6 +22,16 @@
     </div>
   </div>
   {% endfor %}
+  {% if erfuellte_codes %}
+  <div class="wish-group">
+    <div class="wish-group-label">Bereits erfüllt</div>
+    <div class="wish-chips">
+      {% for code in erfuellte_codes %}
+      <span class="wish-chip wish-chip-erfuellt">{{ code }}</span>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
   {% if wunsch_notiz %}
   <div class="wish-group">
     <div class="wish-group-label">Notizen / Anmerkungen</div>
@@ -38,7 +48,12 @@
       <tbody>
         {% for d in all_depts %}
         <tr>
-          <td>{{ d.code }} – {{ d.name }}</td>
+          <td>
+            {{ d.code }} – {{ d.name }}
+            {% if d.id in erfuellt_ids %}
+            <span class="text-muted" style="font-size: 12px;">(warst du bereits)</span>
+            {% endif %}
+          </td>
           <td>
             <select name="prio_{{ d.id }}">
               <option value="" {{ 'selected' if d.id not in wishes else '' }}>–</option>

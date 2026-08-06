@@ -32,6 +32,7 @@
         <th>Verantwortliche</th>
         <th>Beschreibung</th>
         <th>Mehrfach</th>
+        <th>Zielgruppe</th>
         <th></th>
       </tr>
     </thead>
@@ -69,6 +70,15 @@
             <span class="text-muted">–</span>
           {% endif %}
         </td>
+        <td>
+          {% if d.zielgruppe == 'BEIDE' %}
+            <span class="text-muted">Beide</span>
+          {% elif d.zielgruppe == 'IT' %}
+            <span class="badge badge-blue">Nur IT</span>
+          {% else %}
+            <span class="badge badge-yellow">Nur kaufmännisch</span>
+          {% endif %}
+        </td>
         <td class="td-actions">
           {% if can_edit %}
           <a href="/abteilungen/{{ d.id }}/bearbeiten" class="btn btn-ghost btn-sm">Bearbeiten</a>
@@ -85,7 +95,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="8" class="empty-state">Noch keine Abteilungen angelegt.</td></tr>
+      <tr><td colspan="9" class="empty-state">Noch keine Abteilungen angelegt.</td></tr>
       {% endfor %}
     </tbody>
   </table>

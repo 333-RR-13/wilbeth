@@ -1,5 +1,5 @@
 """Tests fuer die Trainee-Detailseite."""
-from datetime import date
+from datetime import date, timedelta
 
 from sqlmodel import Session
 
@@ -240,6 +240,82 @@ def test_wuensche_stufen_ohne_eintraege_werden_weggelassen(client, session):
     assert "Muss" in r.text
     assert "Sollte" not in r.text
     assert "Kann" not in r.text
+
+
+def _week_offset(weeks: int) -> tuple[int, int]:
+    """(kw, jahr) fuer "heute plus/minus 'weeks' Wochen" -- deterministisch
+    relativ zu date.today()."""
+    iso = (date.today() + timedelta(weeks=weeks)).isocalendar()
+    return iso.week, iso.year
+
+
+def test_wunsch_mit_vergangenem_einsatz_erscheint_unter_bereits_erfuellt(client, session):
+    """Ein Wunsch, den der Trainee bereits (in der Vergangenheit) in genau
+    dieser Abteilung erfuellt hat, verschwindet aus der Prioritaets-Gruppe
+    und erscheint stattdessen unter "Bereits erfuellt"."""
+    _schoolyear(session)
+    cp = Department(code="CP", name="Cloud Platform")
+    session.add(cp)
+    session.flush()
+    t = Trainee(vorname="Petra", nachname="Plan", rolle=TraineeRolle.AZUBI)
+    session.add(t)
+    session.flush()
+    session.add(TraineeWish(trainee_id=t.id, department_id=cp.id, prioritaet=1))
+    kw, jahr = _week_offset(-8)
+    session.add(Assignment(
+        trainee_id=t.id, schoolyear_id=SY, kw=kw, jahr=jahr,
+        typ=AssignmentTyp.ABTEILUNG, abteilung_id=cp.id, source=AssignmentSource.MANUAL,
+    ))
+    session.commit()
+
+    r = client.get(f"/trainees/{t.id}")
+    assert r.status_code == 200
+    assert "Bereits erfüllt" in r.text
+    assert "Muss" not in r.text  # keine offene Prio-Gruppe mehr
+
+
+def test_wunsch_mit_zukuenftigem_einsatz_bleibt_in_prio_gruppe(client, session):
+    """Ein bereits geplanter, aber noch nicht abgeschlossener Einsatz gilt
+    NICHT als erfuellt -- der Wunsch bleibt in seiner Prioritaets-Gruppe."""
+    _schoolyear(session)
+    cp = Department(code="CP", name="Cloud Platform")
+    session.add(cp)
+    session.flush()
+    t = Trainee(vorname="Fritz", nachname="Future", rolle=TraineeRolle.AZUBI)
+    session.add(t)
+    session.flush()
+    session.add(TraineeWish(trainee_id=t.id, department_id=cp.id, prioritaet=1))
+    kw, jahr = _week_offset(8)
+    session.add(Assignment(
+        trainee_id=t.id, schoolyear_id=SY, kw=kw, jahr=jahr,
+        typ=AssignmentTyp.ABTEILUNG, abteilung_id=cp.id, source=AssignmentSource.MANUAL,
+    ))
+    session.commit()
+
+    r = client.get(f"/trainees/{t.id}")
+    assert r.status_code == 200
+    assert "Muss" in r.text
+    assert ">CP<" in r.text
+    assert "Bereits erfüllt" not in r.text
+
+
+def test_wunsch_ohne_einsatz_bleibt_unveraendert(client, session):
+    """Ein Wunsch ohne jeden Einsatz bleibt wie bisher in seiner Prio-Gruppe."""
+    _schoolyear(session)
+    cp = Department(code="CP", name="Cloud Platform")
+    session.add(cp)
+    session.flush()
+    t = Trainee(vorname="Nora", nachname="Neu", rolle=TraineeRolle.AZUBI)
+    session.add(t)
+    session.flush()
+    session.add(TraineeWish(trainee_id=t.id, department_id=cp.id, prioritaet=1))
+    session.commit()
+
+    r = client.get(f"/trainees/{t.id}")
+    assert r.status_code == 200
+    assert "Muss" in r.text
+    assert ">CP<" in r.text
+    assert "Bereits erfüllt" not in r.text
 
 
 def test_list_links_to_detail(client, session):

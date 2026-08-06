@@ -23,6 +23,7 @@ from app.models import (
 from app.models.trainee_wish import group_wishes_by_priority, prioritaet_label
 from app.services.auth_service import CurrentUser, require_roles
 from app.services.conflict_checker import find_conflicts
+from app.services.dept_history import visited_department_ids
 from app.services.membership_utils import (
     aktuelles_schuljahr_id,
     beruf_langname,
@@ -255,16 +256,25 @@ def trainee_detail(request: Request, trainee_id: int, db: DB):
 
     # Wuensche des Trainees (fuer die Planerin sichtbar), gruppiert nach
     # Prioritaet (Muss/Sollte/Kann); order_by(id) = gespeicherte Reihenfolge
-    # innerhalb einer Gruppe.
+    # innerhalb einer Gruppe. Wuensche, die der Trainee bereits (in der
+    # Vergangenheit) in genau dieser Abteilung erfuellt hat, werden aus den
+    # Prioritaets-Gruppen herausgenommen und separat unter "Bereits erfuellt"
+    # gefuehrt (siehe dept_history.visited_department_ids(nur_vergangenheit=True)).
     wishes = db.exec(
         select(TraineeWish)
         .where(TraineeWish.trainee_id == trainee_id)
         .order_by(TraineeWish.id)
     ).all()
+    erfuellt_ids = visited_department_ids(db, trainee_id, nur_vergangenheit=True)
+    offene_wishes = [w for w in wishes if w.department_id not in erfuellt_ids]
+    erfuellte_wishes = [w for w in wishes if w.department_id in erfuellt_ids]
     wish_groups = group_wishes_by_priority([
         (w.prioritaet, depts[w.department_id].code if w.department_id in depts else "?")
-        for w in wishes
+        for w in offene_wishes
     ])
+    erfuellte_codes = sorted(
+        depts[w.department_id].code for w in erfuellte_wishes if w.department_id in depts
+    )
 
     # ── Visitenkarte ────────────────────────────────────────────────
     # Klasse ueber klasse_fuer ermitteln (laufendes Schuljahr = berechneter Anker;
@@ -304,6 +314,7 @@ def trainee_detail(request: Request, trainee_id: int, db: DB):
         "today_key": today_key,
         "wishes": wishes,
         "wish_groups": wish_groups,
+        "erfuellte_codes": erfuellte_codes,
         "beruf_lang": beruf_lang,
         "ausbildungsbeginn": trainee.ausbildungsbeginn,
         "active_nav": "trainees",

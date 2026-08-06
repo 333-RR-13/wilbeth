@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 
 from app.database import get_session
 from app.models import Schoolyear, Trainee, TraineeClass, UnterrichtsTyp
+from app.models.trainee_class import BEREICH_LABELS
 from app.models.trainee_class_membership import TraineeClassMembership
 from app.services.auth_service import CurrentUser, require_roles
 from app.services.membership_utils import (
@@ -21,6 +22,7 @@ from app.utils.kw import WEEKDAY_LABELS, format_weekdays, parse_weekdays
 
 router = APIRouter(prefix="/klassen", tags=["klassen"])
 templates = Jinja2Templates(directory=Path(__file__).resolve().parents[1] / "templates")
+templates.env.globals["bereich_labels"] = BEREICH_LABELS
 DB = Annotated[Session, Depends(get_session)]
 
 
@@ -96,6 +98,7 @@ def create_class(
     wochentag: Annotated[list[str], Form()] = [],
     halbtag_wochentag: Annotated[str, Form()] = "",
     next_class_id: Annotated[str, Form()] = "",
+    bereich: Annotated[str, Form()] = "IT",
     user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
     schul_wochentage, halbtag = _weekday_fields(unterrichts_typ, wochentag, halbtag_wochentag)
@@ -106,6 +109,7 @@ def create_class(
         schul_wochentage=schul_wochentage,
         halbtag_wochentag=halbtag,
         next_class_id=int(next_class_id) if next_class_id else None,
+        bereich=bereich if bereich in BEREICH_LABELS else "IT",
     ))
     db.commit()
     return RedirectResponse("/klassen/?msg=created", status_code=303)
@@ -167,6 +171,7 @@ def update_class(
     wochentag: Annotated[list[str], Form()] = [],
     halbtag_wochentag: Annotated[str, Form()] = "",
     next_class_id: Annotated[str, Form()] = "",
+    bereich: Annotated[str, Form()] = "IT",
     user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
     """Speichert nur die Klassen-Stammdaten. Mitgliedschaften werden NICHT mehr
@@ -181,6 +186,7 @@ def update_class(
     cls.schul_wochentage = schul_wochentage
     cls.halbtag_wochentag = halbtag
     cls.next_class_id = int(next_class_id) if next_class_id else None
+    cls.bereich = bereich if bereich in BEREICH_LABELS else "IT"
     db.add(cls)
     db.commit()
 

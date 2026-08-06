@@ -8,10 +8,12 @@ from sqlmodel import Session, select
 
 from app.database import get_session
 from app.models import Department, DepartmentKategorie
+from app.models.department import ZIELGRUPPE_LABELS
 from app.services.auth_service import CurrentUser, require_roles
 
 router = APIRouter(prefix="/abteilungen", tags=["abteilungen"])
 templates = Jinja2Templates(directory=Path(__file__).resolve().parents[1] / "templates")
+templates.env.globals["zielgruppe_labels"] = ZIELGRUPPE_LABELS
 DB = Annotated[Session, Depends(get_session)]
 
 
@@ -109,6 +111,7 @@ def create_department(
     erlaubt_mehrfachbelegung: Annotated[str, Form()] = "",
     farbe: Annotated[str, Form()] = "#9CA3AF",
     verantwortliche: Annotated[str, Form()] = "",
+    zielgruppe: Annotated[str, Form()] = "BEIDE",
     user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
     db.add(Department(
@@ -120,6 +123,7 @@ def create_department(
         erlaubt_mehrfachbelegung=bool(erlaubt_mehrfachbelegung),
         farbe=farbe,
         verantwortliche=verantwortliche,
+        zielgruppe=zielgruppe if zielgruppe in ZIELGRUPPE_LABELS else "BEIDE",
     ))
     db.commit()
     return RedirectResponse("/abteilungen/?msg=created", status_code=303)
@@ -144,6 +148,7 @@ def update_department(
     erlaubt_mehrfachbelegung: Annotated[str, Form()] = "",
     farbe: Annotated[str, Form()] = "#9CA3AF",
     verantwortliche: Annotated[str, Form()] = "",
+    zielgruppe: Annotated[str, Form()] = "BEIDE",
     user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
     dept = db.get(Department, dept_id)
@@ -155,6 +160,7 @@ def update_department(
     dept.erlaubt_mehrfachbelegung = bool(erlaubt_mehrfachbelegung)
     dept.farbe = farbe
     dept.verantwortliche = verantwortliche
+    dept.zielgruppe = zielgruppe if zielgruppe in ZIELGRUPPE_LABELS else "BEIDE"
     db.commit()
     return RedirectResponse("/abteilungen/?msg=updated", status_code=303)
 

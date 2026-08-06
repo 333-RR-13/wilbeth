@@ -1,10 +1,14 @@
 """Konflikt-Erkennung fuer Einsatzplanung.
 
-Drei Konflikt-Arten:
+Vier Konflikt-Arten:
 1. SCHUL_KONFLIKT   – ABTEILUNG in einer Schulwoche laut SchoolPlan.
 2. FERIEN_KONFLIKT  – BERUFSSCHULE oder UNI in einer Schulferienswoche.
 3. DOPPELBELEGUNG   – Mehrere Trainees in derselben Abteilung in derselben KW
                       (ausser wenn erlaubt_mehrfachbelegung = True).
+4. BEREICH_KONFLIKT – Trainee in einer Abteilung, deren zielgruppe weder
+                      "BEIDE" noch der (fuer das Jahr berechnete) Bereich
+                      seiner Klasse ist. Reine Warnung, kein Block -- der
+                      Einsatz bleibt planbar (siehe TEIL B der Aufgabe).
 """
 
 from collections import defaultdict
@@ -21,8 +25,10 @@ from app.models import (
     SchoolPlan,
     SchoolPlanWeek,
     Trainee,
+    TraineeClass,
 )
 from app.models.trainee_class_membership import TraineeClassMembership
+from app.services.membership_utils import klasse_fuer
 from app.utils.kw import holiday_contains_week
 
 
@@ -30,6 +36,7 @@ class ConflictKind(str, Enum):
     SCHUL_KONFLIKT = "SCHUL_KONFLIKT"
     FERIEN_KONFLIKT = "FERIEN_KONFLIKT"
     DOPPELBELEGUNG = "DOPPELBELEGUNG"
+    BEREICH_KONFLIKT = "BEREICH_KONFLIKT"
 
 
 @dataclass(frozen=True)
@@ -43,6 +50,22 @@ class Conflict:
     dept_id: int | None = None
     holiday_name: str | None = None
     trainee_ids: tuple[int, ...] = ()
+    # Nur BEREICH_KONFLIKT: fertig formulierter Erklaerungssatz (z. B.
+    # "Kaufmaennische/r Azubi in einer reinen IT-Abteilung").
+    detail: str | None = None
+
+
+def _bereich_konflikt_text(trainee_bereich: str, dept_zielgruppe: str) -> str:
+    """Baut den Erklaerungssatz fuer einen BEREICH_KONFLIKT.
+
+    >>> _bereich_konflikt_text("KAUFMAENNISCH", "IT")
+    'Kaufmaennische/r Azubi in einer reinen IT-Abteilung'
+    >>> _bereich_konflikt_text("IT", "KAUFMAENNISCH")
+    'IT-Azubi in einer reinen kaufmaennischen Abteilung'
+    """
+    wer = "Kaufmaennische/r Azubi" if trainee_bereich == "KAUFMAENNISCH" else "IT-Azubi"
+    wo = "einer reinen IT-Abteilung" if dept_zielgruppe == "IT" else "einer reinen kaufmaennischen Abteilung"
+    return f"{wer} in {wo}"
 
 
 def find_conflicts(session: Session, schoolyear_id: str) -> list[Conflict]:
@@ -66,7 +89,9 @@ def find_conflicts(session: Session, schoolyear_id: str) -> list[Conflict]:
         ).all()
     }
     trainee_class_map: dict[int, int] = {}
+    trainees_by_id: dict[int, Trainee] = {}
     for t in session.exec(select(Trainee)).all():
+        trainees_by_id[t.id] = t
         if t.id in memberships_for_year:
             trainee_class_map[t.id] = memberships_for_year[t.id]
         elif t.klasse_id is not None:
@@ -82,16 +107,28 @@ def find_conflicts(session: Session, schoolyear_id: str) -> list[Conflict]:
         ).all():
             school_weeks.add((plan.klasse_id, w.kw, w.jahr))
 
+    # Fuer BEREICH_KONFLIKT: alle Klassen vorab laden (Nachschlagen des
+    # bereich-Felds ueber die per klasse_fuer() berechnete Klasse).
+    classes_by_id: dict[int, TraineeClass] = {
+        c.id: c for c in session.exec(select(TraineeClass)).all()
+    }
+    # Cache: trainee_id -> berechnete klasse_id fuer schoolyear_id (kann None
+    # sein, z. B. Absolvent) -- vermeidet wiederholte klasse_fuer()-Aufrufe
+    # bei mehreren Assignments desselben Trainees.
+    berechnete_klasse_cache: dict[int, int | None] = {}
+
     dept_allows_multi: dict[int, bool] = {}
+    dept_zielgruppe: dict[int, str] = {}
     conflicts: list[Conflict] = []
     dept_week_trainees: dict[tuple[int, int, int], list[int]] = defaultdict(list)
 
     for a in assignments:
-        # Cache dept flag on first encounter
+        # Cache dept flags on first encounter
         if a.abteilung_id is not None and a.abteilung_id not in dept_allows_multi:
             dept = session.get(Department, a.abteilung_id)
             if dept:
                 dept_allows_multi[a.abteilung_id] = dept.erlaubt_mehrfachbelegung
+                dept_zielgruppe[a.abteilung_id] = dept.zielgruppe
 
         # 1. SCHUL_KONFLIKT: ABTEILUNG entry falls in a school week
         if a.typ == AssignmentTyp.ABTEILUNG:
@@ -121,6 +158,35 @@ def find_conflicts(session: Session, schoolyear_id: str) -> list[Conflict]:
                         trainee_ids=(a.trainee_id,),
                     ))
                     break
+
+        # 4. BEREICH_KONFLIKT: Trainee-Bereich passt nicht zur Abteilungs-
+        # Zielgruppe. Reine Warnung -- der Einsatz bleibt planbar.
+        if a.typ == AssignmentTyp.ABTEILUNG and a.abteilung_id is not None:
+            zielgruppe = dept_zielgruppe.get(a.abteilung_id, "BEIDE")
+            if zielgruppe != "BEIDE":
+                trainee = trainees_by_id.get(a.trainee_id)
+                if trainee is not None:
+                    if a.trainee_id not in berechnete_klasse_cache:
+                        berechnete_klasse_cache[a.trainee_id] = klasse_fuer(
+                            session, trainee, schoolyear_id
+                        )
+                    klasse_id = berechnete_klasse_cache[a.trainee_id]
+                    # Trainees ohne berechnete Klasse (Absolventen o. ae.)
+                    # erzeugen KEINEN Konflikt.
+                    if klasse_id is not None:
+                        klasse = classes_by_id.get(klasse_id)
+                        if klasse is not None and klasse.bereich != zielgruppe:
+                            text = _bereich_konflikt_text(klasse.bereich, zielgruppe)
+                            conflicts.append(Conflict(
+                                kind=ConflictKind.BEREICH_KONFLIKT,
+                                trainee_id=a.trainee_id,
+                                kw=a.kw,
+                                jahr=a.jahr,
+                                message=f"KW {a.kw}/{a.jahr}: {text}",
+                                dept_id=a.abteilung_id,
+                                trainee_ids=(a.trainee_id,),
+                                detail=text,
+                            ))
 
         # Collect for DOPPELBELEGUNG check
         if a.typ == AssignmentTyp.ABTEILUNG and a.abteilung_id is not None:
@@ -181,6 +247,20 @@ def describe_conflict(
                 f"Hier ist Berufsschule/Uni eingetragen, obwohl in dieser "
                 f"Woche Ferien sind ({ferien}). Meist ist der Schulplan dann "
                 f"nicht auf dem aktuellen Stand."
+            ),
+        }
+
+    if c.kind == ConflictKind.BEREICH_KONFLIKT:
+        return {
+            "kind": c.kind.value,
+            "title": "Bereichs-Konflikt",
+            "badge": "badge-yellow",
+            "when": when,
+            "who": trainee_names.get(c.trainee_id, "Unbekannt"),
+            "why": (
+                f"{c.detail}. Der Ausbildungsbereich der Person passt nicht "
+                "zur Zielgruppe dieser Abteilung. Der Einsatz bleibt trotzdem "
+                "planbar — dies ist nur ein Hinweis, kein Blocker."
             ),
         }
 
