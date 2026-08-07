@@ -1,0 +1,10 @@
+{% extends "share/_base.html" %}
+{% block title %}{{ dept.name }}{% endblock %}
+
+{% block content %}
+<a href="/mein-plan/{{ token }}/abteilungen" class="btn btn-ghost btn-sm" style="margin-bottom:16px;">
+  &larr; Zurück zu Abteilungen
+</a>
+
+{% include "_partials/abteilung_detail_content.html" %}
+{% endblock %}

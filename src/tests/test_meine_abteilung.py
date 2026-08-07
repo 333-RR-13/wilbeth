@@ -275,3 +275,78 @@ def test_dev_login_ausbilder_redirects_to_meine_abteilung(client, monkeypatch):
     r = client.post("/auth/dev-login", data={"rolle": "ausbilder"}, follow_redirects=False)
     assert r.status_code == 303
     assert r.headers["location"] == "/meine-abteilung/"
+
+
+# ── (h) Infoseite pflegen (POST /meine-abteilung/infoseite) ─────────────────
+
+def test_ausbilder_speichert_infoseite_der_eigenen_abteilung(client, session, monkeypatch):
+    _dev_mode(monkeypatch)
+    ids = _setup(session)
+    _login(client, "ausbilder")
+
+    r = client.post("/meine-abteilung/infoseite", data={
+        "department_id": ids["own"],
+        "info_text": "Neuer Infotext fuer Azubis",
+        "info_link": "https://confluence.example.com/cp",
+        "schoolyear_id": SY,
+    }, follow_redirects=False)
+    assert r.status_code == 303
+    assert r.headers["location"].startswith("/meine-abteilung/?msg=updated")
+
+    session.expire_all()
+    dept = session.get(Department, ids["own"])
+    assert dept.info_text == "Neuer Infotext fuer Azubis"
+    assert dept.info_link == "https://confluence.example.com/cp"
+
+
+def test_ausbilder_speichert_infoseite_fremder_abteilung_ergibt_403(client, session, monkeypatch):
+    _dev_mode(monkeypatch)
+    ids = _setup(session)
+    _login(client, "ausbilder")
+
+    r = client.post("/meine-abteilung/infoseite", data={
+        "department_id": ids["foreign"],
+        "info_text": "Sollte nicht gespeichert werden",
+        "info_link": "",
+    })
+    assert r.status_code == 403
+
+    session.expire_all()
+    dept = session.get(Department, ids["foreign"])
+    assert dept.info_text == ""
+
+
+def test_infoseite_ungueltiger_link_ergibt_400(client, session, monkeypatch):
+    _dev_mode(monkeypatch)
+    ids = _setup(session)
+    _login(client, "ausbilder")
+
+    r = client.post("/meine-abteilung/infoseite", data={
+        "department_id": ids["own"],
+        "info_text": "",
+        "info_link": "javascript:alert(1)",
+    })
+    assert r.status_code == 400
+
+    session.expire_all()
+    dept = session.get(Department, ids["own"])
+    assert dept.info_link == ""
+
+
+def test_orga_darf_infoseite_jeder_abteilung_speichern(client, session, monkeypatch):
+    """Abweichend von block_action/create_vorschlag: orga/admin duerfen die
+    Infoseite JEDER Abteilung pflegen, nicht nur eigene (siehe Projektauftrag)."""
+    _dev_mode(monkeypatch)
+    ids = _setup(session)
+    _login(client, "orga")
+
+    r = client.post("/meine-abteilung/infoseite", data={
+        "department_id": ids["foreign"],
+        "info_text": "Von Orga gepflegt",
+        "info_link": "",
+    }, follow_redirects=False)
+    assert r.status_code == 303
+
+    session.expire_all()
+    dept = session.get(Department, ids["foreign"])
+    assert dept.info_text == "Von Orga gepflegt"

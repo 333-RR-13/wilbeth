@@ -31,6 +31,11 @@ class Department(SQLModel, table=True):
     kategorie_id: int | None = Field(default=None, foreign_key="department_kategorie.id", index=True)
     ansprechpartner: str = Field(default="")
     info_text: str = Field(default="")
+    # Prominenter externer Link auf der Abteilungs-Infoseite (z. B. Confluence).
+    # Nur http/https wird akzeptiert (siehe app/utils/text.is_safe_http_url) --
+    # geprueft beim Speichern in app/routers/departments.py bzw.
+    # app/routers/ausbilder.py (Migration 0015infolink).
+    info_link: str = Field(default="")
     erlaubt_mehrfachbelegung: bool = Field(default=False)
     farbe: str = Field(default="#9CA3AF")
     verantwortliche: str = Field(default="")

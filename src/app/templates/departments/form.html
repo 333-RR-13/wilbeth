@@ -57,7 +57,22 @@
         <label for="info_text">Abteilungs-Beschreibung</label>
         <textarea id="info_text" name="info_text" rows="4"
                   placeholder="Informationen zur Abteilung (Aufgaben, Hinweise fuer Azubis …)">{{ department.info_text if department else '' }}</textarea>
+        <span class="form-hint">Wird auf der Abteilungs-Detailseite für Azubis angezeigt (als Absätze, enthaltene Links werden automatisch klickbar).</span>
       </div>
+
+      <div class="form-group">
+        <label for="info_link">Link zur Abteilungsseite</label>
+        <input type="url" id="info_link" name="info_link"
+               value="{{ department.info_link if department else '' }}"
+               placeholder="https://confluence.beispiel.de/...">
+        <span class="form-hint">Optional, nur http:// oder https://. Erscheint auf der Detailseite als Button „Zur Abteilungsseite“.</span>
+      </div>
+
+      {% if department %}
+      <div class="form-group">
+        <a href="/abteilungen/{{ department.id }}/vorschau" class="btn btn-secondary btn-sm">Vorschau (Azubi-Sicht) ansehen</a>
+      </div>
+      {% endif %}
 
       <div class="form-group">
         <label for="farbe">Farbe</label>

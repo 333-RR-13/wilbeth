@@ -59,6 +59,7 @@ from app.services.membership_utils import (
 )
 from app.utils.colors import department_color_map
 from app.utils.kw import format_weekdays, iter_kw_range, iter_schoolyear_weeks, kw_to_monday
+from app.utils.text import linkify
 
 # Badge-Farbklasse je Feedbackbogen-Status -- abgeleitet aus der gemeinsamen
 # Farb-Map in feedback_def.py, damit Staff- und Azubi-UI identisch einfaerben.
@@ -850,6 +851,30 @@ def abteilungen_page(request: Request, token: str, db: DB):
         "token": token,
         "active": "abteilungen",
         "all_depts": all_depts,
+    })
+
+
+@router.get("/{token}/abteilungen/{department_id}", response_class=HTMLResponse)
+def abteilung_detail(request: Request, token: str, department_id: int, db: DB):
+    """Read-only Detailseite einer Abteilung: Name, Kuerzel, Kategorie,
+    Ansprechpartner und der gepflegte Infotext/-link (siehe app/utils/text.
+    linkify -- info_text wird NIE als HTML interpretiert, nur sicher als
+    Absaetze mit automatisch verlinkten http(s)-URLs gerendert).
+
+    Unbekannte department_id -> 404 (bewusst KEIN Bezug zu allowed_dept_ids:
+    die Liste unter /abteilungen zeigt ohnehin alle Abteilungen, jede darf
+    hier verlinkt werden)."""
+    trainee = _trainee_by_token(db, token)
+    dept = db.get(Department, department_id)
+    if dept is None:
+        raise HTTPException(status_code=404, detail="Abteilung nicht gefunden")
+
+    return templates.TemplateResponse(request, "share/abteilung_detail.html", {
+        "trainee": trainee,
+        "token": token,
+        "active": "abteilungen",
+        "dept": dept,
+        "info_html": linkify(dept.info_text),
     })
 
 

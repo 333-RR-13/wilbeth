@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}Mein Plan{% endblock %} – {{ trainee.vorname }} {{ trainee.nachname }}</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=3">
-  <link rel="stylesheet" href="/static/style.css?v=10">
+  <link rel="stylesheet" href="/static/style.css?v=11">
 </head>
 <body>
 <div class="layout">
@@ -101,7 +101,7 @@
 
   <!-- ── Main Content ─────────────────────────────── -->
   <main class="main-content">
-    <div class="content-inner">
+    <div class="content-inner {% block content_class %}{% endblock %}">
 
       {# Flash-Nachrichten aus Query-Parameter #}
       {% set msg = request.query_params.get('msg') %}

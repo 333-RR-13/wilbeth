@@ -649,8 +649,10 @@ def test_abteilungen_page_renders(client, session):
     assert "Abteilungen" in r.text
 
 
-def test_abteilungen_page_shows_verantwortliche(client, session):
-    """Abteilungs-Seite zeigt verantwortliche an, sonst Fallback '-'."""
+def test_abteilungen_page_hides_verantwortliche(client, session):
+    """Die Kachel-Uebersicht zeigt Verantwortliche-UPNs NICHT an (Azubis
+    sollen diese Login-Zuordnung nicht sehen) -- Details siehe stattdessen
+    tests/test_abteilung_detail.py (neue Detailseite)."""
     session.add(Schoolyear(id=SY, start_kw=36, start_year=2025, end_kw=35, end_year=2026))
     cp = Department(code="CP", name="Cloud Platform", verantwortliche="verantwortlich@firma.de")
     ba = Department(code="BA", name="Business Applications", erlaubt_mehrfachbelegung=True)
@@ -661,6 +663,4 @@ def test_abteilungen_page_shows_verantwortliche(client, session):
 
     r = client.get(f"/mein-plan/{TOKEN}/abteilungen")
     assert r.status_code == 200
-    assert "verantwortlich@firma.de" in r.text
-    # BA hat keine verantwortliche -> Fallback "-"
-    assert "–" in r.text
+    assert "verantwortlich@firma.de" not in r.text

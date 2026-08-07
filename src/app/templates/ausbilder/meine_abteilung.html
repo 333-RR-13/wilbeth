@@ -22,6 +22,9 @@
     padding: 16px 20px; border-radius: var(--radius); background: var(--accent-light);
     color: var(--accent); font-size: 14px; margin-bottom: 20px;
   }
+  .infoseite-section {
+    padding: 16px 20px; border-bottom: 1px solid var(--border);
+  }
 </style>
 
 <div class="page-header">
@@ -56,6 +59,32 @@
     <span class="dept-card-title">{{ d.code }} – {{ d.name }}</span>
     <span class="badge badge-gray">{{ entry.blocks | length }} Bloecke</span>
   </div>
+
+  <div class="infoseite-section">
+    <div class="form-section-title" style="margin-bottom:8px;">
+      Infoseite
+      <a href="/meine-abteilung/{{ d.id }}/vorschau" class="btn btn-ghost btn-sm" style="margin-left:8px;">
+        Vorschau (Azubi-Sicht) ansehen
+      </a>
+    </div>
+    <form method="post" action="/meine-abteilung/infoseite">
+      <input type="hidden" name="department_id" value="{{ d.id }}">
+      <input type="hidden" name="schoolyear_id" value="{{ selected_year }}">
+      <div class="form-group">
+        <label for="info_text-{{ d.id }}">Infotext für Azubis</label>
+        <textarea id="info_text-{{ d.id }}" name="info_text" rows="4"
+                  placeholder="Beschreibung des Ausbildungsplans, Aufgaben, Hinweise …">{{ d.info_text }}</textarea>
+      </div>
+      <div class="form-group">
+        <label for="info_link-{{ d.id }}">Link zur Abteilungsseite</label>
+        <input type="url" id="info_link-{{ d.id }}" name="info_link" value="{{ d.info_link }}"
+               placeholder="https://confluence.beispiel.de/...">
+        <span class="form-hint">Optional, nur http:// oder https://.</span>
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm">Infoseite speichern</button>
+    </form>
+  </div>
+
   <div class="table-wrapper dept-card-table">
     <table>
       <thead>

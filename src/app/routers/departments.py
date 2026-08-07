@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
@@ -10,11 +10,23 @@ from app.database import get_session
 from app.models import Department, DepartmentKategorie
 from app.models.department import ZIELGRUPPE_LABELS
 from app.services.auth_service import CurrentUser, require_roles
+from app.utils.text import is_safe_http_url, linkify
 
 router = APIRouter(prefix="/abteilungen", tags=["abteilungen"])
 templates = Jinja2Templates(directory=Path(__file__).resolve().parents[1] / "templates")
 templates.env.globals["zielgruppe_labels"] = ZIELGRUPPE_LABELS
 DB = Annotated[Session, Depends(get_session)]
+
+
+def _validate_info_link(info_link: str) -> str:
+    """Trimmt info_link; leer bleibt erlaubt (kein Link), sonst MUSS es
+    http/https sein -- sonst 400 (siehe app.utils.text.is_safe_http_url)."""
+    info_link = (info_link or "").strip()
+    if info_link and not is_safe_http_url(info_link):
+        raise HTTPException(
+            status_code=400, detail="Ungueltiger Link (nur http:// oder https:// erlaubt)"
+        )
+    return info_link
 
 
 def _get_kategorien(db: Session) -> list[DepartmentKategorie]:
@@ -117,18 +129,21 @@ def create_department(
     kategorie_id: Annotated[int | None, Form()] = None,
     ansprechpartner: Annotated[str, Form()] = "",
     info_text: Annotated[str, Form()] = "",
+    info_link: Annotated[str, Form()] = "",
     erlaubt_mehrfachbelegung: Annotated[str, Form()] = "",
     farbe: Annotated[str, Form()] = "#9CA3AF",
     verantwortliche: Annotated[str, Form()] = "",
     zielgruppe: Annotated[str, Form()] = "BEIDE",
     user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
+    info_link = _validate_info_link(info_link)
     db.add(Department(
         code=code.strip().upper(),
         name=name,
         kategorie_id=kategorie_id,
         ansprechpartner=ansprechpartner,
         info_text=info_text,
+        info_link=info_link,
         erlaubt_mehrfachbelegung=bool(erlaubt_mehrfachbelegung),
         farbe=farbe,
         verantwortliche=verantwortliche,
@@ -157,24 +172,52 @@ def update_department(
     kategorie_id: Annotated[int | None, Form()] = None,
     ansprechpartner: Annotated[str, Form()] = "",
     info_text: Annotated[str, Form()] = "",
+    info_link: Annotated[str, Form()] = "",
     erlaubt_mehrfachbelegung: Annotated[str, Form()] = "",
     farbe: Annotated[str, Form()] = "#9CA3AF",
     verantwortliche: Annotated[str, Form()] = "",
     zielgruppe: Annotated[str, Form()] = "BEIDE",
     user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
+    info_link = _validate_info_link(info_link)
     dept = db.get(Department, dept_id)
     dept.code = code.strip().upper()
     dept.name = name
     dept.kategorie_id = kategorie_id
     dept.ansprechpartner = ansprechpartner
     dept.info_text = info_text
+    dept.info_link = info_link
     dept.erlaubt_mehrfachbelegung = bool(erlaubt_mehrfachbelegung)
     dept.farbe = farbe
     dept.verantwortliche = verantwortliche
     dept.zielgruppe = zielgruppe if zielgruppe in ZIELGRUPPE_LABELS else "BEIDE"
     db.commit()
     return RedirectResponse("/abteilungen/?msg=updated", status_code=303)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Vorschau (Staff-Sicht auf die Azubi-Detailseite, read-only)
+# ──────────────────────────────────────────────────────────────────────────────
+
+@router.get("/{dept_id:int}/vorschau", response_class=HTMLResponse)
+def preview_department(
+    request: Request, dept_id: int, db: DB,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
+):
+    """Zeigt Orga/Admin read-only, wie die neue Abteilungs-Detailseite
+    (app/routers/share.py: abteilung_detail) fuer Azubis aussieht -- selbes
+    Markup (siehe _partials/abteilung_detail_content.html), nur im
+    Staff-Layout (base.html) statt im Azubi-Layout (share/_base.html), das
+    einen Trainee-Token voraussetzt."""
+    dept = db.get(Department, dept_id)
+    if dept is None:
+        raise HTTPException(status_code=404, detail="Abteilung nicht gefunden")
+    return templates.TemplateResponse(request, "departments/vorschau.html", {
+        "dept": dept,
+        "info_html": linkify(dept.info_text),
+        "back_url": "/abteilungen/",
+        "active_nav": "abteilungen",
+    })
 
 
 @router.delete("/{dept_id:int}")

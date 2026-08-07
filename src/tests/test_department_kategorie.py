@@ -265,6 +265,68 @@ def test_list_shows_dash_when_info_text_empty(client, session: Session):
     assert "NIT" in r.text
 
 
+# ── info_link speichern und validieren ───────────────────────────────────────
+
+def test_create_department_saves_info_link(client, session: Session):
+    """POST /abteilungen/ speichert info_link korrekt in der Datenbank."""
+    r = client.post("/abteilungen/", data={
+        "code": "LNK",
+        "name": "Link Dept",
+        "info_link": "https://confluence.example.com/link-dept",
+    }, follow_redirects=False)
+    assert r.status_code == 303
+
+    dept = session.exec(select(Department).where(Department.code == "LNK")).first()
+    assert dept is not None
+    assert dept.info_link == "https://confluence.example.com/link-dept"
+
+
+def test_create_department_invalid_info_link_ergibt_400(client, session: Session):
+    """Ein info_link ohne http/https-Schema wird mit 400 abgelehnt."""
+    r = client.post("/abteilungen/", data={
+        "code": "BAD",
+        "name": "Bad Link Dept",
+        "info_link": "javascript:alert(1)",
+    })
+    assert r.status_code == 400
+
+    dept = session.exec(select(Department).where(Department.code == "BAD")).first()
+    assert dept is None
+
+
+def test_update_department_invalid_info_link_ergibt_400(client, session: Session):
+    dept = Department(code="UPL", name="Update Link Dept")
+    session.add(dept)
+    session.commit()
+
+    r = client.post(f"/abteilungen/{dept.id}", data={
+        "code": "UPL",
+        "name": "Update Link Dept",
+        "info_link": "ftp://example.com/datei",
+    })
+    assert r.status_code == 400
+
+    session.refresh(dept)
+    assert dept.info_link == ""
+
+
+def test_update_department_leerer_info_link_bleibt_erlaubt(client, session: Session):
+    """Ein leerer info_link ist ein erlaubter Sonderfall (kein Link, kein 400)."""
+    dept = Department(code="EMP", name="Empty Link Dept", info_link="https://alt.example.com")
+    session.add(dept)
+    session.commit()
+
+    r = client.post(f"/abteilungen/{dept.id}", data={
+        "code": "EMP",
+        "name": "Empty Link Dept",
+        "info_link": "",
+    }, follow_redirects=False)
+    assert r.status_code == 303
+
+    session.refresh(dept)
+    assert dept.info_link == ""
+
+
 # ── verantwortliche speichern und anzeigen ───────────────────────────────────
 
 def test_create_department_saves_verantwortliche(client, session: Session):

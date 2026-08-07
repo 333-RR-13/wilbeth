@@ -46,6 +46,7 @@ from app.services.feedback_utils import bogen_fuer_block
 from app.services.membership_utils import aktuelles_schuljahr_id
 from app.services.trainee_notiz_service import darf_notiz_anlegen, erstelle_notiz
 from app.utils.kw import iter_schoolyear_weeks, kw_to_monday
+from app.utils.text import is_safe_http_url, linkify
 
 router = APIRouter(prefix="/meine-abteilung", tags=["meine-abteilung"])
 templates = Jinja2Templates(directory=Path(__file__).resolve().parents[1] / "templates")
@@ -314,3 +315,71 @@ def create_notiz(
     if schoolyear_id:
         url += f"&schoolyear_id={schoolyear_id}"
     return RedirectResponse(url, status_code=303)
+
+
+# ── Infoseite pflegen (Azubi-Detailseite fuer die eigene(n) Abteilung(en)) ──
+
+@router.post("/infoseite", response_class=RedirectResponse)
+def save_infoseite(
+    db: DB,
+    user: Annotated[CurrentUser, Depends(require_roles("ausbilder", "orga", "admin"))],
+    department_id: Annotated[int, Form()],
+    info_text: Annotated[str, Form()] = "",
+    info_link: Annotated[str, Form()] = "",
+    schoolyear_id: Annotated[str, Form()] = "",
+):
+    """Speichert Department.info_text/info_link -- den Inhalt der Azubi-
+    Detailseite (app/routers/share.py: abteilung_detail).
+
+    Berechtigung: Ausbilder duerfen nur ihre EIGENEN (in allowed_dept_ids
+    gelisteten) Abteilungen pflegen -- fremde Abteilung ergibt 403.
+    Orga/Admin duerfen abweichend von block_action/create_vorschlag oben
+    ALLE Abteilungen pflegen (siehe Projektauftrag), nicht nur eigene.
+    """
+    if user.rolle not in ("orga", "admin") and department_id not in allowed_dept_ids(db, user):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+
+    info_link = (info_link or "").strip()
+    if info_link and not is_safe_http_url(info_link):
+        raise HTTPException(
+            status_code=400, detail="Ungueltiger Link (nur http:// oder https:// erlaubt)"
+        )
+
+    dept = db.get(Department, department_id)
+    if dept is None:
+        raise HTTPException(status_code=404, detail="Abteilung nicht gefunden")
+
+    dept.info_text = info_text
+    dept.info_link = info_link
+    db.commit()
+
+    # msg=updated nutzt die bestehende generische Flash-Meldung in base.html
+    # ("Eintrag erfolgreich aktualisiert.") -- kein eigener Sondertext noetig.
+    url = "/meine-abteilung/?msg=updated"
+    if schoolyear_id:
+        url += f"&schoolyear_id={schoolyear_id}"
+    return RedirectResponse(url, status_code=303)
+
+
+# ── Vorschau (wie die Azubi-Detailseite fuer die eigene Abteilung aussieht) ──
+
+@router.get("/{department_id:int}/vorschau", response_class=HTMLResponse)
+def preview_infoseite(
+    request: Request,
+    db: DB,
+    department_id: int,
+    user: Annotated[CurrentUser, Depends(require_roles("ausbilder", "orga", "admin"))],
+):
+    """Read-only Vorschau der Azubi-Detailseite -- selbes Markup (siehe
+    _partials/abteilung_detail_content.html) im Staff-Layout. Der Inhalt ist
+    ohnehin fuer JEDEN Azubi mit Token einsehbar (keine Zugriffsbeschraenkung
+    ueber allowed_dept_ids noetig, analog der Azubi-Route selbst)."""
+    dept = db.get(Department, department_id)
+    if dept is None:
+        raise HTTPException(status_code=404, detail="Abteilung nicht gefunden")
+    return templates.TemplateResponse(request, "departments/vorschau.html", {
+        "dept": dept,
+        "info_html": linkify(dept.info_text),
+        "back_url": "/meine-abteilung/",
+        "active_nav": "meine_abteilung",
+    })

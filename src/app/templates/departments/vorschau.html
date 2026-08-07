@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}{{ dept.name }} – Vorschau{% endblock %}
+
+{% block content %}
+<a href="{{ back_url }}" class="btn btn-ghost btn-sm" style="margin-bottom:16px;">&larr; Zurück</a>
+
+<div class="flash flash-info" style="margin-bottom:16px;">
+  Vorschau – so sieht diese Abteilung auf der Detailseite für Azubis aus (schreibgeschützt).
+</div>
+
+{% include "_partials/abteilung_detail_content.html" %}
+{% endblock %}

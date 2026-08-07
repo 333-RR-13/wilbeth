@@ -1,0 +1,100 @@
+{# Erwartet im Kontext: dept (Department), info_html (Markup, via
+   app.utils.text.linkify(dept.info_text) -- bereits sicher gerendert, KEIN
+   zusaetzliches |safe noetig).
+
+   Wird sowohl von der Azubi-Detailseite (share/abteilung_detail.html) als
+   auch von der Staff-Vorschau (departments/vorschau.html) eingebunden --
+   exakt derselbe Inhalt, nur in unterschiedlichem Seiten-Layout. #}
+<div class="dept-detail-heading">
+  <span class="dept-color-dot dept-color-dot--lg" style="background:{{ dept.farbe }};"></span>
+  <div>
+    <h1 class="page-title">{{ dept.name }}</h1>
+    <div class="dept-detail-sub">
+      <span class="mono">{{ dept.code }}</span>
+      {% if dept.kategorie %}<span class="badge badge-gray">{{ dept.kategorie.name }}</span>{% endif %}
+    </div>
+  </div>
+</div>
+
+<dl class="dept-detail-meta">
+  <div class="dept-meta-row">
+    <dt>Ansprechpartner</dt>
+    <dd>{{ dept.ansprechpartner if dept.ansprechpartner else '–' }}</dd>
+  </div>
+</dl>
+
+{% if dept.info_link %}
+<p class="dept-detail-link">
+  <a href="{{ dept.info_link }}" class="btn btn-primary" rel="noopener noreferrer" target="_blank">
+    Zur Abteilungsseite
+  </a>
+</p>
+{% endif %}
+
+<div class="dept-detail-info">
+  {% if dept.info_text %}
+    {{ info_html }}
+  {% else %}
+    <p class="text-muted">Noch kein Infotext hinterlegt.</p>
+  {% endif %}
+</div>
+
+<style>
+.dept-detail-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  margin-bottom: 1.2rem;
+}
+.dept-color-dot--lg {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dept-detail-sub {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 4px;
+  color: var(--text-secondary);
+}
+.dept-detail-meta {
+  margin: 0 0 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.dept-detail-meta .dept-meta-row {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+.dept-detail-meta .dept-meta-row dt {
+  color: var(--text-muted);
+  min-width: 130px;
+  flex-shrink: 0;
+}
+.dept-detail-meta .dept-meta-row dd {
+  margin: 0;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+.dept-detail-link {
+  margin: 0 0 1.4rem;
+}
+.dept-detail-info {
+  max-width: 720px;
+  line-height: 1.6;
+  color: var(--text-primary);
+}
+.dept-detail-info p {
+  margin: 0 0 1em;
+}
+.dept-detail-info p:last-child {
+  margin-bottom: 0;
+}
+.dept-detail-info a {
+  word-break: break-word;
+}
+</style>
