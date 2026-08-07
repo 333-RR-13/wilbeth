@@ -63,7 +63,10 @@ def _group_by_beruf(
 
 
 @router.get("/", response_class=HTMLResponse)
-def list_classes(request: Request, db: DB):
+def list_classes(
+    request: Request, db: DB,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
+):
     classes = db.exec(select(TraineeClass).order_by(TraineeClass.name)).all()
     schul_labels = {
         c.id: format_weekdays(c.schul_wochentage, halbtag=c.halbtag_wochentag)
@@ -79,7 +82,10 @@ def list_classes(request: Request, db: DB):
 
 
 @router.get("/neu", response_class=HTMLResponse)
-def new_class(request: Request, db: DB):
+def new_class(
+    request: Request, db: DB,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
+):
     years = db.exec(select(Schoolyear).order_by(Schoolyear.start_year.desc())).all()
     return templates.TemplateResponse(request, "trainee_classes/form.html", {
         "cls": None, "typen": list(UnterrichtsTyp), "active_nav": "klassen",
@@ -116,7 +122,10 @@ def create_class(
 
 
 @router.get("/{class_id:int}/bearbeiten", response_class=HTMLResponse)
-def edit_class(request: Request, class_id: int, db: DB):
+def edit_class(
+    request: Request, class_id: int, db: DB,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
+):
     cls = db.get(TraineeClass, class_id)
     all_classes = db.exec(select(TraineeClass)).all()
     years = db.exec(select(Schoolyear).order_by(Schoolyear.start_year.desc())).all()
@@ -200,7 +209,7 @@ def update_class(
 @router.delete("/{class_id:int}")
 def delete_class(
     class_id: int, db: DB,
-    user: CurrentUser = Depends(require_roles("admin")),
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
     cls = db.get(TraineeClass, class_id)
     db.delete(cls)

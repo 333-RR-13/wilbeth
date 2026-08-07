@@ -2,9 +2,9 @@
 serverseitig auch darf (siehe app/services/auth_service.require_roles).
 
 (a) /einsaetze/: Bulk-Delete-UI ist admin-only (orga sieht sie nicht mehr).
-(b) /abteilungen/: Loeschen-Button (DELETE, admin-only) nur fuer admin.
-(c) /abteilungen/: Bearbeiten/Anlegen-Buttons (orga/admin) nicht fuer ausbilder.
-(d) POST /jahresabschluss/reaktivieren setzt archiviert=False; orga -> 403.
+(b) /abteilungen/: Loeschen-Button (DELETE) fuer orga+admin.
+(c) /abteilungen/: seit Teil A komplett gesperrt fuer ausbilder (403).
+(d) POST /jahresabschluss/reaktivieren setzt archiviert=False; orga erlaubt.
 (e) Die "Archivierte Jahre"-Sektion erscheint nur, wenn archivierte Jahre da sind.
 
 Login-Muster: settings.auth_mode per monkeypatch auf "dev" umschalten, dann
@@ -66,14 +66,14 @@ def test_admin_sieht_bulk_delete_ui(client, session: Session, monkeypatch):
     assert "Ausgewählte löschen" in r.text
 
 
-# ── (b) Abteilungen: Loeschen-Button admin-only ────────────────────────────
+# ── (b) Abteilungen: Loeschen-Button orga+admin ────────────────────────────
 
-def test_orga_sieht_keinen_loeschen_button_abteilungen(client, session: Session, monkeypatch):
+def test_orga_sieht_loeschen_button_abteilungen(client, session: Session, monkeypatch):
     d = _add_department(session)
     _login(client, monkeypatch, "orga")
     r = client.get("/abteilungen/")
     assert r.status_code == 200
-    assert f'hx-delete="/abteilungen/{d.id}"' not in r.text
+    assert f'hx-delete="/abteilungen/{d.id}"' in r.text
 
 
 def test_admin_sieht_loeschen_button_abteilungen(client, session: Session, monkeypatch):
@@ -84,21 +84,18 @@ def test_admin_sieht_loeschen_button_abteilungen(client, session: Session, monke
     assert f'hx-delete="/abteilungen/{d.id}"' in r.text
 
 
-# ── (c) Abteilungen: Bearbeiten/Anlegen nicht fuer ausbilder ───────────────
+# ── (c) Abteilungen: seit Teil A komplett gesperrt fuer ausbilder ─────────
 
-def test_ausbilder_sieht_keinen_bearbeiten_oder_anlegen_button_abteilungen(
+def test_ausbilder_abteilungen_verboten(
     client, session: Session, monkeypatch,
 ):
-    d = _add_department(session)
+    """Die Stammdaten-Liste /abteilungen/ ist fuer Ausbilder seit Teil A
+    komplett gesperrt (403) - nicht mehr nur die Bearbeiten/Anlegen-Buttons
+    versteckt."""
+    _add_department(session)
     _login(client, monkeypatch, "ausbilder")
     r = client.get("/abteilungen/")
-    assert r.status_code == 200
-    assert "/abteilungen/neu" not in r.text
-    # data-href (Zeilenklick) bleibt bewusst unangetastet (kein Server-Guard-
-    # Aequivalent) - geprueft wird nur der sichtbare "Bearbeiten"-Button/-Link
-    # (<a href=...>, nicht das data-href des <tr>).
-    assert f'<a href="/abteilungen/{d.id}/bearbeiten"' not in r.text
-    assert f'hx-delete="/abteilungen/{d.id}"' not in r.text
+    assert r.status_code == 403
 
 
 def test_orga_sieht_bearbeiten_und_anlegen_button_abteilungen(
@@ -147,7 +144,7 @@ def test_reaktivieren_unbekanntes_jahr_liefert_fehler(client, session: Session, 
     assert "msg=error" in r.headers["location"]
 
 
-def test_orga_reaktivieren_verboten(client, session: Session, monkeypatch):
+def test_orga_reaktivieren_erlaubt(client, session: Session, monkeypatch):
     y = _add_year(session, "2024-2025", 2024, archiviert=True)
     _login(client, monkeypatch, "orga")
 
@@ -156,11 +153,11 @@ def test_orga_reaktivieren_verboten(client, session: Session, monkeypatch):
         data={"schoolyear_id": y.id},
         follow_redirects=False,
     )
-    assert r.status_code == 403
+    assert r.status_code == 303
 
     session.expire_all()
-    unchanged = session.get(Schoolyear, y.id)
-    assert unchanged.archiviert is True, "Orga darf ein Jahr nicht reaktivieren"
+    updated = session.get(Schoolyear, y.id)
+    assert updated.archiviert is False, "Orga darf ein Jahr jetzt reaktivieren"
 
 
 # ── (e) Archivierte-Jahre-Sektion nur wenn vorhanden ───────────────────────
@@ -204,13 +201,13 @@ def test_jahresabschluss_link_liegt_unter_dev_tools_fuer_admin(client, session: 
     assert stammdaten_pos < dev_tools_pos < import_pos < daten_pos < jahresabschluss_pos
 
 
-def test_jahresabschluss_link_fuer_orga_unsichtbar(client, session: Session, monkeypatch):
-    """Orga sieht die Dev-Tools-Sektion (Import), aber weder Datensicherung
-    noch Jahresabschluss -- beide bleiben admin-only."""
+def test_jahresabschluss_link_fuer_orga_sichtbar(client, session: Session, monkeypatch):
+    """Orga sieht die Dev-Tools-Sektion (Import) sowie jetzt auch
+    Jahresabschluss -- nur Datensicherung bleibt admin-only."""
     _login(client, monkeypatch, "orga")
     r = client.get("/trainees/")
     assert r.status_code == 200
     assert "Dev-Tools" in r.text
     assert "Import" in r.text
-    assert "Jahresabschluss" not in r.text
+    assert "Jahresabschluss" in r.text
     assert "Datensicherung" not in r.text

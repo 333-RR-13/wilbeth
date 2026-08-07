@@ -129,7 +129,7 @@ def _trainee_vorschau(
 @router.get("/", response_class=HTMLResponse)
 def jahresabschluss_form(
     request: Request, db: DB,
-    user: CurrentUser = Depends(require_roles("admin")),
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
     # order start_year ASC (nicht DESC): man schliesst chronologisch ab, also
     # ist ohne expliziten ?schoolyear_id-Parameter das AELTESTE nicht-archivierte
@@ -181,7 +181,7 @@ def jahresabschluss_form(
 async def jahresabschluss_abschliessen(
     request: Request,
     db: DB,
-    user: CurrentUser = Depends(require_roles("admin")),
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
     form = await request.form()
     schoolyear_id = form.get("schoolyear_id", "")
@@ -272,7 +272,7 @@ async def jahresabschluss_abschliessen(
 async def jahresabschluss_reaktivieren(
     request: Request,
     db: DB,
-    user: CurrentUser = Depends(require_roles("admin")),
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
     """Admin-Sicherheitsnetz: ein versehentlich archiviertes Jahr wieder
     aktivieren (archiviert=False), z. B. nach einem falschen Jahresabschluss.

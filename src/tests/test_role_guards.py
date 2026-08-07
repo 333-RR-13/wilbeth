@@ -1,9 +1,13 @@
 """Tests fuer rollenbasierte Zugriffsguards (Paket A).
 
-Rollen-Modell: admin = alles. orga = alles ausser Jahresabschluss und
-endgueltigem Loeschen. ausbilder = nur lesen (+ Einsaetze bestaetigen, nicht
-Teil dieses Pakets). azubi landet nie in der Planer-UI (Middleware sperrt
-schon, siehe test_auth_flow.py).
+Rollen-Modell: admin = alles. orga = alles ausser Datensicherung und
+endgueltigem Loeschen von Feedbackboegen. ausbilder hat auf die
+Stammdaten-Routen (Klassen/Abteilungen/Schulplaene/Schulferien/Lehrjahre/
+Trainees) keinen Zugriff mehr (weder Lesen noch Schreiben) - Ausnahme ist das
+einzelne Trainee-Profil (GET /trainees/{id}), das Ausbilder nur fuer Azubis
+mit einem Abteilungs-Einsatz in einer ihnen zugeordneten Abteilung sehen
+duerfen (siehe test_stammdaten_rechte.py). azubi landet nie in der Planer-UI
+(Middleware sperrt schon, siehe test_auth_flow.py).
 
 Login-Muster: settings.auth_mode per monkeypatch auf "dev" umschalten, dann
 POST /auth/dev-login mit rolle=ausbilder/orga/admin (siehe app/routers/auth.py).
@@ -74,16 +78,16 @@ def test_ausbilder_post_auto_plan_verboten(client, session: Session, monkeypatch
     assert r.status_code == 403
 
 
-def test_ausbilder_get_trainees_erlaubt(client, session: Session, monkeypatch):
-    """Lesen bleibt fuer Ausbilder erlaubt."""
+def test_ausbilder_get_trainees_verboten(client, session: Session, monkeypatch):
+    """Die Trainee-Liste (Stammdaten) ist fuer Ausbilder seit Teil A gesperrt."""
     _login(client, monkeypatch, "ausbilder")
     r = client.get("/trainees/")
-    assert r.status_code == 200
+    assert r.status_code == 403
 
 
 def test_ausbilder_nav_ohne_auto_plan_import_jahresabschluss(client, session: Session, monkeypatch):
     _login(client, monkeypatch, "ausbilder")
-    r = client.get("/trainees/")
+    r = client.get("/einsaetze/")
     assert r.status_code == 200
     assert 'href="/jahresabschluss/"' not in r.text
     assert 'href="/auto-plan"' not in r.text
@@ -110,13 +114,13 @@ def test_orga_post_trainees_erlaubt(client, session: Session, monkeypatch):
     assert r.status_code == 303
 
 
-def test_orga_get_jahresabschluss_verboten(client, session: Session, monkeypatch):
+def test_orga_get_jahresabschluss_erlaubt(client, session: Session, monkeypatch):
     _login(client, monkeypatch, "orga")
     r = client.get("/jahresabschluss/", follow_redirects=False)
-    assert r.status_code == 403
+    assert r.status_code == 200
 
 
-def test_orga_post_jahresabschluss_abschliessen_verboten(client, session: Session, monkeypatch):
+def test_orga_post_jahresabschluss_abschliessen_erlaubt(client, session: Session, monkeypatch):
     _add_year(session, "2025-2026", 2025)
     _login(client, monkeypatch, "orga")
     r = client.post(
@@ -124,20 +128,20 @@ def test_orga_post_jahresabschluss_abschliessen_verboten(client, session: Sessio
         data={"schoolyear_id": "2025-2026"},
         follow_redirects=False,
     )
-    assert r.status_code == 403
+    assert r.status_code == 303
 
 
-def test_orga_post_trainee_loeschen_verboten(client, session: Session, monkeypatch):
+def test_orga_post_trainee_loeschen_erlaubt(client, session: Session, monkeypatch):
     t = _add_trainee(session, "Loesch", "Mich")
     tid = t.id
 
     _login(client, monkeypatch, "orga")
     r = client.post(f"/trainees/{tid}/loeschen", follow_redirects=False)
-    assert r.status_code == 403
+    assert r.status_code == 303
 
 
-def test_orga_delete_department_verboten(client, session: Session, monkeypatch):
-    """Endgueltiges Loeschen (DELETE) bleibt Admin vorbehalten."""
+def test_orga_delete_department_erlaubt(client, session: Session, monkeypatch):
+    """Endgueltiges Loeschen (DELETE) ist seit Teil A auch fuer orga erlaubt."""
     d = Department(code="ORG", name="Orga-Test-Abteilung")
     session.add(d)
     session.commit()
@@ -145,16 +149,16 @@ def test_orga_delete_department_verboten(client, session: Session, monkeypatch):
 
     _login(client, monkeypatch, "orga")
     r = client.delete(f"/abteilungen/{did}")
-    assert r.status_code == 403
+    assert r.status_code == 200
 
 
-def test_orga_nav_zeigt_auto_plan_und_import_aber_nicht_jahresabschluss(client, session: Session, monkeypatch):
+def test_orga_nav_zeigt_auto_plan_import_und_jahresabschluss(client, session: Session, monkeypatch):
     _login(client, monkeypatch, "orga")
     r = client.get("/trainees/")
     assert r.status_code == 200
     assert 'href="/auto-plan"' in r.text
     assert 'href="/import"' in r.text
-    assert 'href="/jahresabschluss/"' not in r.text
+    assert 'href="/jahresabschluss/"' in r.text
 
 
 # ── Admin: alles ──────────────────────────────────────────────────────────

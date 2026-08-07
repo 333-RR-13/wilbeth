@@ -77,7 +77,7 @@ def test_azubi_kommt_nicht_auf_hilfe(client, session: Session, monkeypatch):
 
 def test_nav_zeigt_how_to_wilbeth_fuer_alle_staff(client, session: Session, monkeypatch):
     _login(client, monkeypatch, "ausbilder")
-    r = client.get("/trainees/")
+    r = client.get("/einsaetze/")
     assert r.status_code == 200
     assert "How to Wilbeth" in r.text
     assert 'href="/hilfe/"' in r.text
@@ -95,7 +95,7 @@ def test_nav_zeigt_kein_datensicherung_fuer_ausbilder(client, session: Session, 
     """/daten/ ist admin-only, nur der Linktext wurde von 'Export / Import'
     auf 'Datensicherung' umbenannt -- fuer Ausbilder bleibt der Link ganz weg."""
     _login(client, monkeypatch, "ausbilder")
-    r = client.get("/trainees/")
+    r = client.get("/einsaetze/")
     assert r.status_code == 200
     assert "Datensicherung" not in r.text
     assert 'href="/daten/"' not in r.text
@@ -107,7 +107,7 @@ def test_nav_zeigt_keine_dev_tools_sektion_fuer_ausbilder(client, session: Sessi
     Sektions-Ueberschrift auftauchen (sonst stuende eine leere Ueberschrift
     in der Sidebar)."""
     _login(client, monkeypatch, "ausbilder")
-    r = client.get("/trainees/")
+    r = client.get("/einsaetze/")
     assert r.status_code == 200
     assert "Dev-Tools" not in r.text
     assert 'href="/import"' not in r.text

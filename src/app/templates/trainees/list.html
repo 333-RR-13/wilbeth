@@ -4,7 +4,7 @@
 {% block content %}
 {% set cu = request.state.current_user if request.state is defined and request.state.current_user is defined else None %}
 {% set can_edit = cu and cu.rolle in ('orga', 'admin') %}
-{% set is_admin = cu and cu.rolle == 'admin' %}
+{% set is_admin = cu and cu.rolle in ('orga', 'admin') %}
 <div class="page-header">
   <div>
     <h1 class="page-title">Trainees</h1>

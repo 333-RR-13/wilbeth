@@ -23,7 +23,10 @@ DB = Annotated[Session, Depends(get_session)]
 
 
 @router.get("/", response_class=HTMLResponse)
-def list_plans(request: Request, db: DB):
+def list_plans(
+    request: Request, db: DB,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
+):
     plans = db.exec(select(SchoolPlan)).all()
     classes = {c.id: c for c in db.exec(select(TraineeClass)).all()}
     years = {y.id: y for y in db.exec(select(Schoolyear)).all()}
@@ -41,7 +44,10 @@ def list_plans(request: Request, db: DB):
 
 
 @router.get("/neu", response_class=HTMLResponse)
-def new_plan(request: Request, db: DB):
+def new_plan(
+    request: Request, db: DB,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
+):
     classes = db.exec(select(TraineeClass).order_by(TraineeClass.name)).all()
     years = db.exec(select(Schoolyear).order_by(Schoolyear.start_year.desc())).all()
     return templates.TemplateResponse(request, "school_plans/form.html", {
@@ -75,7 +81,10 @@ def create_plan(
 
 
 @router.get("/{plan_id}", response_class=HTMLResponse)
-def plan_detail(request: Request, plan_id: int, db: DB):
+def plan_detail(
+    request: Request, plan_id: int, db: DB,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
+):
     plan = db.get(SchoolPlan, plan_id)
     klasse = db.get(TraineeClass, plan.klasse_id)
     year = db.get(Schoolyear, plan.schoolyear_id)
@@ -136,7 +145,7 @@ def delete_week(
 @router.delete("/{plan_id}")
 def delete_plan(
     plan_id: int, db: DB,
-    user: CurrentUser = Depends(require_roles("admin")),
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
     plan = db.get(SchoolPlan, plan_id)
     klasse_id = plan.klasse_id  # capture before deletion

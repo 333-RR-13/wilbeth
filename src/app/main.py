@@ -14,6 +14,7 @@ from app.routers import (
     auto_plan,
     auth,
     ausbilder,
+    ausbilder_verwaltung,
     datenexport,
     departments,
     feedback,
@@ -114,6 +115,7 @@ app.include_router(assignments.router)
 app.include_router(share.router)
 app.include_router(about.router)
 app.include_router(ausbilder.router)
+app.include_router(ausbilder_verwaltung.router)
 app.include_router(vorschlaege.router)
 app.include_router(feedback.router)
 app.include_router(abwesenheiten.router)

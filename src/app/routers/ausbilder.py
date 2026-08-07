@@ -9,9 +9,17 @@
 - POST /meine-abteilung/vorschlag -> Einsatz fuer einen Trainee in der
   eigenen Abteilung vorschlagen (EinsatzVorschlag, status=offen); von
   Orga/Admin unter /vorschlaege/ anzunehmen oder abzulehnen.
+- POST /meine-abteilung/notiz     -> TraineeNotiz (Notiz-Verlauf ueber den
+  Azubi, NICHT das Assignment.notiz/feedback obiger Zeilen) aus einem
+  Einsatz-Block heraus anlegen. Berechtigung siehe
+  app.services.trainee_notiz_service.darf_notiz_anlegen -- bewusst NICHT
+  dieselbe allowed_dept_ids-Regel wie block_action/create_vorschlag (dort
+  sind auch orga/admin auf die eigene UPN beschraenkt, hier nicht).
 
-Sicherheit: allowed_dept_ids(db, user) ist in beiden POST-Routen die alleinige
-Quelle der Wahrheit fuer "eigene Abteilung" -- jede Abweichung ist ein 403.
+Sicherheit: allowed_dept_ids(db, user) ist in block_action/create_vorschlag
+die alleinige Quelle der Wahrheit fuer "eigene Abteilung" -- jede Abweichung
+ist ein 403. Fuer /meine-abteilung/notiz gilt stattdessen darf_notiz_anlegen()
+(siehe oben).
 """
 import json
 from datetime import date
@@ -36,6 +44,7 @@ from app.services.auth_service import CurrentUser, allowed_dept_ids, require_rol
 from app.services.block_utils import apply_to_block, assignment_blocks
 from app.services.feedback_utils import bogen_fuer_block
 from app.services.membership_utils import aktuelles_schuljahr_id
+from app.services.trainee_notiz_service import darf_notiz_anlegen, erstelle_notiz
 from app.utils.kw import iter_schoolyear_weeks, kw_to_monday
 
 router = APIRouter(prefix="/meine-abteilung", tags=["meine-abteilung"])
@@ -267,3 +276,41 @@ def create_vorschlag(
     return RedirectResponse(
         f"/meine-abteilung/?msg=created&schoolyear_id={schoolyear_id}", status_code=303
     )
+
+
+# ── Notiz zum Azubi (Teil C, MIT Einsatz-Kontext) ────────────────────────────
+
+@router.post("/notiz", response_class=RedirectResponse)
+def create_notiz(
+    db: DB,
+    user: Annotated[CurrentUser, Depends(require_roles("ausbilder", "orga", "admin"))],
+    trainee_id: Annotated[int, Form()],
+    department_id: Annotated[int, Form()],
+    schoolyear_id: Annotated[str, Form()] = "",
+    kw_von: Annotated[int | None, Form()] = None,
+    jahr_von: Annotated[int | None, Form()] = None,
+    kw_bis: Annotated[int | None, Form()] = None,
+    jahr_bis: Annotated[int | None, Form()] = None,
+    text: Annotated[str, Form()] = "",
+):
+    """Legt eine TraineeNotiz MIT Einsatz-Kontext an (aus einem Block heraus).
+
+    Nutzt dieselbe Berechtigungspruefung wie die Profil-Route (siehe
+    app.services.trainee_notiz_service.darf_notiz_anlegen), hier mit
+    department_id -> Block-Kontext-Regel: bewusst NICHT dieselbe
+    Einschraenkung wie block_action/create_vorschlag oben (orga/admin sind
+    hier NICHT auf die eigene UPN beschraenkt)."""
+    if not darf_notiz_anlegen(db, user, trainee_id, department_id=department_id):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+
+    notiz = erstelle_notiz(
+        db, user, trainee_id, text,
+        department_id=department_id,
+        kw_von=kw_von, jahr_von=jahr_von, kw_bis=kw_bis, jahr_bis=jahr_bis,
+    )
+
+    msg = "created" if notiz is not None else "error"
+    url = f"/meine-abteilung/?msg={msg}"
+    if schoolyear_id:
+        url += f"&schoolyear_id={schoolyear_id}"
+    return RedirectResponse(url, status_code=303)

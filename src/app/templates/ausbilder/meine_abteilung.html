@@ -12,6 +12,8 @@
   .dept-card-table { box-shadow: none; border-radius: 0; }
   .block-form { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
   .block-form input[type="text"] { width: 140px; }
+  .notiz-form { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); }
+  .notiz-form input[type="text"] { width: 220px; }
   .vorschlag-form-grid {
     display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     gap: 14px 16px; margin-bottom: 16px;
@@ -88,6 +90,19 @@
               <button type="submit" name="aktion" value="bestaetigt" class="btn btn-primary btn-sm">Bestätigen</button>
               <button type="submit" name="aktion" value="abgelehnt" class="btn btn-ghost-danger btn-sm">Ablehnen</button>
             </form>
+            {% if b.trainee %}
+            <form method="post" action="/meine-abteilung/notiz" class="block-form notiz-form">
+              <input type="hidden" name="trainee_id" value="{{ b.trainee.id }}">
+              <input type="hidden" name="department_id" value="{{ entry.dept.id }}">
+              <input type="hidden" name="schoolyear_id" value="{{ selected_year }}">
+              <input type="hidden" name="kw_von" value="{{ b.kw_von }}">
+              <input type="hidden" name="jahr_von" value="{{ b.jahr_von }}">
+              <input type="hidden" name="kw_bis" value="{{ b.kw_bis }}">
+              <input type="hidden" name="jahr_bis" value="{{ b.jahr_bis }}">
+              <input type="text" name="text" placeholder="Notiz zum Azubi (nicht zum Einsatz)">
+              <button type="submit" class="btn btn-secondary btn-sm">Speichern</button>
+            </form>
+            {% endif %}
           </td>
           <td>
             {% if b.trainee %}

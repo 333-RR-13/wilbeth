@@ -3,7 +3,7 @@ import uuid
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
@@ -17,11 +17,12 @@ from app.models import (
     Trainee,
     TraineeClass,
     TraineeClassMembership,
+    TraineeNotiz,
     TraineeRolle,
     TraineeWish,
 )
 from app.models.trainee_wish import group_wishes_by_priority, prioritaet_label
-from app.services.auth_service import CurrentUser, require_roles
+from app.services.auth_service import CurrentUser, allowed_dept_ids, require_roles
 from app.services.conflict_checker import find_conflicts
 from app.services.dept_history import visited_department_ids
 from app.services.membership_utils import (
@@ -35,6 +36,7 @@ from app.services.membership_utils import (
     upsert_membership,
 )
 from app.services.school_sync import sync_trainee
+from app.services.trainee_notiz_service import darf_notiz_anlegen, erstelle_notiz
 from app.utils.colors import department_color_map
 
 router = APIRouter(prefix="/trainees", tags=["trainees"])
@@ -81,7 +83,10 @@ def _resolve_einstiegsklasse_id(
 
 
 @router.get("/", response_class=HTMLResponse)
-def list_trainees(request: Request, db: DB, status: str = "aktiv"):
+def list_trainees(
+    request: Request, db: DB, status: str = "aktiv",
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
+):
     """Liste der Trainees mit Status-Filter: aktiv | archiviert | alle."""
     q = select(Trainee).order_by(Trainee.nachname, Trainee.vorname)
     if status == "aktiv":
@@ -126,7 +131,10 @@ def list_trainees(request: Request, db: DB, status: str = "aktiv"):
 
 
 @router.get("/upn-pflege", response_class=HTMLResponse)
-def upn_pflege(request: Request, db: DB):
+def upn_pflege(
+    request: Request, db: DB,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
+):
     """Sammel-Pflege der UPN (Entra-Anmeldename) fuer alle aktiven Trainees."""
     trainees = db.exec(
         select(Trainee)
@@ -162,7 +170,10 @@ async def upn_pflege_speichern(
 
 
 @router.get("/neu", response_class=HTMLResponse)
-def new_trainee(request: Request, db: DB):
+def new_trainee(
+    request: Request, db: DB,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
+):
     classes = db.exec(select(TraineeClass).order_by(TraineeClass.name)).all()
     years = db.exec(select(Schoolyear).order_by(Schoolyear.start_year.desc())).all()
     return templates.TemplateResponse(request, "trainees/form.html", {
@@ -189,7 +200,6 @@ def create_trainee(
     sonderfall: Annotated[str, Form()] = "",
     membership_year_id: Annotated[str, Form()] = "",
     membership_klasse_id: Annotated[str, Form()] = "",
-    notizen: Annotated[str, Form()] = "",
     steckbrief: Annotated[str, Form()] = "",
     aktiv: Annotated[str, Form()] = "",
     ausbildungsbeginn: Annotated[str, Form()] = "",
@@ -213,7 +223,6 @@ def create_trainee(
         nachname=nachname,
         rolle=rolle,
         klasse_id=klasse_id_int,
-        notizen=notizen,
         steckbrief=steckbrief,
         aktiv=bool(aktiv),
         ausbildungsbeginn=ausbildungsbeginn_parsed,
@@ -232,7 +241,13 @@ def create_trainee(
 
 
 @router.get("/{trainee_id:int}", response_class=HTMLResponse)
-def trainee_detail(request: Request, trainee_id: int, db: DB):
+def trainee_detail(
+    request: Request, trainee_id: int, db: DB,
+    user: CurrentUser = Depends(require_roles("ausbilder", "orga", "admin")),
+):
+    if user.rolle == "ausbilder":
+        if not (allowed_dept_ids(db, user) & visited_department_ids(db, trainee_id)):
+            raise HTTPException(status_code=403, detail="Keine Berechtigung")
     trainee = db.get(Trainee, trainee_id)
     years_list = db.exec(select(Schoolyear).order_by(Schoolyear.start_year.desc())).all()
     years = {y.id: y for y in years_list}
@@ -276,6 +291,15 @@ def trainee_detail(request: Request, trainee_id: int, db: DB):
         depts[w.department_id].code for w in erfuellte_wishes if w.department_id in depts
     )
 
+    # Notizen der Ausbilder ueber den Trainee (Teil C) -- chronologisch
+    # absteigend (neueste zuerst). Wer diese Seite laut obiger Rollen-Pruefung
+    # oeffnen darf, sieht ALLE Notizen (auch die anderer Abteilungen).
+    notizen = db.exec(
+        select(TraineeNotiz)
+        .where(TraineeNotiz.trainee_id == trainee_id)
+        .order_by(TraineeNotiz.erstellt_am.desc(), TraineeNotiz.id.desc())
+    ).all()
+
     # ── Visitenkarte ────────────────────────────────────────────────
     # Klasse ueber klasse_fuer ermitteln (laufendes Schuljahr = berechneter Anker;
     # NICHT das neueste Jahr - ein bereits angelegtes Folgejahr wuerde sonst
@@ -315,10 +339,49 @@ def trainee_detail(request: Request, trainee_id: int, db: DB):
         "wishes": wishes,
         "wish_groups": wish_groups,
         "erfuellte_codes": erfuellte_codes,
+        "notizen": notizen,
         "beruf_lang": beruf_lang,
         "ausbildungsbeginn": trainee.ausbildungsbeginn,
         "active_nav": "trainees",
     })
+
+
+@router.post("/{trainee_id:int}/notizen", response_class=RedirectResponse)
+def create_notiz(
+    trainee_id: int, db: DB,
+    text: Annotated[str, Form()],
+    user: CurrentUser = Depends(require_roles("ausbilder", "orga", "admin")),
+):
+    """Legt eine Notiz OHNE Einsatz-Kontext an (Profil-Direkteingabe)."""
+    if not darf_notiz_anlegen(db, user, trainee_id, department_id=None):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+
+    notiz = erstelle_notiz(db, user, trainee_id, text)
+    if notiz is None:
+        return RedirectResponse(
+            f"/trainees/{trainee_id}?msg=error&detail={urllib.parse.quote('Notiz darf nicht leer sein')}",
+            status_code=303,
+        )
+    return RedirectResponse(f"/trainees/{trainee_id}?msg=created", status_code=303)
+
+
+@router.post("/{trainee_id:int}/notizen/{notiz_id}/loeschen", response_class=RedirectResponse)
+def loeschen_notiz(
+    trainee_id: int, notiz_id: int, db: DB,
+    user: CurrentUser = Depends(require_roles("ausbilder", "orga", "admin")),
+):
+    """Loescht eine TraineeNotiz -- nur der Verfasser selbst oder admin."""
+    notiz = db.get(TraineeNotiz, notiz_id)
+    if notiz is None or notiz.trainee_id != trainee_id:
+        raise HTTPException(status_code=404, detail="Notiz nicht gefunden")
+
+    ist_verfasser = user.upn.strip().lower() == (notiz.verfasser_upn or "").strip().lower()
+    if not (user.rolle == "admin" or ist_verfasser):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+
+    db.delete(notiz)
+    db.commit()
+    return RedirectResponse(f"/trainees/{trainee_id}?msg=deleted", status_code=303)
 
 
 @router.post("/{trainee_id:int}/share-token", response_class=RedirectResponse)
@@ -344,7 +407,10 @@ def revoke_share_token(
 
 
 @router.get("/{trainee_id:int}/bearbeiten", response_class=HTMLResponse)
-def edit_trainee(request: Request, trainee_id: int, db: DB):
+def edit_trainee(
+    request: Request, trainee_id: int, db: DB,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
+):
     trainee = db.get(Trainee, trainee_id)
     classes = db.exec(select(TraineeClass).order_by(TraineeClass.name)).all()
     years = db.exec(select(Schoolyear).order_by(Schoolyear.start_year.desc())).all()
@@ -394,7 +460,6 @@ def update_trainee(
     sonderfall: Annotated[str, Form()] = "",
     membership_year_id: Annotated[str, Form()] = "",
     membership_klasse_id: Annotated[str, Form()] = "",
-    notizen: Annotated[str, Form()] = "",
     steckbrief: Annotated[str, Form()] = "",
     aktiv: Annotated[str, Form()] = "",
     ausbildungsbeginn: Annotated[str, Form()] = "",
@@ -419,7 +484,6 @@ def update_trainee(
     t.vorname = vorname
     t.nachname = nachname
     t.rolle = rolle
-    t.notizen = notizen
     t.steckbrief = steckbrief
     t.aktiv = bool(aktiv)
     t.upn = upn.strip() or None
@@ -476,7 +540,7 @@ def reaktivieren_trainee(
 @router.post("/{trainee_id:int}/loeschen", response_class=RedirectResponse)
 def loeschen_trainee(
     trainee_id: int, db: DB,
-    user: CurrentUser = Depends(require_roles("admin")),
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
     """Endgueltiges Loeschen eines Trainees inkl. aller abhaengigen Zeilen.
 

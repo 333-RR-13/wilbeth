@@ -180,12 +180,6 @@
       </div>
 
       <div class="form-group">
-        <label for="notizen">Notizen</label>
-        <textarea id="notizen" name="notizen" rows="3"
-                  placeholder="Besonderheiten, z. B. Prüfungszeiträume">{{ trainee.notizen if trainee else '' }}</textarea>
-      </div>
-
-      <div class="form-group">
         <label class="form-check">
           <input type="checkbox" name="aktiv" value="1"
                  {{ 'checked' if not trainee or trainee.aktiv else '' }}>

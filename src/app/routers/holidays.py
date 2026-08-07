@@ -17,7 +17,10 @@ DB = Annotated[Session, Depends(get_session)]
 
 
 @router.get("/", response_class=HTMLResponse)
-def list_holidays(request: Request, db: DB):
+def list_holidays(
+    request: Request, db: DB,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
+):
     holidays = db.exec(
         select(SchoolHoliday).order_by(SchoolHoliday.start_year, SchoolHoliday.start_kw)
     ).all()
@@ -29,7 +32,10 @@ def list_holidays(request: Request, db: DB):
 
 
 @router.get("/neu", response_class=HTMLResponse)
-def new_holiday(request: Request, db: DB):
+def new_holiday(
+    request: Request, db: DB,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
+):
     years = db.exec(select(Schoolyear).order_by(Schoolyear.start_year.desc())).all()
     return templates.TemplateResponse(request, "holidays/form.html", {
         "holiday": None, "years": years, "active_nav": "schulferien",
@@ -57,7 +63,10 @@ def create_holiday(
 
 
 @router.get("/{holiday_id}/bearbeiten", response_class=HTMLResponse)
-def edit_holiday(request: Request, holiday_id: int, db: DB):
+def edit_holiday(
+    request: Request, holiday_id: int, db: DB,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
+):
     holiday = db.get(SchoolHoliday, holiday_id)
     years = db.exec(select(Schoolyear).order_by(Schoolyear.start_year.desc())).all()
     return templates.TemplateResponse(request, "holidays/form.html", {
@@ -90,7 +99,7 @@ def update_holiday(
 @router.delete("/{holiday_id}")
 def delete_holiday(
     holiday_id: int, db: DB,
-    user: CurrentUser = Depends(require_roles("admin")),
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
     h = db.get(SchoolHoliday, holiday_id)
     db.delete(h)
@@ -112,7 +121,10 @@ async def _read_text(raw_text: str | None, csv_file: UploadFile | None) -> str:
 
 
 @router.get("/import/dialog", response_class=HTMLResponse)
-def holiday_import_dialog(request: Request, db: DB):
+def holiday_import_dialog(
+    request: Request, db: DB,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
+):
     years = db.exec(select(Schoolyear).order_by(Schoolyear.start_year.desc())).all()
     return templates.TemplateResponse(request, "holidays/_import_dialog.html", {
         "years": years,

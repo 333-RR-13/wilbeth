@@ -107,6 +107,7 @@
       {% endif %}
       {% endif %}
 
+      {% if cu and cu.rolle in ("orga", "admin") %}
       <div class="nav-section-label">Stammdaten</div>
       <a href="/lehrjahre" class="nav-link {% if active_nav == 'lehrjahre' %}active{% endif %}">
         <svg viewBox="0 0 16 16" fill="currentColor">
@@ -144,6 +145,13 @@
         </svg>
         Trainees
       </a>
+      <a href="/ausbilder-verwaltung/" class="nav-link {% if active_nav == 'ausbilder_verwaltung' %}active{% endif %}">
+        <svg viewBox="0 0 16 16" fill="currentColor">
+          <path d="M5.5 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM1 13c0-2.6 2.2-4.5 4.5-4.5S10 10.4 10 13H1zm9.6-8.2a2 2 0 1 1 0 4 2 2 0 0 1 0-4zm.2 4.9c1.9.3 3.2 1.7 3.2 3.8v.5h-3v-.5c0-1.5-.5-2.7-1.3-3.6.4-.1.7-.2 1.1-.2z"/>
+        </svg>
+        Ausbilder
+      </a>
+      {% endif %}
 
       {% if cu and cu.rolle in ("orga", "admin") %}
       <div class="nav-section-label">Dev-Tools</div>
@@ -162,13 +170,13 @@
         </svg>
         Datensicherung
       </a>
+      {% endif %}
       <a href="/jahresabschluss/" class="nav-link {% if active_nav == 'jahreswechsel' %}active{% endif %}">
         <svg viewBox="0 0 16 16" fill="currentColor">
           <path d="M1 8a7 7 0 1 0 14 0A7 7 0 0 0 1 8zm7-5v1.5l2.5 1.5-.75 1.3L7 5.7V3H8zm0 10a5 5 0 1 1 0-10 5 5 0 0 1 0 10z"/>
         </svg>
         Jahresabschluss
       </a>
-      {% endif %}
       {% endif %}
     </nav>
 

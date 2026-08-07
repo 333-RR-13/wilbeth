@@ -16,7 +16,10 @@ DB = Annotated[Session, Depends(get_session)]
 
 
 @router.get("/", response_class=HTMLResponse)
-def list_schoolyears(request: Request, db: DB):
+def list_schoolyears(
+    request: Request, db: DB,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
+):
     years = db.exec(select(Schoolyear).order_by(Schoolyear.start_year.desc())).all()
     return templates.TemplateResponse(request, "schoolyears/list.html", {
         "years": years, "active_nav": "lehrjahre"
@@ -24,7 +27,10 @@ def list_schoolyears(request: Request, db: DB):
 
 
 @router.get("/neu", response_class=HTMLResponse)
-def new_schoolyear(request: Request):
+def new_schoolyear(
+    request: Request,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
+):
     return templates.TemplateResponse(request, "schoolyears/form.html", {
         "year": None, "active_nav": "lehrjahre"
     })
@@ -49,7 +55,10 @@ def create_schoolyear(
 
 
 @router.get("/{year_id}/bearbeiten", response_class=HTMLResponse)
-def edit_schoolyear(request: Request, year_id: str, db: DB):
+def edit_schoolyear(
+    request: Request, year_id: str, db: DB,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
+):
     year = db.get(Schoolyear, year_id)
     return templates.TemplateResponse(request, "schoolyears/form.html", {
         "year": year, "active_nav": "lehrjahre"
@@ -77,7 +86,7 @@ def update_schoolyear(
 @router.delete("/{year_id}")
 def delete_schoolyear(
     year_id: str, db: DB,
-    user: CurrentUser = Depends(require_roles("admin")),
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
     year = db.get(Schoolyear, year_id)
     db.delete(year)

@@ -26,7 +26,10 @@ def _get_kategorien(db: Session) -> list[DepartmentKategorie]:
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.get("/kategorien", response_class=HTMLResponse)
-def list_kategorien(request: Request, db: DB):
+def list_kategorien(
+    request: Request, db: DB,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
+):
     kategorien = _get_kategorien(db)
     return templates.TemplateResponse(request, "departments/kategorien.html", {
         "kategorien": kategorien, "active_nav": "abteilungen",
@@ -86,7 +89,10 @@ def delete_kategorie(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.get("/", response_class=HTMLResponse)
-def list_departments(request: Request, db: DB):
+def list_departments(
+    request: Request, db: DB,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
+):
     deps = db.exec(select(Department).order_by(Department.code)).all()
     return templates.TemplateResponse(request, "departments/list.html", {
         "departments": deps, "active_nav": "abteilungen",
@@ -94,7 +100,10 @@ def list_departments(request: Request, db: DB):
 
 
 @router.get("/neu", response_class=HTMLResponse)
-def new_department(request: Request, db: DB):
+def new_department(
+    request: Request, db: DB,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
+):
     return templates.TemplateResponse(request, "departments/form.html", {
         "department": None, "kategorien": _get_kategorien(db), "active_nav": "abteilungen",
     })
@@ -130,7 +139,10 @@ def create_department(
 
 
 @router.get("/{dept_id:int}/bearbeiten", response_class=HTMLResponse)
-def edit_department(request: Request, dept_id: int, db: DB):
+def edit_department(
+    request: Request, dept_id: int, db: DB,
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
+):
     dept = db.get(Department, dept_id)
     return templates.TemplateResponse(request, "departments/form.html", {
         "department": dept, "kategorien": _get_kategorien(db), "active_nav": "abteilungen",
@@ -168,7 +180,7 @@ def update_department(
 @router.delete("/{dept_id:int}")
 def delete_department(
     dept_id: int, db: DB,
-    user: CurrentUser = Depends(require_roles("admin")),
+    user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
     dept = db.get(Department, dept_id)
     db.delete(dept)

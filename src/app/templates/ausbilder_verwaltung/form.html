@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Zuständigkeiten bearbeiten{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Zuständigkeiten bearbeiten</h1>
+    <p class="page-subtitle mono">{{ upn }}</p>
+  </div>
+</div>
+
+<div class="form-card" style="max-width:720px;">
+  <form method="post" action="/ausbilder-verwaltung/{{ upn_encoded }}/bearbeiten">
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Abteilungen</label>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;">
+          {% for d in departments %}
+          <label class="form-check">
+            <input type="checkbox" name="abteilung_ids" value="{{ d.id }}"
+                   {{ 'checked' if d.id in selected_ids else '' }}>
+            {{ d.code }} – {{ d.name }}
+          </label>
+          {% else %}
+          <span class="text-muted">Noch keine Abteilungen angelegt.</span>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Speichern</button>
+      <a href="/ausbilder-verwaltung/" class="btn btn-secondary">Abbrechen</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
