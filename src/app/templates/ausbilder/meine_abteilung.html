@@ -22,8 +22,31 @@
     padding: 16px 20px; border-radius: var(--radius); background: var(--accent-light);
     color: var(--accent); font-size: 14px; margin-bottom: 20px;
   }
-  .infoseite-section {
-    padding: 16px 20px; border-bottom: 1px solid var(--border);
+
+  /* ── Einstellungen (Infoseite je Abteilung) ─────────────────────────────
+     <details>/<summary> statt Button+JS: startet ohne Zutun zugeklappt und
+     funktioniert auch ohne JavaScript (siehe Auftrag Punkt 3a). WICHTIG:
+     hier bewusst KEIN "display" auf .settings-body (dem direkten Nicht-
+     summary-Kind von <details>) setzen -- der Browser blendet dieses Kind
+     nativ per UA-Stylesheet aus, solange <details> nicht "open" ist; ein
+     eigener display-Wert mit gleicher/hoeherer Spezifitaet wuerde das
+     ueberstimmen und den Bereich dauerhaft sichtbar machen (derselbe Bug wie
+     bei .kt-filter-panel[hidden] in overview/matrix.html, dort ueber das
+     hidden-Attribut statt UA-Default). */
+  .settings-details { margin-bottom: 24px; }
+  .settings-summary { list-style: none; }
+  .settings-summary::-webkit-details-marker { display: none; }
+  .settings-chevron { transition: transform 0.15s; }
+  .settings-details[open] .settings-chevron { transform: rotate(180deg); }
+  .settings-body {
+    margin-top: 12px;
+    padding: 20px;
+    background: var(--surface);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+  }
+  .settings-dept + .settings-dept {
+    margin-top: 20px; padding-top: 20px; border-top: 1px dashed var(--border);
   }
 </style>
 
@@ -31,7 +54,9 @@
   <div>
     <h1 class="page-title">Meine Abteilung</h1>
     {% if not no_dept %}
-    <p class="page-subtitle">{{ offen_count }} offene Blöcke insgesamt</p>
+    <p class="page-subtitle">
+      {{ offen_count }} offene Blöcke insgesamt{% if offene_vorschlaege_count > 0 %} · {{ offene_vorschlaege_count }} {{ 'Vorschlag' if offene_vorschlaege_count == 1 else 'Vorschläge' }} offen{% endif %}
+    </p>
     {% endif %}
   </div>
 </div>
@@ -41,6 +66,42 @@
   Deinem Konto (UPN {{ user.upn }}) ist keine Abteilung zugeordnet – Feld "Verantwortliche Ausbilder" in der Abteilung pflegen.
 </div>
 {% else %}
+
+<details class="settings-details">
+  <summary class="btn btn-secondary settings-summary">
+    Einstellungen
+    <span class="settings-chevron" aria-hidden="true">&#9662;</span>
+  </summary>
+  <div class="settings-body">
+    {% for entry in dept_blocks %}
+    {% set d = entry.dept %}
+    <div class="settings-dept">
+      <div class="form-section-title" style="margin-bottom:8px;">
+        {{ d.code }} – {{ d.name }}: Infoseite
+        <a href="/meine-abteilung/{{ d.id }}/vorschau" class="btn btn-ghost btn-sm" style="margin-left:8px;">
+          Vorschau (Azubi-Sicht) ansehen
+        </a>
+      </div>
+      <form method="post" action="/meine-abteilung/infoseite">
+        <input type="hidden" name="department_id" value="{{ d.id }}">
+        <input type="hidden" name="schoolyear_id" value="{{ selected_year }}">
+        <div class="form-group">
+          <label for="info_text-{{ d.id }}">Infotext für Azubis</label>
+          <textarea id="info_text-{{ d.id }}" name="info_text" rows="4"
+                    placeholder="Beschreibung des Ausbildungsplans, Aufgaben, Hinweise …">{{ d.info_text }}</textarea>
+        </div>
+        <div class="form-group">
+          <label for="info_link-{{ d.id }}">Link zur Abteilungsseite</label>
+          <input type="url" id="info_link-{{ d.id }}" name="info_link" value="{{ d.info_link }}"
+                 placeholder="https://confluence.beispiel.de/...">
+          <span class="form-hint">Optional, nur http:// oder https://.</span>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">Infoseite speichern</button>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+</details>
 
 {% if years %}
 <form class="filter-bar" method="get" action="/meine-abteilung/">
@@ -58,31 +119,6 @@
   <div class="dept-card-header">
     <span class="dept-card-title">{{ d.code }} – {{ d.name }}</span>
     <span class="badge badge-gray">{{ entry.blocks | length }} Blöcke</span>
-  </div>
-
-  <div class="infoseite-section">
-    <div class="form-section-title" style="margin-bottom:8px;">
-      Infoseite
-      <a href="/meine-abteilung/{{ d.id }}/vorschau" class="btn btn-ghost btn-sm" style="margin-left:8px;">
-        Vorschau (Azubi-Sicht) ansehen
-      </a>
-    </div>
-    <form method="post" action="/meine-abteilung/infoseite">
-      <input type="hidden" name="department_id" value="{{ d.id }}">
-      <input type="hidden" name="schoolyear_id" value="{{ selected_year }}">
-      <div class="form-group">
-        <label for="info_text-{{ d.id }}">Infotext für Azubis</label>
-        <textarea id="info_text-{{ d.id }}" name="info_text" rows="4"
-                  placeholder="Beschreibung des Ausbildungsplans, Aufgaben, Hinweise …">{{ d.info_text }}</textarea>
-      </div>
-      <div class="form-group">
-        <label for="info_link-{{ d.id }}">Link zur Abteilungsseite</label>
-        <input type="url" id="info_link-{{ d.id }}" name="info_link" value="{{ d.info_link }}"
-               placeholder="https://confluence.beispiel.de/...">
-        <span class="form-hint">Optional, nur http:// oder https://.</span>
-      </div>
-      <button type="submit" class="btn btn-primary btn-sm">Infoseite speichern</button>
-    </form>
   </div>
 
   <div class="table-wrapper dept-card-table">

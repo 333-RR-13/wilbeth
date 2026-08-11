@@ -163,8 +163,16 @@ a:hover { text-decoration: underline; }
   min-width: 0;
 }
 
+/* Alle Seiten nutzen die volle Breite -- frueher war hier max-width:1100px,
+   .content-inner--wide war die Ausnahme fuer einzelne breite Seiten (Matrix,
+   Abteilungs-Kacheln). Jetzt ist "breit" der Normalfall; die Modifier-Klasse
+   bleibt bestehen (Templates muessen nicht angefasst werden), ist aber
+   wirkungslos, weil sie denselben Wert setzt. Einzelne Inhalte begrenzen sich
+   weiterhin selbst (z. B. .form-card max-width:560px) oder scrollen in ihrem
+   eigenen Container (z. B. .table-wrapper / .matrix-scroll), damit die SEITE
+   selbst nie horizontal scrollt. */
 .content-inner {
-  max-width: 1100px;
+  max-width: none;
 }
 
 .content-inner--wide {
@@ -465,10 +473,18 @@ textarea { resize: vertical; min-height: 80px; }
 .badge-gray    { background: #f1f3f5; color: var(--text-secondary); }
 
 /* ── Flash Messages ─────────────────────────────────────────────── */
+/* BEWUSST kein display:flex hier: .flash enthaelt Fliesstext, oft mit
+   Inline-Markup (<strong>, <em>) mittendrin (siehe z. B. ausbilder_verwaltung/
+   list.html). In einem Flex-Container wird JEDES in-flow-Kind zum Flex-Item --
+   auch die anonymen Textlaeufe vor/nach dem <strong> -- wodurch der Satz in
+   mehrere nebeneinander mit "gap" gesetzte Bloecke zerrissen wird, statt
+   normal zu umbrechen. Alle bisherigen .flash-Verwendungen sind reiner
+   Fliesstext (kein Icon+Text, kein Text+Button) -- falls ein Fall mit
+   mehreren Kind-ELEMENTEN nebeneinander noetig wird, dafuer eine eigene
+   Modifier-Klasse (z. B. .flash--row { display:flex; }) ergaenzen statt hier
+   wieder global auf flex umzustellen. */
 .flash {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  display: block;
   padding: 12px 16px;
   border-radius: var(--radius);
   margin-bottom: 20px;

@@ -350,3 +350,129 @@ def test_orga_darf_infoseite_jeder_abteilung_speichern(client, session, monkeypa
     session.expire_all()
     dept = session.get(Department, ids["foreign"])
     assert dept.info_text == "Von Orga gepflegt"
+
+
+# ── (i) Neue Seitenstruktur: Einstellungen -> Einsatzliste -> Vorschlagen ───
+#        -> Meine Vorschlaege (siehe Projektauftrag Punkt 3) ────────────────
+
+def test_meine_abteilung_reihenfolge_der_abschnitte(client, session, monkeypatch):
+    """Einsatzliste (Bloecke) steht vor 'Einsatz vorschlagen' vor
+    'Meine Vorschlaege'. Das fruehere Infoseiten-Formular OBEN in jeder
+    Abteilungs-Karte ist weg -- es steckt jetzt im Einstellungen-Bereich vor
+    den Karten."""
+    _dev_mode(monkeypatch)
+    ids = _setup(session)
+    _make_assignment(session, ids["trainee"], ids["own"], 40)
+
+    _login(client, "ausbilder")
+
+    r = client.get(f"/meine-abteilung/?schoolyear_id={SY}")
+    assert r.status_code == 200
+    html = r.text
+
+    idx_einstellungen = html.index("Einstellungen")
+    idx_einsatzliste = html.index("KW 40/2025")
+    idx_vorschlagen = html.index("Einsatz vorschlagen")
+    idx_meine_vorschlaege = html.index("Meine Vorschläge")
+
+    assert idx_einstellungen < idx_einsatzliste < idx_vorschlagen < idx_meine_vorschlaege
+
+
+def test_meine_abteilung_infotext_form_steckt_im_einstellungen_bereich(client, session, monkeypatch):
+    """Das Infoseiten-Formular (Textarea + Link) liegt VOR der Einsatzliste
+    (im Einstellungen-Bereich), nicht mehr in der Abteilungs-Karte selbst."""
+    _dev_mode(monkeypatch)
+    ids = _setup(session)
+    _make_assignment(session, ids["trainee"], ids["own"], 40)
+
+    _login(client, "ausbilder")
+
+    r = client.get(f"/meine-abteilung/?schoolyear_id={SY}")
+    html = r.text
+
+    idx_infotext_feld = html.index('name="info_text"')
+    idx_einsatzliste = html.index("KW 40/2025")
+    assert idx_infotext_feld < idx_einsatzliste
+
+
+def test_meine_abteilung_einstellungen_startet_zugeklappt(client, session, monkeypatch):
+    """<details> ohne 'open'-Attribut -- der Einstellungen-Bereich ist beim
+    ersten Aufruf zu (kein 'display' auf .settings-body, das die native
+    <details>-Ausblendung ueberschreiben wuerde -- siehe Kommentar im
+    Template)."""
+    _dev_mode(monkeypatch)
+    ids = _setup(session)
+    _make_assignment(session, ids["trainee"], ids["own"], 40)
+
+    _login(client, "ausbilder")
+
+    r = client.get(f"/meine-abteilung/?schoolyear_id={SY}")
+    html = r.text
+
+    assert '<details class="settings-details">' in html
+    assert '<details class="settings-details" open>' not in html
+    # Inhalt ist trotzdem im HTML vorhanden (kein-JS-Fallback ueber <details>) --
+    # nur die native Renderlogik blendet ihn zu, solange nicht 'open' gesetzt ist.
+    assert 'name="info_text"' in html
+
+
+# ── (j) Kopfzeile zaehlt offene eigene Vorschlaege mit ───────────────────────
+
+def test_kopfzeile_zeigt_offene_vorschlaege_singular(client, session, monkeypatch):
+    _dev_mode(monkeypatch)
+    ids = _setup(session)
+    session.add(EinsatzVorschlag(
+        trainee_id=ids["trainee"], department_id=ids["own"], schoolyear_id=SY,
+        kw_von=10, jahr_von=2026, kw_bis=12, jahr_bis=2026,
+        eingereicht_von_upn=DEV_UPN, eingereicht_von_name="Dev",
+        status="offen", erstellt_am=None,
+    ))
+    session.commit()
+
+    _login(client, "ausbilder")
+
+    r = client.get(f"/meine-abteilung/?schoolyear_id={SY}")
+    assert r.status_code == 200
+    assert "1 Vorschlag offen" in r.text
+    assert "Vorschläge offen" not in r.text
+
+
+def test_kopfzeile_zeigt_offene_vorschlaege_plural(client, session, monkeypatch):
+    _dev_mode(monkeypatch)
+    ids = _setup(session)
+    for kw in (10, 20):
+        session.add(EinsatzVorschlag(
+            trainee_id=ids["trainee"], department_id=ids["own"], schoolyear_id=SY,
+            kw_von=kw, jahr_von=2026, kw_bis=kw + 1, jahr_bis=2026,
+            eingereicht_von_upn=DEV_UPN, eingereicht_von_name="Dev",
+            status="offen", erstellt_am=None,
+        ))
+    session.commit()
+
+    _login(client, "ausbilder")
+
+    r = client.get(f"/meine-abteilung/?schoolyear_id={SY}")
+    assert r.status_code == 200
+    assert "2 Vorschläge offen" in r.text
+
+
+def test_kopfzeile_ohne_offene_vorschlaege_zeigt_keinen_vorschlag_teil(client, session, monkeypatch):
+    """Nur bereits BEARBEITETE (angenommene/abgelehnte) eigene Vorschlaege ->
+    der Vorschlags-Teil der Kopfzeile wird gar nicht erst angezeigt."""
+    _dev_mode(monkeypatch)
+    ids = _setup(session)
+    session.add(EinsatzVorschlag(
+        trainee_id=ids["trainee"], department_id=ids["own"], schoolyear_id=SY,
+        kw_von=10, jahr_von=2026, kw_bis=12, jahr_bis=2026,
+        eingereicht_von_upn=DEV_UPN, eingereicht_von_name="Dev",
+        status="angenommen", erstellt_am=None,
+    ))
+    session.commit()
+
+    _login(client, "ausbilder")
+
+    r = client.get(f"/meine-abteilung/?schoolyear_id={SY}")
+    assert r.status_code == 200
+    assert "offene Blöcke insgesamt" in r.text
+    assert "Vorschlag offen" not in r.text
+    assert "Vorschläge offen" not in r.text

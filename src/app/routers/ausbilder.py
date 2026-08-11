@@ -154,6 +154,9 @@ def meine_abteilung(
         key=lambda v: (v.erstellt_am or date.min, v.id or 0),
         reverse=True,
     )
+    # "Offen" = von der Vorschlaege-Inbox (app/routers/vorschlaege.py) noch
+    # nicht angenommen/abgelehnt -- fuer die Kopfzeile (Punkt 4 des Auftrags).
+    offene_vorschlaege_count = sum(1 for v in own_vorschlaege if v.status == "offen")
 
     trainee_map = {t.id: t for t in db.exec(select(Trainee)).all()}
     dept_map = {d.id: d for d in db.exec(select(Department)).all()}
@@ -163,6 +166,7 @@ def meine_abteilung(
         "user": user,
         "dept_blocks": dept_blocks,
         "offen_count": offen_count,
+        "offene_vorschlaege_count": offene_vorschlaege_count,
         "trainees": trainees,
         "years": years,
         "selected_year": schoolyear_id,
