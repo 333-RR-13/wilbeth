@@ -12,6 +12,7 @@ from sqlmodel import Session, select
 from app.database import get_session
 from app.models import (
     Assignment,
+    AssignmentTyp,
     Department,
     SchoolPlan,
     SchoolPlanWeek,
@@ -21,6 +22,7 @@ from app.models import (
     UnterrichtsTyp,
 )
 from app.services.abwesenheit_utils import abwesenheit_map
+from app.services.auth_service import allowed_dept_ids
 from app.services.conflict_checker import describe_conflict, find_conflicts
 from app.services.membership_utils import (
     aktuelles_schuljahr_id,
@@ -69,6 +71,28 @@ def _resolve_param(query_params, key: str, cookie_data: dict) -> str:
     return cookie_data.get(key, "")
 
 
+def _resolve_checkbox_param(query_params, key: str, cookie_data: dict) -> str:
+    """Wie _resolve_param, aber fuer eine Checkbox mit Hidden-Fallback-Feld.
+
+    Das Template sendet vor der eigentlichen Checkbox ein gleichnamiges
+    <input type=hidden value="">, damit beim Absenden IMMER ein Wert fuer
+    den Key im Request steckt (ein unangehaktes <input type=checkbox> wird
+    von Browsern beim GET-Submit sonst komplett weggelassen, wodurch ein
+    Entfernen des Hakens faelschlich als "Key fehlt -> Cookie-Wert nutzen"
+    interpretiert wuerde). Angehakt sendet der Browser BEIDE Werte ("" vom
+    Hidden-Feld und "1" von der Checkbox) unter demselben Key; deshalb wird
+    hier ueber getlist() geprueft ob "1" IRGENDWO dabei ist, statt .get()
+    zu nutzen (das je nach Feld-Reihenfolge den falschen Wert liefern kann).
+
+    Fehlt der Key komplett im Request (weder Hidden- noch Checkbox-Feld
+    gesendet, z. B. bei einem Aufruf ganz ohne dieses Formular), gilt
+    dieselbe Cookie-Vorrang-Regel wie bei _resolve_param.
+    """
+    if key in query_params:
+        return "1" if "1" in query_params.getlist(key) else ""
+    return cookie_data.get(key, "")
+
+
 def _set_filter_cookie(
     response,
     schoolyear_id: str,
@@ -76,6 +100,7 @@ def _set_filter_cookie(
     abteilung_id: str,
     wochen: str,
     halbjahr: str,
+    nur_meine_abteilung: str = "",
 ) -> None:
     """Schreibt die aktuellen Filter-Werte als JSON-Cookie (SameSite=Lax, kein HttpOnly).
 
@@ -96,6 +121,7 @@ def _set_filter_cookie(
         "abteilung_id": abteilung_id,
         "wochen": wochen,
         "halbjahr": halbjahr,
+        "nur_meine_abteilung": nur_meine_abteilung,
     }, separators=(",", ":")))
     response.set_cookie(
         key=_FILTER_COOKIE,
@@ -231,6 +257,16 @@ def overview(request: Request, db: DB):
         halbjahr_str = _cookie["halbjahr"]
     else:
         halbjahr_str = _default_halbjahr()
+    nur_meine_abteilung_str = _resolve_checkbox_param(qp, "nur_meine_abteilung", _cookie)
+    nur_meine_abteilung = bool(nur_meine_abteilung_str)
+
+    # Abteilungen, fuer die der angemeldete Nutzer verantwortlich ist. Steuert
+    # sowohl die Sichtbarkeit der Checkbox (nur wenn nicht leer) als auch die
+    # Filterwirkung -- ein manuell gesetzter Query-Param bei leerer Menge
+    # zeigt bewusst NICHTS (leere Auswahl), nie mehr als sonst.
+    user = getattr(request.state, "current_user", None)
+    own_dept_ids = allowed_dept_ids(db, user) if user else set()
+    nur_meine_abteilung_visible = bool(own_dept_ids)
 
     years = db.exec(
         select(Schoolyear)
@@ -280,9 +316,14 @@ def overview(request: Request, db: DB):
             "selected_wochen": wochen_str,
             "selected_halbjahr": halbjahr_str,
             "wochen_options": WOCHEN_OPTIONS,
+            "selected_nur_meine_abteilung": nur_meine_abteilung,
+            "nur_meine_abteilung_visible": nur_meine_abteilung_visible,
             "active_nav": "overview",
         })
-        _set_filter_cookie(resp, schoolyear_id, klassen_str, abteilung_id_str, wochen_str, halbjahr_str)
+        _set_filter_cookie(
+            resp, schoolyear_id, klassen_str, abteilung_id_str, wochen_str, halbjahr_str,
+            nur_meine_abteilung_str,
+        )
         return resp
 
     _today = date.today().isocalendar()
@@ -351,6 +392,36 @@ def overview(request: Request, db: DB):
         ).all()
     else:
         assignments = []
+
+    # "Nur meine Abteilung": Zellen fremder Abteilungen ausblenden (Schul-/Uni-/
+    # Frei-Zellen bleiben unangetastet, da sie keinen abteilung_id-Bezug haben)
+    # und Trainees ohne eigenen ABTEILUNG-Einsatz im gewaehlten Zeitraum
+    # (= den nach Halbjahr gefilterten Wochen) komplett aus der Matrix nehmen.
+    # Ist zusaetzlich explizit eine Abteilung gewaehlt, gilt der Schnitt beider
+    # Mengen (leere own_dept_ids -> immer leere Auswahl, nie Vollzugriff).
+    if nur_meine_abteilung:
+        effective_own_ids = own_dept_ids
+        if abteilung_id_str:
+            try:
+                effective_own_ids = own_dept_ids & {int(abteilung_id_str)}
+            except ValueError:
+                effective_own_ids = own_dept_ids
+
+        assignments = [
+            a for a in assignments
+            if a.typ != AssignmentTyp.ABTEILUNG or a.abteilung_id in effective_own_ids
+        ]
+
+        weeks_set = {(w["kw"], w["jahr"]) for w in weeks}
+        own_trainee_ids_in_period = {
+            a.trainee_id for a in assignments
+            if a.typ == AssignmentTyp.ABTEILUNG
+            and a.abteilung_id in effective_own_ids
+            and (a.kw, a.jahr) in weeks_set
+        }
+        trainees = [t for t in trainees if t.id in own_trainee_ids_in_period]
+        trainee_ids = [t.id for t in trainees]
+        assignments = [a for a in assignments if a.trainee_id in own_trainee_ids_in_period]
 
     # cell_map[trainee_id]["kw,jahr"] = Assignment
     cell_map: dict[int, dict[str, Assignment]] = {}
@@ -474,7 +545,12 @@ def overview(request: Request, db: DB):
         "selected_wochen": wochen_str,
         "selected_halbjahr": halbjahr_str,
         "wochen_options": WOCHEN_OPTIONS,
+        "selected_nur_meine_abteilung": nur_meine_abteilung,
+        "nur_meine_abteilung_visible": nur_meine_abteilung_visible,
         "active_nav": "overview",
     })
-    _set_filter_cookie(resp, schoolyear_id, klassen_str, abteilung_id_str, wochen_str, halbjahr_str)
+    _set_filter_cookie(
+        resp, schoolyear_id, klassen_str, abteilung_id_str, wochen_str, halbjahr_str,
+        nur_meine_abteilung_str,
+    )
     return resp

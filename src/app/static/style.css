@@ -517,6 +517,23 @@ tr.htmx-swapping td { opacity: 0; transition: opacity 0.15s; }
   min-width: 160px;
 }
 
+.filter-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.875rem;
+  color: var(--text-secondary, #4d4d4d);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.filter-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--accent, #1b61c9);
+}
+
 /* ── Button group ───────────────────────────────────────────────── */
 .btn-group {
   display: flex;

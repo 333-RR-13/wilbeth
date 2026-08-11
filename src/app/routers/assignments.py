@@ -1,3 +1,4 @@
+import json
 import urllib.parse
 from typing import Annotated
 
@@ -28,6 +29,46 @@ from app.utils.kw import iter_kw_range, iter_schoolyear_weeks
 router = APIRouter(prefix="/einsaetze", tags=["einsaetze"])
 templates = Jinja2Templates(directory=Path(__file__).resolve().parents[1] / "templates")
 DB = Annotated[Session, Depends(get_session)]
+
+# Name des Session-Cookies fuer die Filter-Persistenz der Einsatz-Liste
+# (aktuell nur der "nur_meine_abteilung"-Haken; schoolyear_id/trainee_id
+# bleiben bewusst reine Query-Params ohne Cookie-Gedaechtnis).
+_EA_FILTER_COOKIE = "ea_filters"
+
+
+def _read_ea_filter_cookie(request: Request) -> dict:
+    """Liest den ea_filters-Cookie (URL-encodetes JSON, siehe overview.py)."""
+    raw = request.cookies.get(_EA_FILTER_COOKIE, "")
+    if not raw:
+        return {}
+    try:
+        return json.loads(urllib.parse.unquote(raw))
+    except (json.JSONDecodeError, ValueError):
+        return {}
+
+
+def _resolve_checkbox_param(query_params, key: str, cookie_data: dict) -> str:
+    """Checkbox mit Hidden-Fallback-Feld (siehe Template + overview.py fuer die
+    ausfuehrliche Begruendung): '1' wenn irgendein uebermittelter Wert fuer
+    den Key '1' ist, sonst ''. Fehlt der Key komplett im Request, wird der
+    Cookie-Wert genutzt."""
+    if key in query_params:
+        return "1" if "1" in query_params.getlist(key) else ""
+    return cookie_data.get(key, "")
+
+
+def _set_ea_filter_cookie(response, nur_meine_abteilung: str) -> None:
+    payload = urllib.parse.quote(json.dumps({
+        "nur_meine_abteilung": nur_meine_abteilung,
+    }, separators=(",", ":")))
+    response.set_cookie(
+        key=_EA_FILTER_COOKIE,
+        value=payload,
+        samesite="lax",
+        httponly=False,
+        max_age=60 * 60 * 24 * 30,  # 30 Tage
+    )
+
 
 # Higher rank overrides lower rank; equal rank requires confirmation.
 TYP_RANG: dict[AssignmentTyp, int] = {
@@ -144,11 +185,26 @@ def list_assignments(request: Request, db: DB):
     schoolyear_id = request.query_params.get("schoolyear_id", "")
     trainee_id_str = request.query_params.get("trainee_id", "")
 
+    _cookie = _read_ea_filter_cookie(request)
+    nur_meine_abteilung_str = _resolve_checkbox_param(
+        request.query_params, "nur_meine_abteilung", _cookie
+    )
+    nur_meine_abteilung = bool(nur_meine_abteilung_str)
+
+    # Abteilungen des angemeldeten Nutzers -- steuert Checkbox-Sichtbarkeit
+    # UND Filterwirkung; leere Menge -> Checkbox versteckt UND (falls per
+    # manuellem Query-Param dennoch erzwungen) eine leere statt volle Auswahl.
+    user = getattr(request.state, "current_user", None)
+    own_dept_ids = allowed_dept_ids(db, user) if user else set()
+    nur_meine_abteilung_visible = bool(own_dept_ids)
+
     q = select(Assignment)
     if schoolyear_id:
         q = q.where(Assignment.schoolyear_id == schoolyear_id)
     if trainee_id_str:
         q = q.where(Assignment.trainee_id == int(trainee_id_str))
+    if nur_meine_abteilung:
+        q = q.where(Assignment.abteilung_id.in_(list(own_dept_ids)))
     assignments = db.exec(q.order_by(Assignment.jahr, Assignment.kw)).all()
 
     trainees = db.exec(select(Trainee).order_by(Trainee.nachname, Trainee.vorname)).all()
@@ -156,7 +212,7 @@ def list_assignments(request: Request, db: DB):
     depts = {d.id: d for d in db.exec(select(Department)).all()}
     trainee_map = {t.id: t for t in trainees}
 
-    return templates.TemplateResponse(request, "assignments/list.html", {
+    resp = templates.TemplateResponse(request, "assignments/list.html", {
         "assignments": assignments,
         "trainees": trainees,
         "years": years,
@@ -164,8 +220,12 @@ def list_assignments(request: Request, db: DB):
         "trainee_map": trainee_map,
         "selected_year": schoolyear_id,
         "selected_trainee": trainee_id_str,
+        "selected_nur_meine_abteilung": nur_meine_abteilung,
+        "nur_meine_abteilung_visible": nur_meine_abteilung_visible,
         "active_nav": "einsaetze",
     })
+    _set_ea_filter_cookie(resp, nur_meine_abteilung_str)
+    return resp
 
 
 # ── Create ────────────────────────────────────────────────────────────────────

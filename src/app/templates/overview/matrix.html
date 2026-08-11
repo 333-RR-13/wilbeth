@@ -266,6 +266,15 @@
     <option value="1" {{ 'selected' if selected_halbjahr == '1' else '' }}>1. Halbjahr (KW 36-10)</option>
     <option value="2" {{ 'selected' if selected_halbjahr == '2' else '' }}>2. Halbjahr (KW 11-35)</option>
   </select>
+  {% if nur_meine_abteilung_visible %}
+  <label class="filter-checkbox">
+    <input type="hidden" name="nur_meine_abteilung" value="">
+    <input type="checkbox" name="nur_meine_abteilung" value="1"
+           {{ 'checked' if selected_nur_meine_abteilung else '' }}
+           onchange="this.form.submit()">
+    Nur meine Abteilung
+  </label>
+  {% endif %}
   <button type="submit" class="btn btn-secondary">Anwenden</button>
 </form>
 

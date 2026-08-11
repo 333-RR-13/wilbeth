@@ -72,6 +72,14 @@
     </option>
     {% endfor %}
   </select>
+  {% if nur_meine_abteilung_visible %}
+  <label class="filter-checkbox">
+    <input type="hidden" name="nur_meine_abteilung" value="">
+    <input type="checkbox" name="nur_meine_abteilung" value="1"
+           {{ 'checked' if selected_nur_meine_abteilung else '' }}>
+    Nur meine Abteilung
+  </label>
+  {% endif %}
   <button type="submit" class="btn btn-secondary">Filtern</button>
 </form>
 
