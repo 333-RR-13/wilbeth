@@ -359,19 +359,19 @@ def _legend_html(r_text: str) -> str:
     return r_text[idx:end]
 
 
-def test_overview_legend_shows_f_frei_not_u_urlaub(client, session: Session):
-    """Die Legende zeigt 'F' / 'Frei' (das Kuerzel, das chip.html fuer FREI
-    tatsaechlich rendert). Das 'U' steht seit dem Abwesenheiten-Umbau nicht
-    mehr fuer den alten Plan-Typ URLAUB, sondern fuer eine Abwesenheit in einer
-    sonst leeren Woche -- es muss also mit 'Urlaub' beschriftet sein und darf
-    nicht laenger als FREI-Kuerzel auftauchen."""
+def test_overview_legend_kennt_nur_f_kuerzel(client, session: Session):
+    """Die Legende kennt genau EIN Kuerzel fuer "nicht im Betrieb": 'F'.
+    Urlaub, Krankheit und sonstige Abwesenheit werden in der Matrix bewusst
+    nicht unterschieden (Wunsch aus der Praxis) -- fuer die Planung zaehlt nur,
+    dass der Azubi nicht da ist. Die Art steht im Tooltip und in den
+    Fehlzeiten des Feedbackbogens."""
     _setup_overview(session)
     r = client.get("/overview", params={"schoolyear_id": SY})
     assert r.status_code == 200
     legend = _legend_html(r.text)
     assert "cell-blocker\">F</span> Frei" in legend
-    assert "cell-blocker\">U</span> Urlaub" in legend
-    assert "cell-blocker\">A</span> sonstige Abwesenheit" in legend
+    assert "cell-blocker\">U</span>" not in legend
+    assert "cell-blocker\">A</span>" not in legend
 
 
 def test_overview_legend_has_abwesend_sample(client, session: Session):
@@ -382,7 +382,7 @@ def test_overview_legend_has_abwesend_sample(client, session: Session):
     assert r.status_code == 200
     legend = _legend_html(r.text)
     assert "matrix-abwesend-sample" in legend
-    assert "Abwesend in einer verplanten Woche" in legend
+    assert "Abwesenheitstage in dieser Woche" in legend
 
 
 @pytest.mark.parametrize("template_name", [
@@ -399,9 +399,9 @@ def test_share_legend_shows_f_frei_and_abwesend_sample(template_name):
         Path(__file__).resolve().parents[1] / "app" / "templates" / template_name
     ).read_text(encoding="utf-8")
     assert "cell-blocker\">F</span> Frei" in src
-    assert "cell-blocker\">U</span> Urlaub" in src
+    assert "cell-blocker\">U</span>" not in src
     assert "matrix-abwesend-sample" in src
-    assert "Abwesend in einer verplanten Woche" in src
+    assert "Abwesenheitstage in dieser Woche" in src
 
 
 # ── Befund 11: CSS-Spezifitaet der Abwesend-Schraffur ───────────────────────
@@ -426,10 +426,11 @@ def test_cell_urlaub_dead_css_removed():
     assert "Urlaub and Frei shown as dark" not in STYLE_CSS
 
 
-def test_overview_zelle_zeigt_u_kuerzel_bei_abwesenheit(client, session: Session):
+def test_overview_zelle_zeigt_f_kuerzel_bei_abwesenheit(client, session: Session):
     """Eine Woche, in der der Trainee abwesend ist und sonst nichts geplant ist,
-    zeigt das Kuerzel 'U' (Urlaub) bzw. 'A' (Sonstiges) -- vorher stand dort nur
-    eine leere Zelle mit Schraffur (Wunsch aus dem Praxis-Feedback)."""
+    zeigt das Kuerzel 'F' -- dasselbe wie eine FREI-Zelle. Urlaub, Krankheit
+    und Sonstiges werden in der Matrix bewusst nicht unterschieden; vorher
+    stand dort nur eine leere Zelle mit Schraffur."""
     from datetime import date
 
     from app.models import Abwesenheit, AbwesenheitQuelle, AbwesenheitTyp
@@ -446,7 +447,7 @@ def test_overview_zelle_zeigt_u_kuerzel_bei_abwesenheit(client, session: Session
     assert r.status_code == 200
     # Gezielt die Zelle pruefen -- die Legende enthaelt das Kuerzel ebenfalls
     cell = _cell_html(r.text, ids["trainee_id"], 12, 2026)
-    assert 'class="cell-chip cell-blocker">U</span>' in cell
+    assert 'class="cell-chip cell-blocker">F</span>' in cell
     assert "mc-abwesend" in cell
 
     # Liegt in derselben Woche ein Einsatz, bleibt dessen Chip stehen (kein U daneben)

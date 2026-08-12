@@ -284,9 +284,8 @@
   <span class="legend-item"><span class="cell-chip" style="background:#A855F7;color:#fff">ABT</span> Abteilung (eigene Farbe)</span>
   <span class="legend-item"><span class="cell-chip cell-school">BS</span> Berufsschule</span>
   <span class="legend-item"><span class="cell-chip cell-school">HS</span> Hochschule/Uni</span>
-  <span class="legend-item"><span class="cell-chip cell-blocker">F</span> Frei</span>
-  <span class="legend-item"><span class="cell-chip cell-blocker">U</span> Urlaub / <span class="cell-chip cell-blocker">A</span> sonstige Abwesenheit</span>
-  <span class="legend-item"><span class="matrix-abwesend-sample"></span> Abwesend in einer verplanten Woche</span>
+  <span class="legend-item"><span class="cell-chip cell-blocker">F</span> Frei (Urlaub, Krankheit, Sonstiges)</span>
+    <span class="legend-item"><span class="matrix-abwesend-sample"></span> Abwesenheitstage in dieser Woche</span>
   <span class="legend-item"><span class="matrix-conflict-sample"></span> Konflikt</span>
   <span class="legend-item"><span class="matrix-today-sample"></span> Aktuelle KW</span>
 </div>
@@ -353,11 +352,11 @@
               data-occupied="{{ '1' if (a or is_school) else '0' }}"
               {% if a and can_edit %}draggable="true"{% endif %}>
             {{ cell_content(a, dept_colors, t_school_weeks.get(cell_key)) }}
-            {#- Abwesenheit ohne eigenen Zelleninhalt bekommt ein Kuerzel, damit
-                die Woche nicht bloss leer mit Schraffur dasteht: U = Urlaub,
-                A = sonstige Abwesenheit -#}
+            {#- Abwesenheit ohne eigenen Zelleninhalt bekommt dasselbe Kuerzel wie
+                eine FREI-Zelle: fuer die Planung zaehlt nur "nicht im Betrieb".
+                Welche Art von Abwesenheit es ist, steht im Tooltip. -#}
             {%- if _aw and not a and not t_school_weeks.get(cell_key) -%}
-            <span class="cell-chip cell-blocker">{{ 'U' if 'URLAUB' in _aw.typen else 'A' }}</span>
+            <span class="cell-chip cell-blocker">F</span>
             {%- endif -%}
           </td>
           {% endfor %}
