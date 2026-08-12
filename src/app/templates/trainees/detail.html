@@ -110,6 +110,25 @@
   </div>
 </div>
 
+{# ── Betreuung (Personen, die den Trainee ueber die gesamte Ausbildung
+     begleiten -- unabhaengig von den abteilungsbezogenen Ausbildern, siehe
+     app/services/betreuung_utils.py) ──────────────────────────────── #}
+{% if betreuer_liste %}
+<div class="card card-body" style="margin-bottom: 24px;">
+  <h2 class="form-section-title">Betreuung</h2>
+  <div style="display:flex; flex-direction:column; gap:8px;">
+    {% for b in betreuer_liste %}
+    <div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;">
+      <span class="badge badge-gray">{{ FUNKTION_LABELS.get(b.funktion, b.funktion) }}</span>
+      <a href="/ausbilder-verwaltung/{{ b.id }}">{{ b.name if b.name else b.upn }}</a>
+      {% if b.email %}<span class="text-muted" style="font-size:13px;">{{ b.email }}</span>{% endif %}
+      {% if b.telefon %}<span class="text-muted" style="font-size:13px;">{{ b.telefon }}</span>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
 {# ── Notizen der Ausbilder (chronologischer Verlauf; der Azubi sieht diese
      NIE, siehe app/routers/share.py) ──────────────────────────────── #}
 <div class="card card-body" style="margin-bottom: 24px;">

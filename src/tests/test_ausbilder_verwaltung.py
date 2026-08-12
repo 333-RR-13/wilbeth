@@ -1,23 +1,28 @@
-"""Tests fuer die zentrale Ausbilder-Verwaltung (/ausbilder-verwaltung/):
-kehrt Department.verantwortliche (bisher nur pro Abteilung pflegbar) um zu
-Person -> ihre Abteilungen.
+"""Tests fuer die Ausbilder-Verwaltung (/ausbilder-verwaltung/), seit
+Migration 0017betreuung eine Personen-Verwaltung (Betreuer-Tabelle) mit ZWEI
+unabhaengigen Zustaendigkeiten: Abteilungen (schreibt weiterhin
+Department.verantwortliche -- app.services.auth_service.allowed_dept_ids()
+bleibt unveraendert) und Berufe (Betreuer.berufe, neu).
 
 Dev-Login setzt fuer Staff-Rollen upn="dev@local" (siehe app/routers/auth.py).
 Login-Muster wie in tests/test_meine_abteilung.py / tests/test_role_guards.py.
 """
 import re
-import urllib.parse
 
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.config import settings
-from app.models import Department
-from app.services.auth_service import CurrentUser, allowed_dept_ids
-from app.services.verantwortliche_utils import (
-    parse_verantwortliche,
-    people_by_upn,
-    serialize_verantwortliche,
+from app.models import (
+    Betreuer,
+    BetreuerTrainee,
+    Department,
+    Trainee,
+    TraineeClass,
+    TraineeRolle,
+    UnterrichtsTyp,
 )
+from app.services.auth_service import CurrentUser, allowed_dept_ids
+from app.services.verantwortliche_utils import parse_verantwortliche
 
 
 def _dev_mode(monkeypatch):
@@ -30,51 +35,38 @@ def _login(client, rolle: str):
     return r
 
 
-def _enc(upn: str) -> str:
-    return urllib.parse.quote(upn, safe="")
-
-
-def _checkbox_checked(html: str, dept_id: int) -> bool:
-    """Prueft, ob die Checkbox fuer dept_id im gerenderten HTML 'checked' ist."""
-    m = re.search(rf'value="{dept_id}"([^>]*)>', html)
-    assert m, f"Checkbox fuer Abteilung {dept_id} nicht gefunden"
+def _checkbox_checked(html: str, name: str, value) -> bool:
+    m = re.search(rf'name="{name}" value="{value}"([^>]*)>', html)
+    assert m, f"Checkbox {name}={value} nicht gefunden"
     return "checked" in m.group(1)
 
 
-# ── Reine Helper-Unit-Tests (app/services/verantwortliche_utils.py) ────────
+# ── Liste ────────────────────────────────────────────────────────────────
 
-def test_parse_verantwortliche_ist_defensiv():
-    assert parse_verantwortliche(None) == []
-    assert parse_verantwortliche("") == []
-    assert parse_verantwortliche("   ") == []
-    # doppelte Trenner, fuehrende/folgende Leerzeichen, Leerzeilen
-    assert parse_verantwortliche(" a@x.de ,, ;\n b@x.de \n\n, ,c@x.de,,") == [
-        "a@x.de", "b@x.de", "c@x.de",
-    ]
-
-
-def test_serialize_verantwortliche():
-    assert serialize_verantwortliche([]) == ""
-    assert serialize_verantwortliche(["a@x.de", "b@x.de"]) == "a@x.de, b@x.de"
-
-
-def test_people_by_upn_dedupliziert_case_insensitiv_und_sortiert(session: Session):
-    d1 = Department(code="ZZ", name="Zulieferung", verantwortliche="Zora@Firma.de")
-    d2 = Department(code="AA", name="Anfang", verantwortliche="zora@firma.de, anton@firma.de")
-    session.add_all([d1, d2])
+def test_liste_zeigt_betreuer_mit_funktion_abteilungen_und_status(client, session, monkeypatch):
+    _dev_mode(monkeypatch)
+    d = Department(code="AI", name="AI Platform", verantwortliche="anna@firma.de")
+    session.add(d)
+    b1 = Betreuer(upn="anna@firma.de", name="Anna Beispiel", funktion="HR", aktiv=True)
+    b2 = Betreuer(upn="ben@firma.de", name="Ben Muster", funktion="TECHNISCH", aktiv=False, berufe=["FISI"])
+    session.add_all([b1, b2])
     session.commit()
 
-    people = people_by_upn(session)
-    assert list(people.keys()) == ["anton@firma.de", "zora@firma.de"]
-    zora_depts = people["zora@firma.de"]
-    # dedupliziert: Zora@Firma.de + zora@firma.de sind EINE Person, je Abteilung
-    # nur einmal in der Liste, sortiert nach Department.code
-    assert [d.code for d in zora_depts] == ["AA", "ZZ"]
+    _login(client, "orga")
+    r = client.get("/ausbilder-verwaltung/")
+    assert r.status_code == 200
+    assert "Anna Beispiel" in r.text
+    assert "Ben Muster" in r.text
+    assert "Ausbildung (HR)" in r.text
+    assert "Fachlicher Ausbilder" in r.text
+    assert "AI" in r.text  # Abteilungs-Chip fuer Anna
+    assert "Inaktiv" in r.text
+    assert "FISI" in r.text
 
 
-# ── Zuordnung anlegen ("Person hinzufuegen") ────────────────────────────────
+# ── Anlegen ──────────────────────────────────────────────────────────────
 
-def test_hinzufuegen_legt_zuordnung_in_beiden_abteilungen_an(client, session, monkeypatch):
+def test_anlegen_speichert_alle_felder_und_synct_abteilung(client, session, monkeypatch):
     _dev_mode(monkeypatch)
     d1 = Department(code="AI", name="AI Platform")
     d2 = Department(code="CP", name="Cloud Platform")
@@ -84,132 +76,145 @@ def test_hinzufuegen_legt_zuordnung_in_beiden_abteilungen_an(client, session, mo
     session.refresh(d2)
 
     _login(client, "orga")
-
-    r = client.post("/ausbilder-verwaltung/hinzufuegen", data={
-        "upn": "Neu.Ausbilder@Firma.de",
-        "anzeigename": "Neu Ausbilder",
+    r = client.post("/ausbilder-verwaltung/neu", data={
+        "upn": "Neu.Person@Firma.de",
+        "name": "Neu Person",
+        "funktion": "EINSATZPLANUNG",
+        "email": "neu.person@firma.de",
+        "telefon": "+49 30 123",
+        "notiz": "interne Notiz",
+        "aktiv": "1",
+        "beruf": ["FISI"],
         "abteilung_ids": [str(d1.id), str(d2.id)],
     }, follow_redirects=False)
     assert r.status_code == 303
-    assert r.headers["location"].startswith("/ausbilder-verwaltung/?msg=created")
+    assert r.headers["location"] == "/ausbilder-verwaltung/?msg=created"
 
     session.expire_all()
+    betreuer = session.exec(
+        select(Betreuer).where(Betreuer.upn == "Neu.Person@Firma.de")
+    ).first()
+    assert betreuer is not None
+    assert betreuer.name == "Neu Person"
+    assert betreuer.funktion == "EINSATZPLANUNG"
+    assert betreuer.email == "neu.person@firma.de"
+    assert betreuer.aktiv is True
+    assert betreuer.berufe == ["FISI"]
+
     d1_r = session.get(Department, d1.id)
     d2_r = session.get(Department, d2.id)
-    assert "Neu.Ausbilder@Firma.de" in d1_r.verantwortliche
-    assert "Neu.Ausbilder@Firma.de" in d2_r.verantwortliche
+    assert "Neu.Person@Firma.de" in d1_r.verantwortliche
+    assert "Neu.Person@Firma.de" in d2_r.verantwortliche
 
 
-def test_hinzufuegen_ohne_upn_kein_write(client, session, monkeypatch):
+def test_anlegen_ohne_upn_kein_write(client, session, monkeypatch):
     _dev_mode(monkeypatch)
-    d = Department(code="AI", name="AI Platform")
-    session.add(d)
+    _login(client, "orga")
+    r = client.post("/ausbilder-verwaltung/neu", data={"upn": "   "}, follow_redirects=False)
+    assert r.status_code == 303
+    assert "msg=error" in r.headers["location"]
+
+    session.expire_all()
+    assert session.exec(select(Betreuer)).all() == []
+
+
+def test_anlegen_dublette_upn_case_insensitiv_wird_abgelehnt(client, session, monkeypatch):
+    _dev_mode(monkeypatch)
+    session.add(Betreuer(upn="person@firma.de", name="Erste Person"))
     session.commit()
-    session.refresh(d)
 
     _login(client, "orga")
-    r = client.post("/ausbilder-verwaltung/hinzufuegen", data={
-        "upn": "   ",
-        "abteilung_ids": [str(d.id)],
+    r = client.post("/ausbilder-verwaltung/neu", data={
+        "upn": "Person@Firma.de",
+        "name": "Zweite Person",
     }, follow_redirects=False)
     assert r.status_code == 303
     assert "msg=error" in r.headers["location"]
 
     session.expire_all()
-    d_r = session.get(Department, d.id)
-    assert d_r.verantwortliche == ""
+    alle = session.exec(select(Betreuer)).all()
+    assert len(alle) == 1
+    assert alle[0].name == "Erste Person"
 
 
-# ── Zuordnung aendern ────────────────────────────────────────────────────
+# ── Bearbeiten ───────────────────────────────────────────────────────────
 
-def test_bearbeiten_aendert_zuordnung_andere_eintraege_bleiben(client, session, monkeypatch):
+def test_bearbeiten_vorschau_zeigt_aktuelle_werte_vorausgewaehlt(client, session, monkeypatch):
+    _dev_mode(monkeypatch)
+    d1 = Department(code="AI", name="AI Platform", verantwortliche="person@firma.de")
+    d2 = Department(code="CP", name="Cloud Platform")
+    session.add_all([d1, d2])
+    session.add(TraineeClass(name="FISI 1. LJ", berufsschule="X", unterrichts_typ=UnterrichtsTyp.BLOCK_FEST))
+    b = Betreuer(upn="person@firma.de", name="Person Eins", funktion="TECHNISCH", berufe=["FISI"])
+    session.add(b)
+    session.commit()
+    session.refresh(b)
+    session.refresh(d1)
+    session.refresh(d2)
+
+    _login(client, "orga")
+    r = client.get(f"/ausbilder-verwaltung/{b.id}/bearbeiten")
+    assert r.status_code == 200
+    assert 'value="Person Eins"' in r.text
+    assert _checkbox_checked(r.text, "abteilung_ids", d1.id) is True
+    assert _checkbox_checked(r.text, "abteilung_ids", d2.id) is False
+    assert _checkbox_checked(r.text, "beruf", "FISI") is True
+
+
+def test_bearbeiten_aendert_felder_und_abteilungen_andere_bleiben(client, session, monkeypatch):
     _dev_mode(monkeypatch)
     d1 = Department(code="AI", name="AI Platform", verantwortliche="person.eins@firma.de, person.zwei@firma.de")
     d2 = Department(code="CP", name="Cloud Platform", verantwortliche="person.eins@firma.de")
     d3 = Department(code="NW", name="Netzwerk")
     session.add_all([d1, d2, d3])
+    b = Betreuer(upn="person.eins@firma.de", name="Person Eins", funktion="TECHNISCH")
+    session.add(b)
     session.commit()
+    session.refresh(b)
     session.refresh(d1)
     session.refresh(d2)
     session.refresh(d3)
 
     _login(client, "orga")
-
-    # person.eins ist aktuell in d1 + d2 -> Checkbox-Auswahl aendert auf d1 + d3
-    r = client.post(f"/ausbilder-verwaltung/{_enc('person.eins@firma.de')}/bearbeiten", data={
+    r = client.post(f"/ausbilder-verwaltung/{b.id}/bearbeiten", data={
+        "upn": "person.eins@firma.de",
+        "name": "Person Eins",
+        "funktion": "HR",
+        "aktiv": "",  # Checkbox nicht gesetzt -> inaktiv
         "abteilung_ids": [str(d1.id), str(d3.id)],
     }, follow_redirects=False)
     assert r.status_code == 303
     assert r.headers["location"] == "/ausbilder-verwaltung/?msg=updated"
 
     session.expire_all()
+    b_r = session.get(Betreuer, b.id)
+    assert b_r.funktion == "HR"
+    assert b_r.aktiv is False
+
     d1_r = session.get(Department, d1.id)
     d2_r = session.get(Department, d2.id)
     d3_r = session.get(Department, d3.id)
     assert "person.eins@firma.de" in d1_r.verantwortliche
-    # andere Person in d1 bleibt unangetastet
-    assert "person.zwei@firma.de" in d1_r.verantwortliche
-    # aus d2 entfernt
-    assert "person.eins@firma.de".lower() not in d2_r.verantwortliche.lower()
-    # neu in d3
-    assert "person.eins@firma.de" in d3_r.verantwortliche
+    assert "person.zwei@firma.de" in d1_r.verantwortliche  # andere Person bleibt
+    assert "person.eins@firma.de".lower() not in d2_r.verantwortliche.lower()  # aus d2 entfernt
+    assert "person.eins@firma.de" in d3_r.verantwortliche  # neu
 
 
-def test_bearbeiten_vorschau_zeigt_aktuelle_zuordnung_vorausgewaehlt(client, session, monkeypatch):
+def test_bearbeiten_upn_aenderung_migriert_abteilungszuordnung(client, session, monkeypatch):
+    """UPN-Umbenennung: alte Schreibweise wird ueberall ausgetragen, neue eingetragen."""
     _dev_mode(monkeypatch)
-    d1 = Department(code="AI", name="AI Platform", verantwortliche="person@firma.de")
-    d2 = Department(code="CP", name="Cloud Platform")
-    session.add_all([d1, d2])
-    session.commit()
-    session.refresh(d1)
-    session.refresh(d2)
-
-    _login(client, "orga")
-    r = client.get(f"/ausbilder-verwaltung/{_enc('person@firma.de')}/bearbeiten")
-    assert r.status_code == 200
-    assert _checkbox_checked(r.text, d1.id) is True
-    assert _checkbox_checked(r.text, d2.id) is False
-
-
-# ── Zuordnung entfernen ──────────────────────────────────────────────────
-
-def test_entfernen_traegt_aus_allen_abteilungen_aus_andere_bleiben(client, session, monkeypatch):
-    _dev_mode(monkeypatch)
-    d1 = Department(code="AI", name="AI Platform", verantwortliche="weg@firma.de, bleibt@firma.de")
-    d2 = Department(code="CP", name="Cloud Platform", verantwortliche="weg@firma.de")
-    session.add_all([d1, d2])
-    session.commit()
-    session.refresh(d1)
-    session.refresh(d2)
-
-    _login(client, "orga")
-
-    r = client.post(f"/ausbilder-verwaltung/{_enc('weg@firma.de')}/entfernen", follow_redirects=False)
-    assert r.status_code == 303
-    assert r.headers["location"] == "/ausbilder-verwaltung/?msg=deleted"
-
-    session.expire_all()
-    d1_r = session.get(Department, d1.id)
-    d2_r = session.get(Department, d2.id)
-    assert "weg@firma.de" not in d1_r.verantwortliche
-    assert "bleibt@firma.de" in d1_r.verantwortliche
-    assert d2_r.verantwortliche == ""
-
-
-# ── Defensives Parsen bei krummen Bestandsdaten ─────────────────────────────
-
-def test_defensives_parsen_krummes_feld_bleibt_lesbar(client, session, monkeypatch):
-    _dev_mode(monkeypatch)
-    krumm = " a@firma.de ,, ;\n b@firma.de \n\n, ,c@firma.de,,"
-    d = Department(code="AI", name="AI Platform", verantwortliche=krumm)
+    d = Department(code="AI", name="AI Platform", verantwortliche="alt@firma.de")
     session.add(d)
+    b = Betreuer(upn="alt@firma.de", name="Person")
+    session.add(b)
     session.commit()
+    session.refresh(b)
     session.refresh(d)
 
     _login(client, "orga")
-    # a@firma.de bleibt zugeordnet (schon drin) -- Schreiben durch den Router
-    # muss das Feld bereinigen, ohne b/c zu verlieren.
-    r = client.post(f"/ausbilder-verwaltung/{_enc('a@firma.de')}/bearbeiten", data={
+    r = client.post(f"/ausbilder-verwaltung/{b.id}/bearbeiten", data={
+        "upn": "neu@firma.de",
+        "name": "Person",
         "abteilung_ids": [str(d.id)],
     }, follow_redirects=False)
     assert r.status_code == 303
@@ -217,82 +222,199 @@ def test_defensives_parsen_krummes_feld_bleibt_lesbar(client, session, monkeypat
     session.expire_all()
     d_r = session.get(Department, d.id)
     eintraege = [e.lower() for e in parse_verantwortliche(d_r.verantwortliche)]
-    assert sorted(eintraege) == ["a@firma.de", "b@firma.de", "c@firma.de"]
-    assert len(eintraege) == 3  # keine leeren Eintraege, keine Duplikate
+    assert "alt@firma.de" not in eintraege
+    assert "neu@firma.de" in eintraege
 
 
-# ── Liste: Dedup + Sortierung ────────────────────────────────────────────
-
-def test_liste_dedupliziert_case_insensitiv_und_sortiert_alphabetisch(client, session, monkeypatch):
+def test_bearbeiten_upn_dublette_wird_abgelehnt(client, session, monkeypatch):
     _dev_mode(monkeypatch)
-    d1 = Department(code="ZZ", name="Zulieferung", verantwortliche="Zora@Firma.de")
-    d2 = Department(code="AA", name="Anfang", verantwortliche="zora@firma.de, anton@firma.de")
-    session.add_all([d1, d2])
+    session.add(Betreuer(upn="a@firma.de", name="A"))
+    b2 = Betreuer(upn="b@firma.de", name="B")
+    session.add(b2)
     session.commit()
+    session.refresh(b2)
 
     _login(client, "orga")
-    r = client.get("/ausbilder-verwaltung/")
-    assert r.status_code == 200
-    # kanonisch kleingeschrieben, nur EINE Tabellenzeile (die UPN erscheint
-    # je Zeile zweimal im Markup: als Anzeige + im confirm()-Text der
-    # Entfernen-Aktion -- bei Dedup-Versagen waeren es zwei Zeilen = 4x)
-    assert r.text.count("zora@firma.de") == 2
-    # alphabetisch sortiert: anton vor zora
-    pos_anton = r.text.find("anton@firma.de")
-    pos_zora = r.text.find("zora@firma.de")
-    assert 0 <= pos_anton < pos_zora
-    # Zora ist in AA und ZZ zugeordnet -> beide Codes als Chips sichtbar
-    assert "AA" in r.text
-    assert "ZZ" in r.text
+    r = client.post(f"/ausbilder-verwaltung/{b2.id}/bearbeiten", data={
+        "upn": "A@Firma.de",
+        "name": "B",
+    }, follow_redirects=False)
+    assert r.status_code == 303
+    assert "msg=error" in r.headers["location"]
+
+    session.expire_all()
+    b2_r = session.get(Betreuer, b2.id)
+    assert b2_r.upn == "b@firma.de"  # unveraendert
+
+
+# ── Entfernen ────────────────────────────────────────────────────────────
+
+def test_entfernen_loescht_betreuer_abteilungszuordnung_und_ausnahmen(client, session, monkeypatch):
+    _dev_mode(monkeypatch)
+    d1 = Department(code="AI", name="AI Platform", verantwortliche="weg@firma.de, bleibt@firma.de")
+    d2 = Department(code="CP", name="Cloud Platform", verantwortliche="weg@firma.de")
+    session.add_all([d1, d2])
+    b = Betreuer(upn="weg@firma.de", name="Weg")
+    session.add(b)
+    session.commit()
+    session.refresh(b)
+    t = Trainee(vorname="Max", nachname="Muster", rolle=TraineeRolle.AZUBI)
+    session.add(t)
+    session.commit()
+    session.refresh(t)
+    session.add(BetreuerTrainee(betreuer_id=b.id, trainee_id=t.id, modus="ZUSAETZLICH"))
+    session.commit()
+    session.refresh(d1)
+    session.refresh(d2)
+
+    _login(client, "orga")
+    r = client.post(f"/ausbilder-verwaltung/{b.id}/entfernen", follow_redirects=False)
+    assert r.status_code == 303
+    assert r.headers["location"] == "/ausbilder-verwaltung/?msg=deleted"
+
+    session.expire_all()
+    assert session.get(Betreuer, b.id) is None
+    assert session.exec(select(BetreuerTrainee).where(BetreuerTrainee.betreuer_id == b.id)).all() == []
+    d1_r = session.get(Department, d1.id)
+    d2_r = session.get(Department, d2.id)
+    assert "weg@firma.de" not in d1_r.verantwortliche
+    assert "bleibt@firma.de" in d1_r.verantwortliche
+    assert d2_r.verantwortliche == ""
 
 
 # ── Rollen-Guards ────────────────────────────────────────────────────────
 
-def test_ausbilder_bekommt_403_auf_allen_routen(client, session, monkeypatch):
+def test_ausbilder_bekommt_403_auf_verwaltungsrouten(client, session, monkeypatch):
     _dev_mode(monkeypatch)
-    d = Department(code="AI", name="AI Platform")
-    session.add(d)
+    b = Betreuer(upn="x@firma.de", name="X")
+    session.add(b)
     session.commit()
-    session.refresh(d)
+    session.refresh(b)
 
     _login(client, "ausbilder")
 
     assert client.get("/ausbilder-verwaltung/").status_code == 403
-    assert client.get(f"/ausbilder-verwaltung/{_enc('x@firma.de')}/bearbeiten").status_code == 403
-    assert client.post(
-        f"/ausbilder-verwaltung/{_enc('x@firma.de')}/bearbeiten",
-        data={"abteilung_ids": [str(d.id)]},
-    ).status_code == 403
-    assert client.post(
-        "/ausbilder-verwaltung/hinzufuegen", data={"upn": "x@firma.de"},
-    ).status_code == 403
-    assert client.post(f"/ausbilder-verwaltung/{_enc('x@firma.de')}/entfernen").status_code == 403
+    assert client.get("/ausbilder-verwaltung/neu").status_code == 403
+    assert client.post("/ausbilder-verwaltung/neu", data={"upn": "y@firma.de"}).status_code == 403
+    assert client.get(f"/ausbilder-verwaltung/{b.id}/bearbeiten").status_code == 403
+    assert client.post(f"/ausbilder-verwaltung/{b.id}/bearbeiten", data={"upn": "x@firma.de"}).status_code == 403
+    assert client.post(f"/ausbilder-verwaltung/{b.id}/entfernen").status_code == 403
+    assert client.post(f"/ausbilder-verwaltung/{b.id}/ausnahmen", data={"trainee_id": 1, "modus": "ZUSAETZLICH"}).status_code == 403
 
     session.expire_all()
-    d_r = session.get(Department, d.id)
-    assert d_r.verantwortliche == ""  # kein Schreibzugriff trotz Versuch
+    assert session.get(Betreuer, b.id) is not None  # unveraendert
 
 
 def test_orga_und_admin_duerfen_zugreifen(client, session, monkeypatch):
     _dev_mode(monkeypatch)
-    d = Department(code="AI", name="AI Platform", verantwortliche="jemand@firma.de")
-    session.add(d)
+    b = Betreuer(upn="jemand@firma.de", name="Jemand")
+    session.add(b)
     session.commit()
-    session.refresh(d)
+    session.refresh(b)
 
     for rolle in ("orga", "admin"):
         _login(client, rolle)
         assert client.get("/ausbilder-verwaltung/").status_code == 200
-        r = client.get(f"/ausbilder-verwaltung/{_enc('jemand@firma.de')}/bearbeiten")
-        assert r.status_code == 200
+        assert client.get(f"/ausbilder-verwaltung/{b.id}/bearbeiten").status_code == 200
+        assert client.get(f"/ausbilder-verwaltung/{b.id}").status_code == 200
 
 
-# ── Integrationstest: Wirkung auf allowed_dept_ids ──────────────────────────
+# ── Profilseite: Zugriff der Person selbst ──────────────────────────────
 
-def test_allowed_dept_ids_matcht_nach_zuordnung(client, session, monkeypatch):
-    """Der eigentliche Zweck der Seite: eine hier vergebene Zuordnung muss
-    exakt das liefern, was allowed_dept_ids() (auth_service.py) fuer diese
-    UPN als 'eigene Abteilungen' erkennt."""
+def test_profilseite_person_selbst_sichtbar_aber_ohne_notiz_und_ausnahmenpflege(client, session, monkeypatch):
+    _dev_mode(monkeypatch)
+    # Dev-Login setzt fuer Staff-Rollen immer upn="dev@local".
+    b = Betreuer(upn="dev@local", name="Ich Selbst", notiz="geheime interne Notiz")
+    session.add(b)
+    session.commit()
+    session.refresh(b)
+
+    _login(client, "ausbilder")  # normalerweise 403 auf dieser Seite -- Ausnahme: eigene UPN
+    r = client.get(f"/ausbilder-verwaltung/{b.id}")
+    assert r.status_code == 200
+    assert "geheime interne Notiz" not in r.text
+    assert "Ausnahmen" not in r.text
+
+
+def test_profilseite_fremde_ausbilder_bekommt_403(client, session, monkeypatch):
+    _dev_mode(monkeypatch)
+    b = Betreuer(upn="andere.person@firma.de", name="Andere Person")
+    session.add(b)
+    session.commit()
+    session.refresh(b)
+
+    _login(client, "ausbilder")  # upn=dev@local, matcht NICHT
+    r = client.get(f"/ausbilder-verwaltung/{b.id}")
+    assert r.status_code == 403
+
+
+def test_profilseite_orga_sieht_notiz_und_ausnahmenpflege(client, session, monkeypatch):
+    _dev_mode(monkeypatch)
+    b = Betreuer(upn="person@firma.de", name="Person", notiz="interne Notiz")
+    session.add(b)
+    session.commit()
+    session.refresh(b)
+
+    _login(client, "orga")
+    r = client.get(f"/ausbilder-verwaltung/{b.id}")
+    assert r.status_code == 200
+    assert "interne Notiz" in r.text
+    assert "Ausnahmen" in r.text
+
+
+def test_profilseite_unbekannte_id_404(client, session, monkeypatch):
+    _dev_mode(monkeypatch)
+    _login(client, "orga")
+    assert client.get("/ausbilder-verwaltung/999999").status_code == 404
+
+
+# ── Ausnahmen (Ausnahmen-CRUD, nur orga/admin) ──────────────────────────
+
+def test_ausnahme_anlegen_aendern_und_entfernen(client, session, monkeypatch):
+    _dev_mode(monkeypatch)
+    b = Betreuer(upn="betreuer@firma.de", name="Betreuer", berufe=["FISI"])
+    session.add(b)
+    t = Trainee(vorname="Mia", nachname="Muster", rolle=TraineeRolle.AZUBI)
+    session.add(t)
+    session.commit()
+    session.refresh(b)
+    session.refresh(t)
+
+    _login(client, "orga")
+    r = client.post(f"/ausbilder-verwaltung/{b.id}/ausnahmen", data={
+        "trainee_id": t.id, "modus": "ZUSAETZLICH",
+    }, follow_redirects=False)
+    assert r.status_code == 303
+
+    session.expire_all()
+    rows = session.exec(select(BetreuerTrainee).where(BetreuerTrainee.betreuer_id == b.id)).all()
+    assert len(rows) == 1
+    assert rows[0].modus == "ZUSAETZLICH"
+
+    # Erneutes Anlegen fuer dasselbe Paar aendert den Modus (Upsert, keine Dublette)
+    r2 = client.post(f"/ausbilder-verwaltung/{b.id}/ausnahmen", data={
+        "trainee_id": t.id, "modus": "AUSGENOMMEN",
+    }, follow_redirects=False)
+    assert r2.status_code == 303
+    session.expire_all()
+    rows2 = session.exec(select(BetreuerTrainee).where(BetreuerTrainee.betreuer_id == b.id)).all()
+    assert len(rows2) == 1
+    assert rows2[0].modus == "AUSGENOMMEN"
+
+    ausnahme_id = rows2[0].id
+    r3 = client.post(f"/ausbilder-verwaltung/{b.id}/ausnahmen/{ausnahme_id}/entfernen", follow_redirects=False)
+    assert r3.status_code == 303
+    session.expire_all()
+    assert session.exec(select(BetreuerTrainee).where(BetreuerTrainee.betreuer_id == b.id)).all() == []
+
+
+# ── Regression: allowed_dept_ids() unveraendert ─────────────────────────
+
+def test_allowed_dept_ids_matcht_nach_zuordnung_ueber_neue_ui(client, session, monkeypatch):
+    """Der abteilungsbezogene Teil der Seite muss weiterhin exakt das
+    liefern, was allowed_dept_ids() (auth_service.py) fuer diese UPN als
+    'eigene Abteilungen' erkennt -- UNVERAENDERT gegenueber vor Migration
+    0017betreuung."""
     _dev_mode(monkeypatch)
     d1 = Department(code="AI", name="AI Platform")
     d2 = Department(code="CP", name="Cloud Platform")
@@ -304,7 +426,7 @@ def test_allowed_dept_ids_matcht_nach_zuordnung(client, session, monkeypatch):
     session.refresh(d3)
 
     _login(client, "orga")
-    r = client.post("/ausbilder-verwaltung/hinzufuegen", data={
+    r = client.post("/ausbilder-verwaltung/neu", data={
         "upn": "Ausbilder.Test@Firma.de",
         "abteilung_ids": [str(d1.id), str(d2.id)],
     }, follow_redirects=False)

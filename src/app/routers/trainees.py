@@ -12,6 +12,7 @@ from sqlmodel import Session, select
 from app.database import get_session
 from app.models import (
     Assignment,
+    BetreuerTrainee,
     Department,
     Schoolyear,
     Trainee,
@@ -22,7 +23,9 @@ from app.models import (
     TraineeWish,
 )
 from app.models.trainee_wish import group_wishes_by_priority, prioritaet_label
+from app.models.betreuer import FUNKTION_LABELS
 from app.services.auth_service import CurrentUser, allowed_dept_ids, require_roles
+from app.services.betreuung_utils import betreuer_fuer_trainee
 from app.services.conflict_checker import find_conflicts
 from app.services.dept_history import visited_department_ids
 from app.services.membership_utils import (
@@ -43,6 +46,7 @@ from app.utils.colors import department_color_map
 router = APIRouter(prefix="/trainees", tags=["trainees"])
 templates = Jinja2Templates(directory=Path(__file__).resolve().parents[1] / "templates")
 templates.env.globals["prioritaet_label"] = prioritaet_label
+templates.env.globals["FUNKTION_LABELS"] = FUNKTION_LABELS
 DB = Annotated[Session, Depends(get_session)]
 
 
@@ -390,6 +394,10 @@ def trainee_detail(
             )
         ).first() is not None
 
+    # Betreuung (Personen, die den Trainee ueber die gesamte Ausbildung
+    # begleiten -- unabhaengig von den abteilungsbezogenen Ausbildern oben).
+    betreuer_liste = betreuer_fuer_trainee(db, trainee, schoolyear_id)
+
     return templates.TemplateResponse(request, "trainees/detail.html", {
         "trainee": trainee,
         "klasse": klasse,
@@ -407,6 +415,7 @@ def trainee_detail(
         "notizen": notizen,
         "beruf_lang": beruf_lang,
         "ausbildungsbeginn": trainee.ausbildungsbeginn,
+        "betreuer_liste": betreuer_liste,
         "active_nav": "trainees",
     })
 
@@ -646,6 +655,9 @@ def loeschen_trainee(
     for m in memberships:
         db.delete(m)
 
+    for bt in db.exec(select(BetreuerTrainee).where(BetreuerTrainee.trainee_id == trainee_id)).all():
+        db.delete(bt)
+
     t = db.get(Trainee, trainee_id)
     db.delete(t)
     db.commit()
@@ -665,6 +677,8 @@ def delete_trainee(
         db.delete(w)
     for m in db.exec(select(TraineeClassMembership).where(TraineeClassMembership.trainee_id == trainee_id)).all():
         db.delete(m)
+    for bt in db.exec(select(BetreuerTrainee).where(BetreuerTrainee.trainee_id == trainee_id)).all():
+        db.delete(bt)
     t = db.get(Trainee, trainee_id)
     db.delete(t)
     db.commit()

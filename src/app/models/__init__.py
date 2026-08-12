@@ -1,5 +1,6 @@
 from app.models.abwesenheit import Abwesenheit, AbwesenheitQuelle, AbwesenheitTyp
 from app.models.assignment import Assignment, AssignmentSource, AssignmentTyp
+from app.models.betreuer import Betreuer, BetreuerTrainee
 from app.models.department import Department, DepartmentKategorie  # DepartmentKategorie ist jetzt eine DB-Tabelle
 from app.models.einsatz_vorschlag import EinsatzVorschlag
 from app.models.feedback_bogen import FeedbackBogen
@@ -19,6 +20,8 @@ __all__ = [
     "Assignment",
     "AssignmentSource",
     "AssignmentTyp",
+    "Betreuer",
+    "BetreuerTrainee",
     "Department",
     "DepartmentKategorie",
     "EinsatzVorschlag",

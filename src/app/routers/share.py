@@ -35,7 +35,9 @@ from app.models import (
     UnterrichtsTyp,
 )
 from app.models.trainee_wish import group_wishes_by_priority, prioritaet_label
+from app.models.betreuer import FUNKTION_LABELS
 from app.services.abwesenheit_utils import abwesenheit_map
+from app.services.betreuung_utils import betreuer_fuer_trainee
 from app.services.dept_history import visited_department_ids
 from app.services.feedback_def import (
     AUSBILDER_SEKTIONEN,
@@ -71,6 +73,7 @@ router = APIRouter(prefix="/mein-plan", tags=["self-service"])
 templates = Jinja2Templates(directory=Path(__file__).resolve().parents[1] / "templates")
 templates.env.globals["prioritaet_label"] = prioritaet_label
 templates.env.globals["beruf_langname"] = beruf_langname
+templates.env.globals["FUNKTION_LABELS"] = FUNKTION_LABELS
 DB = Annotated[Session, Depends(get_session)]
 
 
@@ -258,6 +261,11 @@ def my_plan(request: Request, token: str, db: DB):
 
     amap = abwesenheit_map(db, [trainee.id], [(w["kw"], w["jahr"]) for w in weeks]) if weeks else {}
 
+    # Betreuung (Personen, die den Trainee ueber die gesamte Ausbildung
+    # begleiten): Azubi-Sicht zeigt Name/Funktion/Kontakt, NIE die interne
+    # Notiz (siehe app/services/betreuung_utils.py, app/models/betreuer.py).
+    betreuer_liste = betreuer_fuer_trainee(db, trainee, sy.id if sy else None)
+
     return templates.TemplateResponse(request, "share/plan.html", {
         "trainee": trainee,
         "token": token,
@@ -273,6 +281,7 @@ def my_plan(request: Request, token: str, db: DB):
         "years": years,
         "schul_tage": schul_tage,
         "abwesenheit_map": amap,
+        "betreuer_liste": betreuer_liste,
     })
 
 

@@ -1,24 +1,115 @@
 {% extends "base.html" %}
-{% block title %}Zuständigkeiten bearbeiten{% endblock %}
+{% block title %}{{ "Person bearbeiten" if betreuer else "Person anlegen" }}{% endblock %}
 
 {% block content %}
 <div class="page-header">
   <div>
-    <h1 class="page-title">Zuständigkeiten bearbeiten</h1>
-    <p class="page-subtitle mono">{{ upn }}</p>
+    <h1 class="page-title">{{ "Person bearbeiten" if betreuer else "Person anlegen" }}</h1>
   </div>
 </div>
 
-<div class="form-card" style="max-width:720px;">
-  <form method="post" action="/ausbilder-verwaltung/{{ upn_encoded }}/bearbeiten">
+<div class="form-card">
+  <form method="post" action="{{ '/ausbilder-verwaltung/' + (betreuer.id | string) + '/bearbeiten' if betreuer else '/ausbilder-verwaltung/neu' }}">
     <div class="form-grid">
+
+      <div class="form-grid form-grid-2">
+        <div class="form-group">
+          <label for="name">Name</label>
+          <input type="text" id="name" name="name"
+                 value="{{ betreuer.name if betreuer else '' }}"
+                 placeholder="z. B. Anna Beispiel">
+        </div>
+        <div class="form-group">
+          <label for="upn">UPN / E-Mail <span class="required">*</span></label>
+          <input type="text" id="upn" name="upn"
+                 value="{{ betreuer.upn if betreuer else '' }}"
+                 placeholder="z. B. anna.beispiel@firma.de" required>
+        </div>
+      </div>
+
+      <div class="form-grid form-grid-2">
+        <div class="form-group">
+          <label for="funktion">Funktion</label>
+          <select id="funktion" name="funktion">
+            {% for token, label in FUNKTION_LABELS.items() %}
+            <option value="{{ token }}" {{ 'selected' if betreuer and betreuer.funktion == token else ('selected' if not betreuer and token == 'SONSTIGES' else '') }}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-check" style="margin-top:28px;">
+            <input type="checkbox" name="aktiv" value="1"
+                   {{ 'checked' if (betreuer and betreuer.aktiv) or not betreuer else '' }}>
+            Aktiv
+          </label>
+          <span class="form-hint">Inaktive Personen erscheinen nicht mehr bei der Azubi-Betreuung.</span>
+        </div>
+      </div>
+
+      <div class="form-grid form-grid-2">
+        <div class="form-group">
+          <label for="email">E-Mail</label>
+          <input type="email" id="email" name="email"
+                 value="{{ betreuer.email if betreuer else '' }}"
+                 placeholder="z. B. anna.beispiel@firma.de">
+        </div>
+        <div class="form-group">
+          <label for="telefon">Telefon</label>
+          <input type="text" id="telefon" name="telefon"
+                 value="{{ betreuer.telefon if betreuer else '' }}"
+                 placeholder="z. B. +49 30 12345-0">
+        </div>
+      </div>
+
       <div class="form-group">
-        <label>Abteilungen</label>
+        <label for="notiz">Notiz (intern)</label>
+        <textarea id="notiz" name="notiz" rows="2"
+                  placeholder="Nur für Orga/Admin sichtbar">{{ betreuer.notiz if betreuer else '' }}</textarea>
+        <span class="form-hint">Wird dem Azubi NIE angezeigt.</span>
+      </div>
+
+      <div class="form-group">
+        <label>Zuständige Berufe <span class="text-muted" style="font-weight:400;">(begleitet Azubis/Studis über die gesamte Ausbildung)</span></label>
+        <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="berufAuswahl('alle')">Alle</button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="berufAuswahl('keine')">Keine</button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="berufAuswahl('ausbildung')">Nur Ausbildungsberufe</button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="berufAuswahl('studium')">Nur Studiengänge</button>
+        </div>
+        <div id="beruf-checkbox-list" style="display:flex; flex-direction:column; gap:6px;">
+          {% set erlaubte = betreuer.berufe if betreuer else [] %}
+          {% for token, langname in beruf_optionen %}
+          <label class="form-check">
+            <input type="checkbox" name="beruf" value="{{ token }}"
+                   data-art="{{ beruf_art_map.get(token, 'AUSBILDUNG') }}"
+                   {{ 'checked' if token in erlaubte else '' }}>
+            {{ langname }}
+          </label>
+          {% endfor %}
+        </div>
+        <span class="form-hint">
+          KEIN Haken gesetzt bedeutet ausdrücklich „zuständig für alle Berufe“.
+        </span>
+      </div>
+      <script>
+      function berufAuswahl(modus) {
+        var boxen = document.querySelectorAll('#beruf-checkbox-list input[type=checkbox]');
+        boxen.forEach(function (cb) {
+          if (modus === 'alle') cb.checked = true;
+          else if (modus === 'keine') cb.checked = false;
+          else if (modus === 'ausbildung') cb.checked = cb.dataset.art === 'AUSBILDUNG';
+          else if (modus === 'studium') cb.checked = cb.dataset.art === 'STUDIUM';
+        });
+      }
+      </script>
+
+      <div class="form-group">
+        <label>Zuständige Abteilungen <span class="text-muted" style="font-weight:400;">(bestätigt Einsätze)</span></label>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;">
           {% for d in departments %}
           <label class="form-check">
             <input type="checkbox" name="abteilung_ids" value="{{ d.id }}"
-                   {{ 'checked' if d.id in selected_ids else '' }}>
+                   {{ 'checked' if d.id in selected_dept_ids else '' }}>
             {{ d.code }} – {{ d.name }}
           </label>
           {% else %}
@@ -26,6 +117,7 @@
           {% endfor %}
         </div>
       </div>
+
     </div>
     <div class="form-actions">
       <button type="submit" class="btn btn-primary">Speichern</button>

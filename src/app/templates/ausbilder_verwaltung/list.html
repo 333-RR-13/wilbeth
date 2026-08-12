@@ -5,29 +5,51 @@
 <div class="page-header">
   <div>
     <h1 class="page-title">Ausbilder-Verwaltung</h1>
-    <p class="page-subtitle">{{ rows | length }} Person{{ 'en' if rows | length != 1 else '' }} mit Abteilungs-Zuständigkeit</p>
+    <p class="page-subtitle">{{ rows | length }} Person{{ 'en' if rows | length != 1 else '' }}</p>
+  </div>
+  <div class="btn-group">
+    <a href="/ausbilder-verwaltung/neu" class="btn btn-primary">Person anlegen</a>
   </div>
 </div>
 
 <div class="flash flash-info">
-  Wilbeth kann nicht prüfen, ob eine UPN tatsächlich Mitglied der Entra-Ausbilder-Gruppe ist – die Rolle
-  wird beim Login aus der Gruppenmitgliedschaft (OIDC) abgeleitet. Hier wird ausschließlich die
-  <strong>fachliche Zuständigkeit</strong> für Abteilungen gepflegt.
+  Zwei unabhängige Zuständigkeiten je Person: <strong>Abteilungen</strong> (bestätigt Einsätze in
+  ihren Abteilungen, wie bisher) und <strong>Berufe</strong> (begleitet Azubis/Studis dieser
+  Berufe über die gesamte Ausbildung, z. B. HR oder Einsatzplanung). Wilbeth kann nicht prüfen, ob
+  eine UPN tatsächlich Mitglied der passenden Entra-Gruppe ist – die Login-Rolle wird beim Login
+  aus der Gruppenmitgliedschaft (OIDC) abgeleitet.
 </div>
 
 <div class="table-wrapper">
   <table>
     <thead>
       <tr>
-        <th>UPN</th>
+        <th>Person</th>
+        <th>Funktion</th>
+        <th>Berufe</th>
         <th>Abteilungen</th>
+        <th>Status</th>
         <th></th>
       </tr>
     </thead>
     <tbody>
       {% for row in rows %}
-      <tr id="row-p-{{ loop.index }}">
-        <td><span class="mono">{{ row.upn }}</span></td>
+      {% set b = row.betreuer %}
+      <tr id="row-b-{{ b.id }}">
+        <td>
+          <a href="/ausbilder-verwaltung/{{ b.id }}">{{ b.name if b.name else b.upn }}</a>
+          {% if b.name %}<div class="mono text-muted" style="font-size:12px;">{{ b.upn }}</div>{% endif %}
+        </td>
+        <td><span class="badge badge-gray">{{ FUNKTION_LABELS.get(b.funktion, b.funktion) }}</span></td>
+        <td>
+          {% if b.berufe %}
+            <div style="display:flex;flex-wrap:wrap;gap:4px;">
+              {% for token in b.berufe %}<span class="badge badge-blue">{{ token }}</span>{% endfor %}
+            </div>
+          {% else %}
+            <span class="text-muted">alle</span>
+          {% endif %}
+        </td>
         <td>
           <div style="display:flex;flex-wrap:wrap;gap:4px;">
             {% for d in row.departments %}
@@ -37,48 +59,22 @@
             {% endfor %}
           </div>
         </td>
+        <td>
+          {% if b.aktiv %}<span class="badge badge-green">Aktiv</span>{% else %}<span class="badge badge-gray">Inaktiv</span>{% endif %}
+        </td>
         <td class="td-actions">
-          <a href="/ausbilder-verwaltung/{{ row.upn_encoded }}/bearbeiten" class="btn btn-ghost btn-sm">Bearbeiten</a>
-          <form method="post" action="/ausbilder-verwaltung/{{ row.upn_encoded }}/entfernen" style="display:inline"
-                onsubmit="return confirm('{{ row.upn }} aus allen Abteilungen entfernen?');">
-            <button type="submit" class="btn btn-ghost-danger btn-sm">Entfernen</button>
+          <a href="/ausbilder-verwaltung/{{ b.id }}" class="btn btn-ghost btn-sm">Profil</a>
+          <a href="/ausbilder-verwaltung/{{ b.id }}/bearbeiten" class="btn btn-ghost btn-sm">Bearbeiten</a>
+          <form method="post" action="/ausbilder-verwaltung/{{ b.id }}/entfernen" style="display:inline"
+                onsubmit="return confirm('{{ b.name if b.name else b.upn }} vollständig löschen? Auch die Abteilungs-Zuständigkeit wird entfernt.');">
+            <button type="submit" class="btn btn-ghost-danger btn-sm">Löschen</button>
           </form>
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="3" class="empty-state">Noch keine Zuständigkeiten gepflegt.</td></tr>
+      <tr><td colspan="6" class="empty-state">Noch keine Personen angelegt.</td></tr>
       {% endfor %}
     </tbody>
   </table>
-</div>
-
-<div class="form-card" style="margin-top:24px;max-width:720px;">
-  <h2 style="margin-top:0;">Person hinzufügen</h2>
-  <form method="post" action="/ausbilder-verwaltung/hinzufuegen">
-    <div class="form-grid">
-      <div class="form-grid form-grid-2">
-        <div class="form-group">
-          <label for="upn">UPN / E-Mail <span class="required">*</span></label>
-          <input type="text" id="upn" name="upn" placeholder="z. B. max.mustermann@firma.de" required>
-        </div>
-      </div>
-      <div class="form-group">
-        <label>Abteilungen</label>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;">
-          {% for d in departments %}
-          <label class="form-check">
-            <input type="checkbox" name="abteilung_ids" value="{{ d.id }}">
-            {{ d.code }} – {{ d.name }}
-          </label>
-          {% else %}
-          <span class="text-muted">Noch keine Abteilungen angelegt.</span>
-          {% endfor %}
-        </div>
-      </div>
-    </div>
-    <div class="form-actions">
-      <button type="submit" class="btn btn-primary">Zuordnen</button>
-    </div>
-  </form>
 </div>
 {% endblock %}

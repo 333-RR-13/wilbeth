@@ -46,4 +46,23 @@
 </div>
 {% endif %}
 
+{# ── Meine Betreuer (begleiten die gesamte Ausbildung, nicht nur einen
+     einzelnen Einsatz -- interne Notizen bleiben fuer Staff, s.
+     app/services/betreuung_utils.py) ──────────────────────────────── #}
+{% if betreuer_liste %}
+<div class="card card-body" style="margin-top:24px;">
+  <h2 class="form-section-title">Meine Betreuer</h2>
+  <div style="display:flex; flex-direction:column; gap:10px;">
+    {% for b in betreuer_liste %}
+    <div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;">
+      <span class="badge badge-gray">{{ FUNKTION_LABELS.get(b.funktion, b.funktion) }}</span>
+      <strong>{{ b.name if b.name else b.upn }}</strong>
+      {% if b.email %}<a href="mailto:{{ b.email }}" style="font-size:13px;">{{ b.email }}</a>{% endif %}
+      {% if b.telefon %}<span class="text-muted" style="font-size:13px;">{{ b.telefon }}</span>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
 {% endblock %}
