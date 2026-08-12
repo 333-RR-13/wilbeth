@@ -60,6 +60,46 @@
           Daraus wird die Einstiegsklasse (1. LJ) automatisch abgeleitet.
         </span>
       </div>
+      {# Beruf->Art-Zuordnung fuer die JS-Filterung unten (Rolle -> passende
+      Berufe). Ohne JS bleibt die Auswahl ungefiltert -- alle Optionen sind
+      dann waehlbar; serverseitig wird eine abweichende Kombination
+      Rolle/Art trotzdem nur GEWARNT, nicht blockiert (siehe
+      app/routers/trainees.py, _rolle_art_warnung). #}
+      <script>
+      (function () {
+        var berufArtMap = {{ beruf_art_map | tojson }};
+        var rolleSelect = document.getElementById('rolle');
+        var berufSelect = document.getElementById('beruf');
+        if (!rolleSelect || !berufSelect) return;
+
+        var alleOptionen = Array.prototype.slice.call(berufSelect.options);
+
+        function artFuerRolle(rolle) {
+          if (rolle === 'AZUBI') return 'AUSBILDUNG';
+          if (rolle === 'DH_STUDENT') return 'STUDIUM';
+          return null; // Praktikant/Umschüler: alle Berufe
+        }
+
+        function filterBerufOptionen() {
+          var art = artFuerRolle(rolleSelect.value);
+          var aktuellerWert = berufSelect.value;
+          berufSelect.innerHTML = '';
+          alleOptionen.forEach(function (opt) {
+            var passt = !art || opt.value === '' || berufArtMap[opt.value] === art;
+            // Aktuell gewaehlten Wert immer sichtbar lassen, auch wenn er
+            // (noch) nicht zur neuen Rolle passt -- verhindert stilles
+            // Verwerfen einer bestehenden Ausnahme beim blossen Anzeigen.
+            if (passt || opt.value === aktuellerWert) {
+              berufSelect.appendChild(opt.cloneNode(true));
+            }
+          });
+          berufSelect.value = aktuellerWert;
+        }
+
+        rolleSelect.addEventListener('change', filterBerufOptionen);
+        filterBerufOptionen();
+      })();
+      </script>
 
       {# ── Sonderfall: abweichende Klassenzuweisung ──────────────────── #}
       <div class="form-group">

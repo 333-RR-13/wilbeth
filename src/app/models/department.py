@@ -1,10 +1,14 @@
 from typing import Optional, List
 
+from sqlalchemy import JSON, Column
 from sqlmodel import Field, Relationship, SQLModel
 
-# Zielgruppe einer Abteilung: "IT" (nur IT-Azubis/-Studis), "KAUFMAENNISCH"
-# (nur kaufmaennische Azubis/-Studis) oder "BEIDE" (Default -- nimmt beide
-# Bereiche). Label fuer die Anzeige im Formular/UI.
+# ABGELOEST durch Department.erlaubte_berufe (s. u., seit Migration
+# 0016berufe / TEIL B) -- nicht mehr in UI/Konfliktpruefung genutzt, nur
+# noch als Doku fuer die alten Werte der (weiterhin in der DB stehenden)
+# Spalte zielgruppe stehen gelassen: "IT" (nur IT-Azubis/-Studis),
+# "KAUFMAENNISCH" (nur kaufmaennische Azubis/-Studis), "BEIDE" (Default --
+# nahm beide Bereiche).
 ZIELGRUPPE_LABELS: dict[str, str] = {
     "IT": "Nur IT",
     "KAUFMAENNISCH": "Nur kaufmännisch",
@@ -39,11 +43,21 @@ class Department(SQLModel, table=True):
     erlaubt_mehrfachbelegung: bool = Field(default=False)
     farbe: str = Field(default="#9CA3AF")
     verantwortliche: str = Field(default="")
-    # Zielgruppe ("IT" | "KAUFMAENNISCH" | "BEIDE"), Default "BEIDE" -- damit
-    # keine Bestandsplanung durch die Einfuehrung ploetzlich als Konflikt
-    # markiert wird. Genutzt fuer die Bereich/Zielgruppe-Konfliktpruefung
-    # (siehe services/conflict_checker.py, ConflictKind.BEREICH_KONFLIKT).
+    # ZIELGRUPPE IST FACHLICH ABGELOEST durch erlaubte_berufe (s. u., seit
+    # Migration 0016berufe / TEIL B). Die Spalte bleibt in der DB stehen
+    # (Datensicherung/Ruckwaertskompatibilitaet), wird aber seither weder in
+    # der UI noch in der Konfliktpruefung mehr ausgewertet -- NICHT weiter
+    # pflegen.
     zielgruppe: str = Field(default="BEIDE", max_length=32)
+    # Liste erlaubter Beruf-Tokens (wie von membership_utils.beruf_optionen
+    # geliefert, z. B. ["FISI", "FIAE"]), die in dieser Abteilung eingesetzt
+    # werden koennen. LEERE Liste (Default) bedeutet ausdruecklich "alle
+    # Berufe erlaubt" -- das ist der bisherige Zustand "BEIDE". Genutzt fuer
+    # die Bereich-Konfliktpruefung (siehe services/conflict_checker.py,
+    # ConflictKind.BEREICH_KONFLIKT). WICHTIG: SQLModel erkennt In-Place-
+    # Mutationen an JSON-Spalten nicht -- beim Aendern immer eine neue Liste
+    # zuweisen (siehe Kommentar in app/models/feedback_bogen.py).
+    erlaubte_berufe: list[str] = Field(default_factory=list, sa_column=Column(JSON))
 
     # relationship – lädt die DepartmentKategorie automatisch (für Templates: d.kategorie.name)
     kategorie: Optional[DepartmentKategorie] = Relationship(back_populates="departments")

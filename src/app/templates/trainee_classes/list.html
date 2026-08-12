@@ -37,7 +37,7 @@
 <div class="table-wrapper">
   <table>
     <tbody>
-      <tr><td colspan="5" class="empty-state">Noch keine Klassen angelegt.</td></tr>
+      <tr><td colspan="6" class="empty-state">Noch keine Klassen angelegt.</td></tr>
     </tbody>
   </table>
 </div>
@@ -53,6 +53,7 @@
           <th>Name</th>
           <th>Berufsschule</th>
           <th>Bereich</th>
+          <th>Art</th>
           <th>Typ</th>
           <th></th>
         </tr>
@@ -67,6 +68,13 @@
               <span class="badge badge-yellow">{{ bereich_labels.get(c.bereich, c.bereich) }}</span>
             {% else %}
               <span class="badge badge-blue">{{ bereich_labels.get(c.bereich, c.bereich) }}</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if c.art == 'STUDIUM' %}
+              <span class="badge badge-gray">{{ art_labels.get(c.art, c.art) }}</span>
+            {% else %}
+              <span class="badge badge-green">{{ art_labels.get(c.art, c.art) }}</span>
             {% endif %}
           </td>
           <td>

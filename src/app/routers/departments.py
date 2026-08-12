@@ -7,14 +7,13 @@ from pathlib import Path
 from sqlmodel import Session, select
 
 from app.database import get_session
-from app.models import Department, DepartmentKategorie
-from app.models.department import ZIELGRUPPE_LABELS
+from app.models import Department, DepartmentKategorie, TraineeClass
 from app.services.auth_service import CurrentUser, require_roles
+from app.services.membership_utils import beruf_art_map, beruf_optionen
 from app.utils.text import is_safe_http_url, linkify
 
 router = APIRouter(prefix="/abteilungen", tags=["abteilungen"])
 templates = Jinja2Templates(directory=Path(__file__).resolve().parents[1] / "templates")
-templates.env.globals["zielgruppe_labels"] = ZIELGRUPPE_LABELS
 DB = Annotated[Session, Depends(get_session)]
 
 
@@ -31,6 +30,32 @@ def _validate_info_link(info_link: str) -> str:
 
 def _get_kategorien(db: Session) -> list[DepartmentKategorie]:
     return db.exec(select(DepartmentKategorie).order_by(DepartmentKategorie.name)).all()
+
+
+def _beruf_form_context(db: Session) -> dict:
+    """Kontext fuer die Beruf-Checkbox-Liste im Abteilungs-Formular: alle
+    Beruf-Optionen (sortiert nach Langname) + die Beruf->Art-Zuordnung fuer
+    die Schnellauswahl-Buttons ("Nur Ausbildungsberufe"/"Nur Studiengaenge",
+    reines JS -- siehe departments/form.html)."""
+    classes = db.exec(select(TraineeClass)).all()
+    return {
+        "beruf_optionen": beruf_optionen(classes),
+        "beruf_art_map": beruf_art_map(classes),
+    }
+
+
+def _parse_erlaubte_berufe(berufe: list[str]) -> list[str]:
+    """Normalisiert die aus dem Formular kommende Checkbox-Auswahl.
+
+    Leer bleibt leer (= alle Berufe erlaubt). Duplikate werden entfernt,
+    Reihenfolge ist stabil (erstes Vorkommen zaehlt).
+    """
+    gesehen: list[str] = []
+    for b in berufe:
+        b = (b or "").strip()
+        if b and b not in gesehen:
+            gesehen.append(b)
+    return gesehen
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -118,6 +143,7 @@ def new_department(
 ):
     return templates.TemplateResponse(request, "departments/form.html", {
         "department": None, "kategorien": _get_kategorien(db), "active_nav": "abteilungen",
+        **_beruf_form_context(db),
     })
 
 
@@ -133,7 +159,7 @@ def create_department(
     erlaubt_mehrfachbelegung: Annotated[str, Form()] = "",
     farbe: Annotated[str, Form()] = "#9CA3AF",
     verantwortliche: Annotated[str, Form()] = "",
-    zielgruppe: Annotated[str, Form()] = "BEIDE",
+    beruf: Annotated[list[str], Form()] = [],
     user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
     info_link = _validate_info_link(info_link)
@@ -147,7 +173,7 @@ def create_department(
         erlaubt_mehrfachbelegung=bool(erlaubt_mehrfachbelegung),
         farbe=farbe,
         verantwortliche=verantwortliche,
-        zielgruppe=zielgruppe if zielgruppe in ZIELGRUPPE_LABELS else "BEIDE",
+        erlaubte_berufe=_parse_erlaubte_berufe(beruf),
     ))
     db.commit()
     return RedirectResponse("/abteilungen/?msg=created", status_code=303)
@@ -161,6 +187,7 @@ def edit_department(
     dept = db.get(Department, dept_id)
     return templates.TemplateResponse(request, "departments/form.html", {
         "department": dept, "kategorien": _get_kategorien(db), "active_nav": "abteilungen",
+        **_beruf_form_context(db),
     })
 
 
@@ -176,7 +203,7 @@ def update_department(
     erlaubt_mehrfachbelegung: Annotated[str, Form()] = "",
     farbe: Annotated[str, Form()] = "#9CA3AF",
     verantwortliche: Annotated[str, Form()] = "",
-    zielgruppe: Annotated[str, Form()] = "BEIDE",
+    beruf: Annotated[list[str], Form()] = [],
     user: CurrentUser = Depends(require_roles("orga", "admin")),
 ):
     info_link = _validate_info_link(info_link)
@@ -190,7 +217,9 @@ def update_department(
     dept.erlaubt_mehrfachbelegung = bool(erlaubt_mehrfachbelegung)
     dept.farbe = farbe
     dept.verantwortliche = verantwortliche
-    dept.zielgruppe = zielgruppe if zielgruppe in ZIELGRUPPE_LABELS else "BEIDE"
+    # JSON-Spalte: IMMER eine neue Liste zuweisen, nie in-place mutieren
+    # (siehe Kommentar in app/models/feedback_bogen.py).
+    dept.erlaubte_berufe = _parse_erlaubte_berufe(beruf)
     db.commit()
     return RedirectResponse("/abteilungen/?msg=updated", status_code=303)
 

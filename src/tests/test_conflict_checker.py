@@ -268,15 +268,16 @@ def test_single_trainee_per_dept_no_doppelbelegung(session):
 
 
 # ── BEREICH_KONFLIKT (TEIL B) ──────────────────────────────────────────────────
+# _setup_base() legt eine Klasse "FI-25" an (kein "n. LJ"-Muster im Namen ->
+# beruf_und_lehrjahr liefert den vollen Namen "FI-25" als Beruf-Token).
 
-def test_bereich_konflikt_kaufmaennisch_azubi_in_reiner_it_abteilung(session):
-    """Kaufmaennischer Azubi in einer Abteilung mit zielgruppe=IT -> Konflikt
-    (Warnung, kein Block -- der Einsatz bleibt trotzdem ein normaler Eintrag)."""
+def test_bereich_konflikt_beruf_nicht_in_erlaubter_liste(session):
+    """Klasse "FI-25" (Beruf-Token "FI-25") in einer Abteilung, deren
+    erlaubte_berufe diesen Token NICHT enthaelt -> Konflikt (Warnung, kein
+    Block -- der Einsatz bleibt trotzdem ein normaler Eintrag)."""
     year, klasse, trainee, plan = _setup_base(session)
-    klasse.bereich = "KAUFMAENNISCH"
-    session.add(klasse)
 
-    dept = Department(code="CP", name="Cloud Platform", zielgruppe="IT")
+    dept = Department(code="CP", name="Cloud Platform", erlaubte_berufe=["FISI", "FIAE"])
     session.add(dept)
     session.flush()
 
@@ -290,39 +291,18 @@ def test_bereich_konflikt_kaufmaennisch_azubi_in_reiner_it_abteilung(session):
     treffer = [c for c in conflicts if c.kind == ConflictKind.BEREICH_KONFLIKT]
     assert len(treffer) == 1
     assert treffer[0].trainee_id == trainee.id
-    assert "Kaufmaennische" in treffer[0].detail
-    assert "IT-Abteilung" in treffer[0].detail
+    assert "nicht vorgesehen" in treffer[0].detail
 
 
-def test_bereich_konflikt_it_azubi_in_reiner_kaufmaennischer_abteilung(session):
+def test_kein_bereich_konflikt_bei_leerer_liste(session):
+    """erlaubte_berufe=[] (Default) -> nie ein BEREICH_KONFLIKT, egal welcher
+    Beruf -- leere Liste bedeutet ausdruecklich 'alle Berufe erlaubt'."""
     year, klasse, trainee, plan = _setup_base(session)
-    klasse.bereich = "IT"
-    session.add(klasse)
 
-    dept = Department(code="BK", name="Buchhaltung", zielgruppe="KAUFMAENNISCH")
+    dept = Department(code="BA", name="Business Apps")  # erlaubte_berufe Default []
     session.add(dept)
     session.flush()
-
-    session.add(Assignment(
-        trainee_id=trainee.id, schoolyear_id=YEAR_ID,
-        kw=20, jahr=2026, typ=AssignmentTyp.ABTEILUNG, abteilung_id=dept.id,
-    ))
-    session.flush()
-
-    conflicts = find_conflicts(session, YEAR_ID)
-    assert any(c.kind == ConflictKind.BEREICH_KONFLIKT and c.trainee_id == trainee.id for c in conflicts)
-
-
-def test_kein_bereich_konflikt_bei_zielgruppe_beide(session):
-    """zielgruppe=BEIDE (Default) -> nie ein BEREICH_KONFLIKT, egal welcher Bereich."""
-    year, klasse, trainee, plan = _setup_base(session)
-    klasse.bereich = "KAUFMAENNISCH"
-    session.add(klasse)
-
-    dept = Department(code="BA", name="Business Apps")  # zielgruppe Default "BEIDE"
-    session.add(dept)
-    session.flush()
-    assert dept.zielgruppe == "BEIDE"
+    assert dept.erlaubte_berufe == []
 
     session.add(Assignment(
         trainee_id=trainee.id, schoolyear_id=YEAR_ID,
@@ -334,13 +314,11 @@ def test_kein_bereich_konflikt_bei_zielgruppe_beide(session):
     assert not any(c.kind == ConflictKind.BEREICH_KONFLIKT for c in conflicts)
 
 
-def test_kein_bereich_konflikt_bei_passender_zuordnung(session):
-    """Bereich der Klasse passt zur Zielgruppe der Abteilung -> kein Konflikt."""
+def test_kein_bereich_konflikt_bei_passendem_beruf(session):
+    """Beruf-Token der Klasse ist in erlaubte_berufe enthalten -> kein Konflikt."""
     year, klasse, trainee, plan = _setup_base(session)
-    klasse.bereich = "IT"
-    session.add(klasse)
 
-    dept = Department(code="CP", name="Cloud Platform", zielgruppe="IT")
+    dept = Department(code="CP", name="Cloud Platform", erlaubte_berufe=["FI-25", "FISI"])
     session.add(dept)
     session.flush()
 
@@ -356,8 +334,8 @@ def test_kein_bereich_konflikt_bei_passender_zuordnung(session):
 
 def test_kein_bereich_konflikt_ohne_berechnete_klasse(session):
     """Trainee ohne berechnete Klasse (z. B. Absolvent: klasse_id=None, keine
-    Memberships) erzeugt KEINEN BEREICH_KONFLIKT, selbst in einer reinen
-    IT-Abteilung."""
+    Memberships) erzeugt KEINEN BEREICH_KONFLIKT, selbst in einer Abteilung
+    mit nicht-leerer erlaubte_berufe-Liste."""
     year = Schoolyear(id=YEAR_ID, start_kw=36, start_year=2025, end_kw=35, end_year=2026)
     session.add(year)
     trainee = Trainee(
@@ -367,7 +345,7 @@ def test_kein_bereich_konflikt_ohne_berechnete_klasse(session):
     session.add(trainee)
     session.flush()
 
-    dept = Department(code="CP", name="Cloud Platform", zielgruppe="IT")
+    dept = Department(code="CP", name="Cloud Platform", erlaubte_berufe=["FISI"])
     session.add(dept)
     session.flush()
 

@@ -257,6 +257,31 @@ def beruf_optionen(classes: list[TraineeClass]) -> list[tuple[str, str]]:
     )
 
 
+def beruf_art_map(classes: list[TraineeClass]) -> dict[str, str]:
+    """Leitet je Beruf-Token die Art ("AUSBILDUNG" | "STUDIUM") aus seinen
+    Klassen ab -- Grundlage fuer die Rolle->Beruf-Filterung im Trainee-Formular
+    (siehe app/routers/trainees.py).
+
+    Ein Beruf besteht aus mehreren Klassen (Lehrjahre); im Regelfall haben
+    alle dieselbe Art. Weichen sie doch ab, gewinnt die Mehrheit; bei
+    Gleichstand gewinnt "AUSBILDUNG" (konservativ, damit ein Azubi-Beruf nicht
+    versehentlich aus der Azubi-Auswahl verschwindet).
+
+    Rueckgabe: {beruf_token: "AUSBILDUNG"|"STUDIUM", ...}
+    """
+    arten_je_beruf: dict[str, list[str]] = {}
+    for klasse in classes:
+        token, _lj = beruf_und_lehrjahr(klasse.name)
+        arten_je_beruf.setdefault(token, []).append(klasse.art or "AUSBILDUNG")
+
+    result: dict[str, str] = {}
+    for token, arten in arten_je_beruf.items():
+        anzahl_studium = arten.count("STUDIUM")
+        anzahl_ausbildung = len(arten) - anzahl_studium
+        result[token] = "STUDIUM" if anzahl_studium > anzahl_ausbildung else "AUSBILDUNG"
+    return result
+
+
 def einstiegsklasse_fuer_beruf(
     classes: list[TraineeClass],
     beruf_token: str,

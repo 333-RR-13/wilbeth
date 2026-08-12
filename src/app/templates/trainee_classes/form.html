@@ -39,6 +39,18 @@
       </div>
 
       <div class="form-group">
+        <label for="art">Art <span class="required">*</span></label>
+        <select id="art" name="art" required>
+          {% for wert, label in art_labels.items() %}
+          <option value="{{ wert }}" {{ 'selected' if (cls.art if cls else 'AUSBILDUNG') == wert else '' }}>
+            {{ label }}
+          </option>
+          {% endfor %}
+        </select>
+        <span class="form-hint">Ausbildungsberuf (z. B. FISI, Bürokaufleute) oder dualer Studiengang (DH-Kohorte). Steuert im Trainee-Formular, welche Berufe zur Rolle passen.</span>
+      </div>
+
+      <div class="form-group">
         <label for="unterrichts_typ">Unterrichtstyp <span class="required">*</span></label>
         <select id="unterrichts_typ" name="unterrichts_typ" required onchange="syncTageFest()">
           {% for t in typen %}

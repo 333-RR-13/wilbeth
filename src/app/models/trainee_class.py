@@ -13,6 +13,11 @@ class UnterrichtsTyp(str, Enum):
 # (Buerokaufleute, BWL-Studiengaenge). Label fuer die Anzeige im Formular/UI.
 BEREICH_LABELS: dict[str, str] = {"IT": "IT", "KAUFMAENNISCH": "Kaufmännisch"}
 
+# Art des Bildungswegs einer Klasse: "AUSBILDUNG" (Ausbildungsberuf, z. B.
+# FISI/FIAE) oder "STUDIUM" (dualer Studiengang, DH-Kohorte). Label fuer die
+# Anzeige im Formular/UI.
+ART_LABELS: dict[str, str] = {"AUSBILDUNG": "Ausbildung", "STUDIUM": "Studium"}
+
 
 class TraineeClass(SQLModel, table=True):
     __tablename__ = "trainee_class"
@@ -35,7 +40,18 @@ class TraineeClass(SQLModel, table=True):
     # Ausbildungsbereich ("IT" | "KAUFMAENNISCH"), Default "IT". Die Klasse
     # kennt den Beruf, dadurch gilt die Zuordnung automatisch auch nach dem
     # Aufruecken (naechste Klasse ueber next_class_id/Namenskonvention) --
-    # es braucht dafuer KEIN eigenes Feld am Trainee. Genutzt fuer die
-    # Bereich/Zielgruppe-Konfliktpruefung (siehe services/conflict_checker.py,
-    # ConflictKind.BEREICH_KONFLIKT).
+    # es braucht dafuer KEIN eigenes Feld am Trainee. Reine Klassifizierung
+    # zur Anzeige/Gruppierung; die Bereichs-Konfliktpruefung (siehe
+    # services/conflict_checker.py, ConflictKind.BEREICH_KONFLIKT) arbeitet
+    # seit Migration 0016berufe/TEIL B praeziser auf Beruf-Ebene gegen
+    # Department.erlaubte_berufe statt gegen dieses grobe Feld.
     bereich: str = Field(default="IT", max_length=32)
+    # Art des Bildungswegs ("AUSBILDUNG" | "STUDIUM"), Default "AUSBILDUNG".
+    # Steuert im Trainee-Formular, welche Berufe zur gewaehlten Rolle passen
+    # (AZUBI -> nur AUSBILDUNG, DH_STUDENT -> nur STUDIUM; PRAKTIKANT/
+    # UMSCHUELER -> alle, siehe app/routers/trainees.py). Ein BERUF (Token aus
+    # membership_utils.beruf_und_lehrjahr) erbt seine Art von seinen Klassen
+    # -- bei abweichenden Klassen desselben Berufs gewinnt die Mehrheit, bei
+    # Gleichstand "AUSBILDUNG" (konservativ, siehe
+    # membership_utils.beruf_art_map). Migration 0016berufe.
+    art: str = Field(default="AUSBILDUNG", max_length=32)

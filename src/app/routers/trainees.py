@@ -27,6 +27,7 @@ from app.services.conflict_checker import find_conflicts
 from app.services.dept_history import visited_department_ids
 from app.services.membership_utils import (
     aktuelles_schuljahr_id,
+    beruf_art_map,
     beruf_langname,
     beruf_optionen,
     beruf_und_lehrjahr,
@@ -84,6 +85,29 @@ def _ausbildungsbeginn_warnung(beginn: date) -> str | None:
     return (
         f"Ungewöhnlicher Ausbildungsbeginn: {beginn.day}. {monatsname} {beginn.year} "
         "– bitte prüfen, ob das Datum stimmt."
+    )
+
+
+_ROLLE_ART_LABEL: dict[TraineeRolle, str] = {
+    TraineeRolle.AZUBI: "Azubi",
+    TraineeRolle.DH_STUDENT: "DH-Student",
+}
+
+
+def _rolle_art_warnung(rolle: TraineeRolle, art: str) -> str | None:
+    """Warnung, wenn die Art der gewaehlten Klasse (Ausbildung/Studium) nicht
+    zur Rolle passt (AZUBI erwartet AUSBILDUNG, DH_STUDENT erwartet STUDIUM).
+
+    Kein Block - Ausnahmen kommen vor (z. B. Quereinsteiger, Sonderfaelle).
+    PRAKTIKANT/UMSCHUELER duerfen jede Art waehlen -> nie eine Warnung.
+    """
+    erwartet = {TraineeRolle.AZUBI: "AUSBILDUNG", TraineeRolle.DH_STUDENT: "STUDIUM"}.get(rolle)
+    if erwartet is None or art == erwartet:
+        return None
+    art_label = "einen Studiengang" if art == "STUDIUM" else "einen Ausbildungsberuf"
+    return (
+        f"{_ROLLE_ART_LABEL[rolle]} mit {art_label} ausgewählt "
+        "– bitte prüfen, ob das stimmt."
     )
 
 
@@ -213,6 +237,7 @@ def new_trainee(
         "overrides": [],
         "beruf_optionen": beruf_optionen(classes),
         "beruf_selected": "",
+        "beruf_art_map": beruf_art_map(classes),
         "sonderfall_checked": False,
         "active_nav": "trainees",
     })
@@ -267,9 +292,16 @@ def create_trainee(
         db.commit()
     sync_trainee(db, t.id)
     redirect_url = f"/trainees/{t.id}?msg=created"
-    warnung = _ausbildungsbeginn_warnung(ausbildungsbeginn_parsed)
-    if warnung:
-        redirect_url += f"&warnung={urllib.parse.quote(warnung)}"
+    warnungen = []
+    beginn_warnung = _ausbildungsbeginn_warnung(ausbildungsbeginn_parsed)
+    if beginn_warnung:
+        warnungen.append(beginn_warnung)
+    klasse_fuer_warnung = db.get(TraineeClass, klasse_id_int) if klasse_id_int else None
+    art_warnung = _rolle_art_warnung(rolle, klasse_fuer_warnung.art if klasse_fuer_warnung else "AUSBILDUNG")
+    if art_warnung:
+        warnungen.append(art_warnung)
+    if warnungen:
+        redirect_url += f"&warnung={urllib.parse.quote(' '.join(warnungen))}"
     return RedirectResponse(redirect_url, status_code=303)
 
 
@@ -477,6 +509,7 @@ def edit_trainee(
         "overrides": overrides,
         "beruf_optionen": beruf_optionen(classes),
         "beruf_selected": beruf_selected,
+        "beruf_art_map": beruf_art_map(classes),
         "sonderfall_checked": sonderfall_checked,
         "active_nav": "trainees",
     })
@@ -531,9 +564,16 @@ def update_trainee(
     db.commit()
     sync_trainee(db, trainee_id)
     redirect_url = f"/trainees/{trainee_id}?msg=updated"
-    warnung = _ausbildungsbeginn_warnung(ausbildungsbeginn_parsed)
-    if warnung:
-        redirect_url += f"&warnung={urllib.parse.quote(warnung)}"
+    warnungen = []
+    beginn_warnung = _ausbildungsbeginn_warnung(ausbildungsbeginn_parsed)
+    if beginn_warnung:
+        warnungen.append(beginn_warnung)
+    klasse_fuer_warnung = db.get(TraineeClass, klasse_id_int) if klasse_id_int else None
+    art_warnung = _rolle_art_warnung(rolle, klasse_fuer_warnung.art if klasse_fuer_warnung else "AUSBILDUNG")
+    if art_warnung:
+        warnungen.append(art_warnung)
+    if warnungen:
+        redirect_url += f"&warnung={urllib.parse.quote(' '.join(warnungen))}"
     return RedirectResponse(redirect_url, status_code=303)
 
 

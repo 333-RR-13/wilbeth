@@ -91,16 +91,41 @@
       </div>
 
       <div class="form-group">
-        <label for="zielgruppe">Zielgruppe <span class="required">*</span></label>
-        <select id="zielgruppe" name="zielgruppe" required>
-          {% for wert, label in zielgruppe_labels.items() %}
-          <option value="{{ wert }}" {{ 'selected' if (department.zielgruppe if department else 'BEIDE') == wert else '' }}>
-            {{ label }}
-          </option>
+        <label>Erlaubte Ausbildungsrichtungen</label>
+        <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="berufAuswahl('alle')">Alle</button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="berufAuswahl('keine')">Keine</button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="berufAuswahl('ausbildung')">Nur Ausbildungsberufe</button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="berufAuswahl('studium')">Nur Studiengänge</button>
+        </div>
+        <div id="beruf-checkbox-list" style="display:flex; flex-direction:column; gap:6px;">
+          {% set erlaubte = department.erlaubte_berufe if department else [] %}
+          {% for token, langname in beruf_optionen %}
+          <label class="form-check">
+            <input type="checkbox" name="beruf" value="{{ token }}"
+                   data-art="{{ beruf_art_map.get(token, 'AUSBILDUNG') }}"
+                   {{ 'checked' if token in erlaubte else '' }}>
+            {{ langname }}
+          </label>
           {% endfor %}
-        </select>
-        <span class="form-hint">Welche Azubi-Bereiche diese Abteilung grundsätzlich aufnimmt. Bei Abweichung erscheint nur eine Warnung, kein Block.</span>
+        </div>
+        <span class="form-hint">
+          Welche Ausbildungsberufe in dieser Abteilung eingesetzt werden können.
+          KEIN Haken gesetzt bedeutet ausdrücklich „alle Berufe erlaubt“. Bei
+          Abweichung erscheint nur eine Warnung, kein Block.
+        </span>
       </div>
+      <script>
+      function berufAuswahl(modus) {
+        var boxen = document.querySelectorAll('#beruf-checkbox-list input[type=checkbox]');
+        boxen.forEach(function (cb) {
+          if (modus === 'alle') cb.checked = true;
+          else if (modus === 'keine') cb.checked = false;
+          else if (modus === 'ausbildung') cb.checked = cb.dataset.art === 'AUSBILDUNG';
+          else if (modus === 'studium') cb.checked = cb.dataset.art === 'STUDIUM';
+        });
+      }
+      </script>
 
     </div>
     <div class="form-actions">

@@ -32,7 +32,7 @@
         <th>Verantwortliche</th>
         <th>Beschreibung</th>
         <th>Mehrfach</th>
-        <th>Zielgruppe</th>
+        <th>Erlaubte Berufe</th>
         <th></th>
       </tr>
     </thead>
@@ -71,12 +71,12 @@
           {% endif %}
         </td>
         <td>
-          {% if d.zielgruppe == 'BEIDE' %}
-            <span class="text-muted">Beide</span>
-          {% elif d.zielgruppe == 'IT' %}
-            <span class="badge badge-blue">Nur IT</span>
+          {% if not d.erlaubte_berufe %}
+            <span class="text-muted">alle</span>
           {% else %}
-            <span class="badge badge-yellow">Nur kaufmännisch</span>
+            <span class="badge badge-yellow" title="{{ d.erlaubte_berufe | join(', ') }}">
+              {{ d.erlaubte_berufe | join(', ') }}
+            </span>
           {% endif %}
         </td>
         <td class="td-actions">
