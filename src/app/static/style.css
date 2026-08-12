@@ -429,6 +429,19 @@ textarea { resize: vertical; min-height: 80px; }
   color: var(--text-muted);
 }
 
+/* Klartext-Echo unter <input type="date"> (siehe static/date-echo.js) -
+   bewusst deutlich sichtbar (fett, Akzentfarbe), nicht nur ein dezenter
+   Hinweis wie .form-hint: der Sinn ist, Zahlendreher/Locale-Verwechslungen
+   (MM/DD/YYYY vs. DD.MM.YYYY) sofort ins Auge fallen zu lassen. Leer, wenn
+   das Feld leer ist (dann nimmt es keinen sichtbaren Platz ein). */
+.date-echo {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
 .form-actions {
   display: flex;
   align-items: center;
@@ -508,6 +521,12 @@ textarea { resize: vertical; min-height: 80px; }
   background: var(--accent-light);
   color: var(--accent);
   box-shadow: rgba(27,97,201,0.15) 0px 0px 0px 1px;
+}
+
+.flash-warning {
+  background: var(--warning-light);
+  color: var(--warning);
+  box-shadow: rgba(217,119,6,0.2) 0px 0px 0px 1px;
 }
 
 /* ── Util ───────────────────────────────────────────────────────── */

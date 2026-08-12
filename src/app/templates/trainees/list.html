@@ -48,6 +48,7 @@
       <tr>
         <th>Name</th>
         <th>Klasse{% if anzeige_jahr %} ({{ anzeige_jahr }}){% endif %}</th>
+        <th>Ausbildungsbeginn</th>
         <th>Rolle</th>
         <th>Status</th>
         <th></th>
@@ -71,6 +72,7 @@
             <span class="text-muted">–</span>
           {% endif %}
         </td>
+        <td class="mono">{{ t.ausbildungsbeginn.strftime('%d.%m.%Y') if t.ausbildungsbeginn else '–' }}</td>
         <td>
           {% if t.rolle.value == 'AZUBI' %}
             <span class="badge badge-blue">Azubi</span>
@@ -119,14 +121,14 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="5" class="empty-state">
+      <tr><td colspan="6" class="empty-state">
         {% if status == 'archiviert' %}Keine archivierten Trainees vorhanden.
         {% elif status == 'aktiv' %}Noch keine aktiven Trainees angelegt.
         {% else %}Noch keine Trainees angelegt.{% endif %}
       </td></tr>
       {% endfor %}
       <tr id="trainee-search-empty" hidden>
-        <td colspan="5" class="search-no-results">Keine Trainees gefunden.</td>
+        <td colspan="6" class="search-no-results">Keine Trainees gefunden.</td>
       </tr>
     </tbody>
   </table>

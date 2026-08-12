@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}Wilbeth{% endblock %} – Einsatzplanung</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=3">
-  <link rel="stylesheet" href="/static/style.css?v=13">
+  <link rel="stylesheet" href="/static/style.css?v=14">
   <style>
     .user-badge {
       padding: 10px 8px;
@@ -234,6 +234,9 @@
       {% elif request.query_params.get('msg') == 'error' %}
         <div class="flash flash-error">Fehler: {{ request.query_params.get('detail', 'Unbekannter Fehler') }}</div>
       {% endif %}
+      {% if request.query_params.get('warnung') %}
+        <div class="flash flash-warning">{{ request.query_params.get('warnung') }}</div>
+      {% endif %}
 
       {% block content %}{% endblock %}
     </div>
@@ -241,6 +244,7 @@
 
 </div>
 <script src="/static/htmx.min.js"></script>
+<script src="/static/date-echo.js"></script>
 <script>
 (function () {
   document.addEventListener('click', function (e) {

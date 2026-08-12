@@ -8,7 +8,12 @@ abgeleitete Einstiegsklasse, Sonderfall-Override.
 (e) Beruf ohne passende "<Beruf> 1. LJ"-Klasse -> Error-Redirect.
 (f) Edit-Formular ist mit Beruf vorbelegt; Sonderfall vor-angehakt+aufgeklappt
     wenn die aktuelle Einstiegsklasse existiert und ihr LJ != 1 ist.
+(h) Trainee-Liste zeigt den Ausbildungsbeginn als eigene Spalte (TT.MM.JJJJ).
+(i) Unplausibler Ausbildungsbeginn (nicht der 1. eines ueblichen Startmonats)
+    loest beim Anlegen/Bearbeiten eine Warnung aus, blockiert aber nicht.
+(j) base.html und share/_base.html binden das Klartext-Echo-Skript ein.
 """
+import urllib.parse
 from datetime import date
 
 from sqlmodel import Session, select
@@ -266,3 +271,157 @@ def test_liste_doppelt_gezaehlter_anker_wird_sichtbar(client, session: Session):
     assert r.status_code == 200
     zeile = r.text.split("Gezaehlt")[1].split("</tr>")[0]
     assert "FISI 3. LJ" in zeile
+
+
+# ── (h) Ausbildungsbeginn-Spalte in der Liste (TT.MM.JJJJ) ────────────────────
+
+def test_liste_zeigt_ausbildungsbeginn_spalte_als_tt_mm_jjjj(client, session: Session):
+    """Die Trainee-Liste zeigt den Ausbildungsbeginn als eigene Spalte im
+    Format TT.MM.JJJJ (nicht ISO) -- damit ein falsch erfasstes Datum (z. B.
+    durch ein Browser-Datumsfeld in MM/DD/YYYY) beim Durchsehen auffaellt."""
+    k1 = _add_class(session, "FISI 1. LJ")
+    t = Trainee(
+        vorname="Peter", nachname="Pruefbar", rolle=TraineeRolle.AZUBI,
+        klasse_id=k1.id, ausbildungsbeginn=date(2024, 1, 9),
+    )
+    session.add(t)
+    session.commit()
+
+    r = client.get("/trainees/")
+    assert r.status_code == 200
+    zeile = r.text.split("Pruefbar")[1].split("</tr>")[0]
+    assert "09.01.2024" in zeile
+    assert "2024-01-09" not in zeile
+
+
+# ── (i) Server-Warnung bei unplausiblem Ausbildungsbeginn ─────────────────────
+# Realer Produktionsfehler: Azubis mit Start 01.09.2024 wurden ueber ein
+# englisches Edge-<input type="date"> (MM/DD/YYYY) als "01/09/2024" erfasst,
+# also als 9. Januar statt 1. September gespeichert. Der Datensatz soll trotzdem
+# angelegt werden (Ausnahmen kommen vor) -- aber mit einem deutlichen Hinweis.
+
+def test_create_mit_unplausiblem_ausbildungsbeginn_legt_an_und_warnt(client, session: Session):
+    """9. Januar 2024 (Tageszahl != 1) -> Trainee wird trotzdem angelegt,
+    Redirect enthaelt eine Warnung."""
+    k1 = _add_class(session, "FISI 1. LJ")
+
+    r = client.post(
+        "/trainees/",
+        data={
+            "vorname": "Warn",
+            "nachname": "Fall",
+            "rolle": "AZUBI",
+            "sonderfall": "1",
+            "klasse_id": str(k1.id),
+            "ausbildungsbeginn": "2024-01-09",
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    assert "msg=error" not in r.headers["location"]
+    assert "warnung=" in r.headers["location"]
+    assert "Ungewöhnlicher" in urllib.parse.unquote(r.headers["location"])
+    assert "9. Januar 2024" in urllib.parse.unquote(r.headers["location"])
+
+    session.expire_all()
+    t = session.exec(select(Trainee).where(Trainee.nachname == "Fall")).first()
+    assert t is not None
+    assert t.ausbildungsbeginn == date(2024, 1, 9)
+
+
+def test_create_mit_plausiblem_ausbildungsbeginn_ohne_warnung(client, session: Session):
+    """1. September 2024 (Regelfall) -> Trainee wird angelegt OHNE Warnung."""
+    k1 = _add_class(session, "FISI 1. LJ")
+
+    r = client.post(
+        "/trainees/",
+        data={
+            "vorname": "Kein",
+            "nachname": "Warnfall",
+            "rolle": "AZUBI",
+            "sonderfall": "1",
+            "klasse_id": str(k1.id),
+            "ausbildungsbeginn": "2024-09-01",
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    assert "msg=error" not in r.headers["location"]
+    assert "warnung=" not in r.headers["location"]
+
+    session.expire_all()
+    t = session.exec(select(Trainee).where(Trainee.nachname == "Warnfall")).first()
+    assert t is not None
+
+
+def test_create_mit_ausnahme_01_01_ohne_warnung(client, session: Session):
+    """1. Januar (verkuerzte Ausbildung, dokumentierte Ausnahme) -> keine Warnung."""
+    k1 = _add_class(session, "FISI 1. LJ")
+
+    r = client.post(
+        "/trainees/",
+        data={
+            "vorname": "Neujahr",
+            "nachname": "Start",
+            "rolle": "AZUBI",
+            "sonderfall": "1",
+            "klasse_id": str(k1.id),
+            "ausbildungsbeginn": "2025-01-01",
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    assert "warnung=" not in r.headers["location"]
+
+
+def test_update_mit_unplausiblem_ausbildungsbeginn_warnt(client, session: Session):
+    """Auch beim Bearbeiten eines bestehenden Trainees wird gewarnt, wenn das
+    neue Datum unplausibel wirkt (Tag != 1, unueblicher Monat)."""
+    k1 = _add_class(session, "FISI 1. LJ")
+    t = Trainee(
+        vorname="Edit", nachname="Warnung", rolle=TraineeRolle.AZUBI,
+        klasse_id=k1.id, ausbildungsbeginn=date(2024, 9, 1),
+    )
+    session.add(t)
+    session.commit()
+    session.refresh(t)
+
+    r = client.post(
+        f"/trainees/{t.id}",
+        data={
+            "vorname": "Edit",
+            "nachname": "Warnung",
+            "rolle": "AZUBI",
+            "sonderfall": "1",
+            "klasse_id": str(k1.id),
+            "ausbildungsbeginn": "2024-03-15",
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    assert "msg=updated" in r.headers["location"]
+    assert "warnung=" in r.headers["location"]
+
+
+# ── (j) Klartext-Echo-Skript wird eingebunden ──────────────────────────────────
+
+def test_base_html_bindet_date_echo_skript_ein(client, session: Session):
+    """base.html (Planer-Layout) bindet /static/date-echo.js ein -- das Skript
+    macht den tatsaechlich gewaehlten Wert jedes Datumsfelds als deutschen
+    Klartext sichtbar (Schutz gegen Locale-Verwechslungen wie MM/DD/YYYY)."""
+    r = client.get("/trainees/neu")
+    assert r.status_code == 200
+    assert '/static/date-echo.js' in r.text
+
+
+def test_share_base_html_bindet_date_echo_skript_ein(client, session: Session):
+    """share/_base.html (Azubi-Layout) bindet dasselbe Skript ein -- nicht
+    zweimal kopiert, sondern dieselbe Datei wie im Planer-Layout."""
+    token = "test-token-date-echo"
+    t = Trainee(vorname="Echo", nachname="Test", rolle=TraineeRolle.AZUBI, share_token=token)
+    session.add(t)
+    session.commit()
+
+    r = client.get(f"/mein-plan/{token}/abwesenheit")
+    assert r.status_code == 200
+    assert '/static/date-echo.js' in r.text

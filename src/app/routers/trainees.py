@@ -58,6 +58,35 @@ def _parse_ausbildungsbeginn(raw: str) -> tuple[date | None, str | None]:
         return None, "Ausbildungsbeginn ist ungueltig"
 
 
+_MONATSNAMEN = (
+    "Januar", "Februar", "März", "April", "Mai", "Juni",
+    "Juli", "August", "September", "Oktober", "November", "Dezember",
+)
+
+# Uebliche Startmonate: Regelfall 01.09., Ausnahme 01.01. des Folgejahres
+# (verkuerzte Ausbildung); 08 und 10 als Puffer fuer leicht abweichende
+# Starttermine um den Regelfall herum.
+_UEBLICHE_STARTMONATE = (1, 8, 9, 10)
+
+
+def _ausbildungsbeginn_warnung(beginn: date) -> str | None:
+    """Liefert einen Warnhinweis, wenn der Ausbildungsbeginn unplausibel wirkt.
+
+    Kein Block - Ausnahmen kommen vor (Wiederholer, Quereinsteiger etc.).
+    Plausibel ist nur ein Datum, das SOWOHL auf den 1. eines Monats faellt
+    ALS AUCH in einem der ueblichen Startmonate liegt; alles andere (z. B.
+    ein Tippfehler wie 9. Januar statt 1. September durch ein Browser-Datumsfeld
+    im MM/DD/YYYY-Format) bekommt einen Hinweis zum Nachpruefen.
+    """
+    if beginn.day == 1 and beginn.month in _UEBLICHE_STARTMONATE:
+        return None
+    monatsname = _MONATSNAMEN[beginn.month - 1]
+    return (
+        f"Ungewöhnlicher Ausbildungsbeginn: {beginn.day}. {monatsname} {beginn.year} "
+        "– bitte prüfen, ob das Datum stimmt."
+    )
+
+
 def _resolve_einstiegsklasse_id(
     db: Session, sonderfall: str, klasse_id: str, beruf: str,
 ) -> tuple[int | None, str | None]:
@@ -237,7 +266,11 @@ def create_trainee(
         upsert_membership(db, t.id, membership_year_id, mem_klasse_int)
         db.commit()
     sync_trainee(db, t.id)
-    return RedirectResponse(f"/trainees/{t.id}?msg=created", status_code=303)
+    redirect_url = f"/trainees/{t.id}?msg=created"
+    warnung = _ausbildungsbeginn_warnung(ausbildungsbeginn_parsed)
+    if warnung:
+        redirect_url += f"&warnung={urllib.parse.quote(warnung)}"
+    return RedirectResponse(redirect_url, status_code=303)
 
 
 @router.get("/{trainee_id:int}", response_class=HTMLResponse)
@@ -497,7 +530,11 @@ def update_trainee(
     db.add(t)
     db.commit()
     sync_trainee(db, trainee_id)
-    return RedirectResponse(f"/trainees/{trainee_id}?msg=updated", status_code=303)
+    redirect_url = f"/trainees/{trainee_id}?msg=updated"
+    warnung = _ausbildungsbeginn_warnung(ausbildungsbeginn_parsed)
+    if warnung:
+        redirect_url += f"&warnung={urllib.parse.quote(warnung)}"
+    return RedirectResponse(redirect_url, status_code=303)
 
 
 @router.post("/{trainee_id:int}/ausnahme-loeschen", response_class=RedirectResponse)
