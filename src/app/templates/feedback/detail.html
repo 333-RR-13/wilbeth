@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_partials/datum_feld.html" import datum_feld %}
 {% block title %}Feedbackbogen{% endblock %}
 
 {% block content %}
@@ -46,7 +47,7 @@
     <button type="button" class="btn btn-ghost fb-print-btn" onclick="window.print()">Drucken / als PDF</button>
     {% if bogen.status == 'abgeschlossen' %}
     <form method="post" action="/feedback/{{ bogen.id }}/besprochen" class="fb-besprochen-form">
-      <input type="date" name="besprochen_am" value="{{ today }}">
+      {{ datum_feld('besprochen_am', today) }}
       <button type="submit" class="btn btn-primary">Als besprochen markieren</button>
     </form>
     {% endif %}

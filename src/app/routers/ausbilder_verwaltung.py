@@ -57,7 +57,7 @@ from app.models import Betreuer, BetreuerTrainee, Department, Trainee, TraineeCl
 from app.models.betreuer import FUNKTION_LABELS, MODUS_LABELS
 from app.services.auth_service import CurrentUser, require_roles
 from app.services.betreuung_utils import trainees_fuer_betreuer
-from app.services.membership_utils import beruf_art_map, beruf_optionen, beruf_und_lehrjahr
+from app.services.membership_utils import beruf_art_map, beruf_bereich_map, beruf_optionen, beruf_und_lehrjahr
 from app.services.verantwortliche_utils import people_by_upn, sync_assignments
 
 router = APIRouter(prefix="/ausbilder-verwaltung", tags=["ausbilder-verwaltung"])
@@ -81,6 +81,7 @@ def _beruf_form_context(db: Session) -> dict:
     return {
         "beruf_optionen": beruf_optionen(classes),
         "beruf_art_map": beruf_art_map(classes),
+        "beruf_bereich_map": beruf_bereich_map(classes),
     }
 
 

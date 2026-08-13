@@ -19,9 +19,12 @@ Richtung ebenfalls (dieselbe _ist_zustaendig-Regel).
 from sqlmodel import Session, select
 
 from app.models.betreuer import FUNKTION_REIHENFOLGE, Betreuer, BetreuerTrainee
+from app.models.department import Department
 from app.models.trainee import Trainee
 from app.models.trainee_class import TraineeClass
+from app.services.dept_history import visited_department_ids
 from app.services.membership_utils import aktuelles_schuljahr_id, beruf_und_lehrjahr, klasse_fuer
+from app.services.verantwortliche_utils import parse_verantwortliche
 
 
 def _beruf_token_fuer_trainee(
@@ -119,3 +122,55 @@ def trainees_fuer_betreuer(db: Session, betreuer: Betreuer, schoolyear_id: str |
             result.append(t)
 
     return sorted(result, key=lambda t: (t.nachname, t.vorname))
+
+
+def abteilungs_ansprechpartner(db: Session, trainee_id: int) -> list[dict]:
+    """Ansprechpartner in den Abteilungen, in denen ein Trainee eingesetzt ist
+    oder war (app.services.dept_history.visited_department_ids, ALLE
+    Einsaetze, nicht nur vergangene -- ein laufender/geplanter Einsatz soll
+    seine Ansprechpartner ebenfalls zeigen).
+
+    Andere Zustaendigkeit als betreuer_fuer_trainee()/Betreuer oben: hier
+    geht es um die ABTEILUNGS-Ausbilder aus Department.verantwortliche
+    (Freitext-UPN-Liste, s. app/services/verantwortliche_utils.py), deren
+    Zustaendigkeit auf den jeweiligen Einsatz beschraenkt ist.
+
+    Je Eintrag in Department.verantwortliche wird versucht, per UPN (case-
+    insensitiver Vergleich) einen passenden Betreuer-Datensatz zu finden --
+    existiert einer, werden Klarname+Kontakt geliefert, sonst die rohe UPN
+    (unveraendert). Zusaetzlich liefert jede Zeile Department.ansprechpartner
+    (der freie fachliche Ansprechpartner-Text der Abteilung), falls gepflegt.
+
+    Rueckgabe, sortiert nach Department.code (leer, wenn der Trainee noch
+    keinen Abteilungs-Einsatz hatte):
+      [{"department": Department,
+        "personen": [{"anzeige": str, "betreuer": Betreuer | None}, ...],
+        "ansprechpartner": str}, ...]
+    """
+    ids = visited_department_ids(db, trainee_id)
+    if not ids:
+        return []
+
+    depts = db.exec(
+        select(Department).where(Department.id.in_(ids)).order_by(Department.code)  # type: ignore[union-attr]
+    ).all()
+
+    betreuer_by_upn = {
+        b.upn.strip().lower(): b for b in db.exec(select(Betreuer)).all() if b.upn
+    }
+
+    result = []
+    for dept in depts:
+        personen = []
+        for upn in parse_verantwortliche(dept.verantwortliche):
+            b = betreuer_by_upn.get(upn.strip().lower())
+            personen.append({
+                "anzeige": (b.name if b.name else b.upn) if b is not None else upn,
+                "betreuer": b,
+            })
+        result.append({
+            "department": dept,
+            "personen": personen,
+            "ansprechpartner": dept.ansprechpartner,
+        })
+    return result

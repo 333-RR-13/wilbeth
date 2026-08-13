@@ -42,6 +42,7 @@ from app.services.membership_utils import (
 from app.services.school_sync import sync_trainee
 from app.services.trainee_notiz_service import darf_notiz_anlegen, erstelle_notiz
 from app.utils.colors import department_color_map
+from app.utils.datum import parse_datum
 
 router = APIRouter(prefix="/trainees", tags=["trainees"])
 templates = Jinja2Templates(directory=Path(__file__).resolve().parents[1] / "templates")
@@ -53,14 +54,16 @@ DB = Annotated[Session, Depends(get_session)]
 def _parse_ausbildungsbeginn(raw: str) -> tuple[date | None, str | None]:
     """Parst das Pflichtfeld Ausbildungsbeginn.
 
+    Akzeptiert BEIDE Formate ("TT.MM.JJJJ" aus dem Hybrid-Textfeld sowie
+    "JJJJ-MM-TT", s. app/utils/datum.parse_datum) -- TEIL 3.
     Rueckgabe (wert, fehlertext); bei Erfolg ist fehlertext None.
     """
     if not raw:
         return None, "Ausbildungsbeginn ist Pflicht"
-    try:
-        return date.fromisoformat(raw), None
-    except ValueError:
+    parsed = parse_datum(raw)
+    if parsed is None:
         return None, "Ausbildungsbeginn ist ungueltig"
+    return parsed, None
 
 
 _MONATSNAMEN = (

@@ -2037,3 +2037,72 @@ td[draggable="true"]:active {
   .fb-kopf-value { font-size: 11px; }
   .fb-print-head-spacer { display: block; height: 86px; }
 }
+
+/* ── Hybrid-Datumsfeld (TEIL 3): Textfeld TT.MM.JJJJ + Kalender-Knopf ──────
+   siehe templates/_partials/datum_feld.html + static/datum-feld.js. Bewusst
+   ein eigener Block am Ende der Datei, damit er verlaesslich auch generische
+   Breiten-Regeln wie ".share-field input" (s. o.) ueberschreibt. */
+.datum-feld {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+input.datum-feld-text {
+  /* Element+Klasse (statt nur Klasse), damit dieselbe Spezifitaet wie
+     ".share-field input" (s. o.) erreicht wird -- als spaeter in der Datei
+     stehende Regel gewinnt sie dann bei Gleichstand. */
+  width: 130px;
+  flex: 0 0 auto;
+}
+
+.datum-feld-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  flex: 0 0 auto;
+  transition: border-color 0.1s, color 0.1s;
+}
+
+.datum-feld-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.datum-feld-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Das native Datumsfeld dient nur noch als Picker-Eingabehilfe fuer den
+   Kalender-Knopf -- visuell versteckt, aber weiterhin bedienbar (kein
+   display:none, sonst verweigern manche Browser showPicker()/click()). */
+input.datum-feld-native {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Dezenter Hinweis statt eines (falschen) Datums bei ungueltiger Eingabe im
+   Hybrid-Textfeld (s. static/date-echo.js) -- bewusst zurueckhaltender als
+   die sonst fette/farbige .date-echo-Zeile. */
+.date-echo-hinweis {
+  font-weight: 400;
+  font-style: italic;
+  color: var(--text-muted);
+}

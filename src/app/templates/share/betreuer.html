@@ -1,0 +1,77 @@
+{% extends "share/_base.html" %}
+{% block title %}Meine Betreuer{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Meine Betreuer</h1>
+    <p class="page-subtitle">{{ trainee.vorname }} {{ trainee.nachname }}</p>
+  </div>
+</div>
+
+{# ── Block 1: ausbildungsuebergreifende Betreuer (begleiten die gesamte
+     Ausbildung, nicht nur einen einzelnen Einsatz) -- interne Notizen
+     bleiben fuer Staff, s. app/services/betreuung_utils.py ──────────── #}
+<div class="card card-body" style="margin-bottom:24px;">
+  <h2 class="form-section-title">Deine Ansprechpartner in der Ausbildung</h2>
+  {% if betreuer_gruppen %}
+  <div style="display:flex; flex-direction:column; gap:18px;">
+    {% for gruppe in betreuer_gruppen %}
+    <div>
+      <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.03em; color:var(--text-muted); margin:0 0 8px;">
+        {{ gruppe.label }}
+      </h3>
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        {% for b in gruppe.personen %}
+        <div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;">
+          <strong>{{ b.name if b.name else b.upn }}</strong>
+          {% if b.email %}<a href="mailto:{{ b.email }}" style="font-size:13px;">{{ b.email }}</a>{% endif %}
+          {% if b.telefon %}<span class="text-muted" style="font-size:13px;">{{ b.telefon }}</span>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="text-muted">Aktuell sind dir keine Ansprechpartner zugeordnet.</p>
+  {% endif %}
+</div>
+
+{# ── Block 2: abteilungsbezogene Ansprechpartner (Department.verantwortliche
+     + .ansprechpartner) -- nur fuer Abteilungen, in denen der Azubi bereits
+     eingesetzt ist/war ────────────────────────────────────────────────── #}
+<div class="card card-body">
+  <h2 class="form-section-title">Ansprechpartner in den Abteilungen</h2>
+  {% if abteilungs_kontakte %}
+  <div style="display:flex; flex-direction:column; gap:14px;">
+    {% for row in abteilungs_kontakte %}
+    <div>
+      <div>
+        <strong>{{ row.department.code }}</strong> – {{ row.department.name }}:
+        {%- if row.personen %}
+          {% for p in row.personen %}
+            {%- if p.betreuer and p.betreuer.email -%}
+              <a href="mailto:{{ p.betreuer.email }}">{{ p.anzeige }}</a>
+            {%- else -%}
+              {{ p.anzeige }}
+            {%- endif -%}
+            {%- if p.betreuer and p.betreuer.telefon %} <span class="text-muted" style="font-size:12px;">({{ p.betreuer.telefon }})</span>{% endif -%}
+            {{- ", " if not loop.last else "" }}
+          {% endfor %}
+        {% else %}
+          <span class="text-muted">keine Ausbilder hinterlegt</span>
+        {% endif %}
+      </div>
+      {% if row.ansprechpartner %}
+      <div class="text-muted" style="font-size:13px;">Fachlicher Ansprechpartner: {{ row.ansprechpartner }}</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="text-muted">Du hattest noch keine Einsätze – sobald dein erster Einsatz geplant ist, erscheinen hier die Ansprechpartner der Abteilung.</p>
+  {% endif %}
+</div>
+
+{% endblock %}

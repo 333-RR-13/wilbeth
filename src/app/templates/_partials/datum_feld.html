@@ -1,0 +1,44 @@
+{#
+  Hybrid-Datumsfeld (TEIL 3): sichtbares TEXTFELD im Format TT.MM.JJJJ statt
+  eines nativen <input type="date"> -- dessen Anzeigeformat (z. B. MM/DD/YYYY
+  bei englischer Browser-Sprache) sich nicht erzwingen laesst und schon zu
+  einem echten Datenfehler gefuehrt hat (1. September wurde als 9. Januar
+  gespeichert). Ein Kalender-Knopf daneben oeffnet weiterhin die native
+  Datumsauswahl (app/static/datum-feld.js) und uebernimmt die Auswahl ins
+  Textfeld. Das Klartext-Echo (app/static/date-echo.js) bleibt erhalten.
+
+  Ohne JS bleibt das Textfeld normal von Hand ausfuellbar (TT.MM.JJJJ); der
+  Kalender-Knopf tut dann nichts (progressive enhancement) -- der Wert wird
+  serverseitig ueber app.utils.datum.parse_datum gelesen, das BEIDE Formate
+  (TT.MM.JJJJ und JJJJ-MM-TT) akzeptiert.
+
+  Parameter:
+    name        – Formularfeldname (Pflicht)
+    value       – Vorbelegung im Format TT.MM.JJJJ (leer = kein Wert)
+    id          – HTML-id, Default = name
+    required    – bool, setzt das required-Attribut auf dem Textfeld
+    placeholder – Default "TT.MM.JJJJ"
+#}
+{% macro datum_feld(name, value='', id=None, required=False, placeholder='TT.MM.JJJJ') %}
+{% set feld_id = id or name %}
+<span class="datum-feld" data-datum-feld>
+  <input type="text"
+         id="{{ feld_id }}"
+         name="{{ name }}"
+         class="datum-feld-text"
+         data-datum-feld-text
+         inputmode="numeric"
+         autocomplete="off"
+         placeholder="{{ placeholder }}"
+         maxlength="10"
+         value="{{ value }}"
+         {{ 'required' if required else '' }}>
+  <button type="button" class="datum-feld-btn" data-datum-feld-btn
+          aria-label="Datum aus Kalender wählen">
+    <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+      <path d="M11 1h1v2H4V1h1V0h1v1h4V0h1v1zM2 4h12v11H2V4zm1 1v9h10V5H3zm2 1h1v1H5V6zm2 0h1v1H7V6zm2 0h1v1H9V6zm2 0h1v1h-1V6zM5 8h1v1H5V8zm2 0h1v1H7V8zm2 0h1v1H9V8zm2 0h1v1h-1V8zM5 10h1v1H5v-1zm2 0h1v1H7v-1zm2 0h1v1H9v-1zm2 0h1v1h-1v-1z"/>
+    </svg>
+  </button>
+  <input type="date" class="datum-feld-native" data-datum-feld-native tabindex="-1" aria-hidden="true">
+</span>
+{% endmacro %}

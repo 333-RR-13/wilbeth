@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_partials/datum_feld.html" import datum_feld %}
 {% block title %}{{ "Trainee bearbeiten" if trainee else "Trainee anlegen" }}{% endblock %}
 
 {% block content %}
@@ -41,8 +42,7 @@
 
       <div class="form-group">
         <label for="ausbildungsbeginn">Ausbildungsbeginn <span class="required">*</span></label>
-        <input type="date" id="ausbildungsbeginn" name="ausbildungsbeginn" required
-               value="{{ trainee.ausbildungsbeginn.isoformat() if trainee and trainee.ausbildungsbeginn else '' }}">
+        {{ datum_feld('ausbildungsbeginn', trainee.ausbildungsbeginn.strftime('%d.%m.%Y') if trainee and trainee.ausbildungsbeginn else '', required=True) }}
         <span class="form-hint">
           Regelfall 01.09.; Ausnahme: 01.01. des Folgejahres (4 Monate verkürzt).
         </span>

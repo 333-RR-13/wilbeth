@@ -9,7 +9,7 @@ from sqlmodel import Session, select
 from app.database import get_session
 from app.models import Department, DepartmentKategorie, TraineeClass
 from app.services.auth_service import CurrentUser, require_roles
-from app.services.membership_utils import beruf_art_map, beruf_optionen
+from app.services.membership_utils import beruf_art_map, beruf_bereich_map, beruf_optionen
 from app.utils.text import is_safe_http_url, linkify
 
 router = APIRouter(prefix="/abteilungen", tags=["abteilungen"])
@@ -34,13 +34,17 @@ def _get_kategorien(db: Session) -> list[DepartmentKategorie]:
 
 def _beruf_form_context(db: Session) -> dict:
     """Kontext fuer die Beruf-Checkbox-Liste im Abteilungs-Formular: alle
-    Beruf-Optionen (sortiert nach Langname) + die Beruf->Art-Zuordnung fuer
-    die Schnellauswahl-Buttons ("Nur Ausbildungsberufe"/"Nur Studiengaenge",
-    reines JS -- siehe departments/form.html)."""
+    Beruf-Optionen (sortiert nach Langname) + die Beruf->Art- und
+    Beruf->Bereich-Zuordnung fuer die Schnellauswahl-Buttons ("Nur
+    Ausbildungsberufe"/"Nur Studiengaenge"/"Nur IT"/"Nur kaufmännisch",
+    reines JS -- siehe departments/form.html). Die Buttons setzen dabei nur
+    eine Vorauswahl -- eine Abteilung kann durchaus beide Bereiche fuehren,
+    die manuelle Auswahl bleibt danach unveraendert moeglich."""
     classes = db.exec(select(TraineeClass)).all()
     return {
         "beruf_optionen": beruf_optionen(classes),
         "beruf_art_map": beruf_art_map(classes),
+        "beruf_bereich_map": beruf_bereich_map(classes),
     }
 
 

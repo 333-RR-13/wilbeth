@@ -40,6 +40,7 @@ from sqlmodel import Session, or_, select
 from app.database import get_session
 from app.models import Department, FeedbackBogen, Schoolyear, Trainee, TraineeClass
 from app.services.auth_service import CurrentUser, allowed_dept_ids, require_roles
+from app.utils.datum import parse_datum
 from app.services.feedback_def import (
     AUSBILDER_SEKTIONEN,
     AZUBI_SEKTIONEN,
@@ -404,7 +405,7 @@ def feedback_detail(request: Request, bogen_id: int, db: DB, user: CU):
         "skala_lernziele_dict": dict(SKALA_ANFORDERUNGEN),
         "can_reopen": user.rolle in ("orga", "admin"),
         "can_delete": user.rolle == "admin",
-        "today": date.today().isoformat(),
+        "today": date.today().strftime("%d.%m.%Y"),
         "active_nav": "feedback",
         **kopf,
         **_form_context(bogen, bogen.typ),
@@ -462,15 +463,12 @@ async def besprochen_feedback(request: Request, bogen_id: int, db: DB, user: CU)
             status_code=400, detail="Bogen ist nicht im Status Abgeschlossen"
         )
 
+    # TEIL 3: akzeptiert TT.MM.JJJJ (Hybrid-Textfeld) UND JJJJ-MM-TT (s.
+    # app/utils/datum.parse_datum). Unveraendertes Verhalten bei fehlender/
+    # kaputter Eingabe: statt eines 400 faellt das Feld auf heute zurueck --
+    # es ist im Formular ohnehin mit dem heutigen Datum vorbefuellt.
     form = await request.form()
-    raw = (form.get("besprochen_am") or "").strip()
-    if raw:
-        try:
-            besprochen_am = date.fromisoformat(raw)
-        except ValueError:
-            besprochen_am = date.today()
-    else:
-        besprochen_am = date.today()
+    besprochen_am = parse_datum(form.get("besprochen_am")) or date.today()
 
     bogen.status = "besprochen"
     bogen.besprochen_am = besprochen_am

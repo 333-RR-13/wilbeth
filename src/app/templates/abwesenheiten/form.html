@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_partials/datum_feld.html" import datum_feld %}
 {% block title %}{{ "Abwesenheit bearbeiten" if abwesenheit else "Abwesenheit anlegen" }}{% endblock %}
 
 {% block content %}
@@ -29,13 +30,11 @@
       <div class="form-grid form-grid-2">
         <div class="form-group">
           <label for="von_datum">Von <span class="required">*</span></label>
-          <input type="date" id="von_datum" name="von_datum"
-                 value="{{ abwesenheit.von_datum.isoformat() if abwesenheit else '' }}" required>
+          {{ datum_feld('von_datum', abwesenheit.von_datum.strftime('%d.%m.%Y') if abwesenheit else '', required=True) }}
         </div>
         <div class="form-group">
           <label for="bis_datum">Bis <span class="required">*</span></label>
-          <input type="date" id="bis_datum" name="bis_datum"
-                 value="{{ abwesenheit.bis_datum.isoformat() if abwesenheit else '' }}" required>
+          {{ datum_feld('bis_datum', abwesenheit.bis_datum.strftime('%d.%m.%Y') if abwesenheit else '', required=True) }}
           <span class="form-hint">Ganze Tage, keine Halbtage. Muss am/nach "Von" liegen.</span>
         </div>
       </div>

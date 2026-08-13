@@ -75,6 +75,8 @@
           <button type="button" class="btn btn-secondary btn-sm" onclick="berufAuswahl('keine')">Keine</button>
           <button type="button" class="btn btn-secondary btn-sm" onclick="berufAuswahl('ausbildung')">Nur Ausbildungsberufe</button>
           <button type="button" class="btn btn-secondary btn-sm" onclick="berufAuswahl('studium')">Nur Studiengänge</button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="berufAuswahl('it')">Nur IT</button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="berufAuswahl('kaufmaennisch')">Nur kaufmännisch</button>
         </div>
         <div id="beruf-checkbox-list" style="display:flex; flex-direction:column; gap:6px;">
           {% set erlaubte = betreuer.berufe if betreuer else [] %}
@@ -82,6 +84,7 @@
           <label class="form-check">
             <input type="checkbox" name="beruf" value="{{ token }}"
                    data-art="{{ beruf_art_map.get(token, 'AUSBILDUNG') }}"
+                   data-bereich="{{ beruf_bereich_map.get(token, 'IT') }}"
                    {{ 'checked' if token in erlaubte else '' }}>
             {{ langname }}
           </label>
@@ -99,6 +102,8 @@
           else if (modus === 'keine') cb.checked = false;
           else if (modus === 'ausbildung') cb.checked = cb.dataset.art === 'AUSBILDUNG';
           else if (modus === 'studium') cb.checked = cb.dataset.art === 'STUDIUM';
+          else if (modus === 'it') cb.checked = cb.dataset.bereich === 'IT';
+          else if (modus === 'kaufmaennisch') cb.checked = cb.dataset.bereich === 'KAUFMAENNISCH';
         });
       }
       </script>

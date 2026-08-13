@@ -38,6 +38,7 @@ from app.database import get_session
 from app.models import Abwesenheit, AbwesenheitQuelle, AbwesenheitTyp, Trainee
 from app.services.abwesenheit_utils import ueberlappende
 from app.services.auth_service import CurrentUser, require_roles
+from app.utils.datum import parse_datum
 
 router = APIRouter(prefix="/abwesenheiten", tags=["abwesenheiten"])
 templates = Jinja2Templates(directory=Path(__file__).resolve().parents[1] / "templates")
@@ -58,13 +59,9 @@ def _parse_int_or_none(raw: str | None) -> int | None:
 
 
 def _parse_date_or_none(raw: str | None) -> date | None:
-    raw = (raw or "").strip()
-    if not raw:
-        return None
-    try:
-        return date.fromisoformat(raw)
-    except ValueError:
-        return None
+    """Duenner Alias auf den gemeinsamen Parser (TEIL 3, s. app/utils/datum.py)
+    -- akzeptiert sowohl 'TT.MM.JJJJ' (Hybrid-Textfeld) als auch 'JJJJ-MM-TT'."""
+    return parse_datum(raw)
 
 
 def _werktage(von_datum: date, bis_datum: date) -> int:

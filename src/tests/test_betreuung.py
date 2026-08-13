@@ -17,8 +17,11 @@ from sqlmodel import Session
 
 from app.config import settings
 from app.models import (
+    Assignment,
+    AssignmentTyp,
     Betreuer,
     BetreuerTrainee,
+    Department,
     Schoolyear,
     Trainee,
     TraineeClass,
@@ -175,6 +178,8 @@ def test_trainee_profil_zeigt_betreuer(client, session):
 
 
 def test_azubi_sicht_zeigt_kontakt_aber_nicht_die_interne_notiz(client, session, monkeypatch):
+    """Die Betreuung ist eine eigene Seite (/mein-plan/{token}/betreuer,
+    TEIL 1) -- kein Abschnitt mehr auf 'Meine Einsaetze'."""
     _dev_mode(monkeypatch)
     _add_year(session)
     fisi = _add_class(session, "FISI 1. LJ")
@@ -189,7 +194,7 @@ def test_azubi_sicht_zeigt_kontakt_aber_nicht_die_interne_notiz(client, session,
     r = client.post("/auth/dev-login", data={"rolle": "azubi", "trainee_id": t.id}, follow_redirects=False)
     token = r.headers["location"].rsplit("/", 1)[-1]
 
-    r2 = client.get(f"/mein-plan/{token}")
+    r2 = client.get(f"/mein-plan/{token}/betreuer")
     assert r2.status_code == 200
     assert "Frau Fachausbilderin" in r2.text
     assert "Fachlicher Ausbilder" in r2.text
@@ -198,7 +203,11 @@ def test_azubi_sicht_zeigt_kontakt_aber_nicht_die_interne_notiz(client, session,
     assert "GEHEIME INTERNE NOTIZ" not in r2.text
 
 
-def test_azubi_sicht_ohne_zustaendigen_betreuer_zeigt_keinen_abschnitt(client, session, monkeypatch):
+def test_azubi_sicht_ohne_zustaendigen_betreuer_zeigt_hinweis(client, session, monkeypatch):
+    """Kein zustaendiger Betreuer -> Block 1 zeigt den freundlichen
+    Platzhaltertext statt (fremder) Namen. 'Meine Betreuer' als Nav-Text
+    erscheint jetzt auf JEDER share-Seite (eigener Nav-Eintrag) und ist daher
+    kein taugliches Ausschlusskriterium mehr, s. share/_base.html."""
     _dev_mode(monkeypatch)
     _add_year(session)
     fiae = _add_class(session, "FIAE 1. LJ")
@@ -209,9 +218,109 @@ def test_azubi_sicht_ohne_zustaendigen_betreuer_zeigt_keinen_abschnitt(client, s
     r = client.post("/auth/dev-login", data={"rolle": "azubi", "trainee_id": t.id}, follow_redirects=False)
     token = r.headers["location"].rsplit("/", 1)[-1]
 
+    r2 = client.get(f"/mein-plan/{token}/betreuer")
+    assert r2.status_code == 200
+    assert "Nur FISI" not in r2.text
+    assert "Aktuell sind dir keine Ansprechpartner zugeordnet." in r2.text
+
+    # Der bisherige Abschnitt auf "Meine Einsaetze" ist weg, nur noch ein Link.
+    plan = client.get(f"/mein-plan/{token}")
+    assert plan.status_code == 200
+    assert f'href="/mein-plan/{token}/betreuer"' in plan.text
+
+
+# ── TEIL 1: eigene Seite "Meine Betreuer" (Block 1 + Block 2) ──────────────
+
+def test_betreuer_seite_zeigt_beide_bloecke_in_funktions_reihenfolge(client, session, monkeypatch):
+    _dev_mode(monkeypatch)
+    _add_year(session)
+    fisi = _add_class(session, "FISI 1. LJ")
+    t = _add_trainee(session, "Fiona", klasse_id=fisi.id)
+    session.add_all([
+        Betreuer(upn="sonstiges@firma.de", name="Sina Sonstiges", funktion="SONSTIGES", berufe=[]),
+        Betreuer(upn="hr@firma.de", name="Hanna HR", funktion="HR", berufe=[]),
+        Betreuer(upn="plan@firma.de", name="Petra Planung", funktion="EINSATZPLANUNG", berufe=[]),
+        Betreuer(upn="tech@firma.de", name="Tobias Technik", funktion="TECHNISCH", berufe=["FISI"]),
+    ])
+    session.commit()
+
+    r = client.post("/auth/dev-login", data={"rolle": "azubi", "trainee_id": t.id}, follow_redirects=False)
+    token = r.headers["location"].rsplit("/", 1)[-1]
+
+    r2 = client.get(f"/mein-plan/{token}/betreuer")
+    assert r2.status_code == 200
+    assert "Deine Ansprechpartner in der Ausbildung" in r2.text
+    assert "Ansprechpartner in den Abteilungen" in r2.text
+
+    # Funktions-Reihenfolge: HR, TECHNISCH, EINSATZPLANUNG, SONSTIGES
+    pos_hr = r2.text.index("Hanna HR")
+    pos_tech = r2.text.index("Tobias Technik")
+    pos_plan = r2.text.index("Petra Planung")
+    pos_sonst = r2.text.index("Sina Sonstiges")
+    assert pos_hr < pos_tech < pos_plan < pos_sonst
+
+
+def test_betreuer_seite_abteilungsblock_zeigt_klarname_statt_upn(client, session, monkeypatch):
+    """Existiert zur UPN in Department.verantwortliche ein Betreuer-
+    Datensatz, wird Klarname+Kontakt statt der nackten UPN gezeigt; eine
+    zweite UPN ohne Betreuer-Datensatz bleibt als rohe UPN sichtbar."""
+    _dev_mode(monkeypatch)
+    _add_year(session)
+    fisi = _add_class(session, "FISI 1. LJ")
+    t = _add_trainee(session, "Fiona", klasse_id=fisi.id)
+    dept = Department(
+        code="CP", name="Cloud Platform",
+        verantwortliche="bekannt@firma.de, unbekannt@firma.de",
+        ansprechpartner="Fachliche Ansprechperson XY",
+    )
+    session.add(dept)
+    session.add(Betreuer(upn="bekannt@firma.de", name="Klarname Bekannt", email="bekannt@firma.de"))
+    session.commit()
+    session.add(Assignment(
+        trainee_id=t.id, schoolyear_id=SY, kw=10, jahr=2025,
+        typ=AssignmentTyp.ABTEILUNG, abteilung_id=dept.id,
+    ))
+    session.commit()
+
+    r = client.post("/auth/dev-login", data={"rolle": "azubi", "trainee_id": t.id}, follow_redirects=False)
+    token = r.headers["location"].rsplit("/", 1)[-1]
+
+    r2 = client.get(f"/mein-plan/{token}/betreuer")
+    assert r2.status_code == 200
+    assert "CP" in r2.text and "Cloud Platform" in r2.text
+    assert "Klarname Bekannt" in r2.text
+    assert "unbekannt@firma.de" in r2.text
+    assert "Fachliche Ansprechperson XY" in r2.text
+
+
+def test_betreuer_seite_ohne_einsaetze_zeigt_hinweis(client, session, monkeypatch):
+    _dev_mode(monkeypatch)
+    _add_year(session)
+    fisi = _add_class(session, "FISI 1. LJ")
+    t = _add_trainee(session, "Fiona", klasse_id=fisi.id)
+    session.commit()
+
+    r = client.post("/auth/dev-login", data={"rolle": "azubi", "trainee_id": t.id}, follow_redirects=False)
+    token = r.headers["location"].rsplit("/", 1)[-1]
+
+    r2 = client.get(f"/mein-plan/{token}/betreuer")
+    assert r2.status_code == 200
+    assert "Du hattest noch keine Einsätze" in r2.text
+
+
+def test_nav_link_meine_betreuer_vorhanden(client, session, monkeypatch):
+    _dev_mode(monkeypatch)
+    _add_year(session)
+    fisi = _add_class(session, "FISI 1. LJ")
+    t = _add_trainee(session, "Fiona", klasse_id=fisi.id)
+    session.commit()
+
+    r = client.post("/auth/dev-login", data={"rolle": "azubi", "trainee_id": t.id}, follow_redirects=False)
+    token = r.headers["location"].rsplit("/", 1)[-1]
+
     r2 = client.get(f"/mein-plan/{token}")
     assert r2.status_code == 200
-    assert "Meine Betreuer" not in r2.text
+    assert f'href="/mein-plan/{token}/betreuer"' in r2.text
 
 
 # ── Konsistenz beider Richtungen (Integrationstest ueber mehrere Faelle) ──

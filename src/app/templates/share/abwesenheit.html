@@ -1,4 +1,5 @@
 {% extends "share/_base.html" %}
+{% from "_partials/datum_feld.html" import datum_feld %}
 {% block title %}Abwesenheit{% endblock %}
 
 {% block content %}
@@ -13,11 +14,11 @@
   <form method="post" action="/mein-plan/{{ token }}/abwesenheit" class="share-urlaub-form">
     <div class="share-field">
       <label>Von</label>
-      <input type="date" name="von" required>
+      {{ datum_feld('von', required=True) }}
     </div>
     <div class="share-field">
       <label>Bis</label>
-      <input type="date" name="bis" required>
+      {{ datum_feld('bis', required=True) }}
     </div>
     <div class="share-field">
       <label>Typ</label>

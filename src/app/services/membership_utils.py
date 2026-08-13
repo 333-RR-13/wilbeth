@@ -282,6 +282,34 @@ def beruf_art_map(classes: list[TraineeClass]) -> dict[str, str]:
     return result
 
 
+def beruf_bereich_map(classes: list[TraineeClass]) -> dict[str, str]:
+    """Leitet je Beruf-Token den Bereich ("IT" | "KAUFMAENNISCH", s.
+    TraineeClass.bereich) aus seinen Klassen ab -- Grundlage fuer die
+    Schnellauswahl-Buttons "Nur IT"/"Nur kaufmännisch" im Betreuer- und im
+    Abteilungs-Formular (analog beruf_art_map oben, nur eine andere Klassen-
+    Eigenschaft).
+
+    Ein Beruf besteht aus mehreren Klassen (Lehrjahre); im Regelfall haben
+    alle denselben Bereich. Weichen sie doch ab, gewinnt die Mehrheit; bei
+    Gleichstand gewinnt "IT" (reine Konvention -- anders als bei
+    beruf_art_map gibt es hier keine fachliche Asymmetrie, die einen der
+    beiden Werte als "sichereren" Default nahelegen wuerde).
+
+    Rueckgabe: {beruf_token: "IT"|"KAUFMAENNISCH", ...}
+    """
+    bereiche_je_beruf: dict[str, list[str]] = {}
+    for klasse in classes:
+        token, _lj = beruf_und_lehrjahr(klasse.name)
+        bereiche_je_beruf.setdefault(token, []).append(klasse.bereich or "IT")
+
+    result: dict[str, str] = {}
+    for token, bereiche in bereiche_je_beruf.items():
+        anzahl_kfm = bereiche.count("KAUFMAENNISCH")
+        anzahl_it = len(bereiche) - anzahl_kfm
+        result[token] = "KAUFMAENNISCH" if anzahl_kfm > anzahl_it else "IT"
+    return result
+
+
 def einstiegsklasse_fuer_beruf(
     classes: list[TraineeClass],
     beruf_token: str,

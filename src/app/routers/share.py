@@ -35,9 +35,9 @@ from app.models import (
     UnterrichtsTyp,
 )
 from app.models.trainee_wish import group_wishes_by_priority, prioritaet_label
-from app.models.betreuer import FUNKTION_LABELS
+from app.models.betreuer import FUNKTION_LABELS, FUNKTION_REIHENFOLGE
 from app.services.abwesenheit_utils import abwesenheit_map
-from app.services.betreuung_utils import betreuer_fuer_trainee
+from app.services.betreuung_utils import abteilungs_ansprechpartner, betreuer_fuer_trainee
 from app.services.dept_history import visited_department_ids
 from app.services.feedback_def import (
     AUSBILDER_SEKTIONEN,
@@ -60,6 +60,7 @@ from app.services.membership_utils import (
     klasse_fuer,
 )
 from app.utils.colors import department_color_map
+from app.utils.datum import parse_datum
 from app.utils.kw import format_weekdays, iter_kw_range, iter_schoolyear_weeks, kw_to_monday
 from app.utils.text import linkify
 
@@ -261,11 +262,6 @@ def my_plan(request: Request, token: str, db: DB):
 
     amap = abwesenheit_map(db, [trainee.id], [(w["kw"], w["jahr"]) for w in weeks]) if weeks else {}
 
-    # Betreuung (Personen, die den Trainee ueber die gesamte Ausbildung
-    # begleiten): Azubi-Sicht zeigt Name/Funktion/Kontakt, NIE die interne
-    # Notiz (siehe app/services/betreuung_utils.py, app/models/betreuer.py).
-    betreuer_liste = betreuer_fuer_trainee(db, trainee, sy.id if sy else None)
-
     return templates.TemplateResponse(request, "share/plan.html", {
         "trainee": trainee,
         "token": token,
@@ -281,7 +277,49 @@ def my_plan(request: Request, token: str, db: DB):
         "years": years,
         "schul_tage": schul_tage,
         "abwesenheit_map": amap,
-        "betreuer_liste": betreuer_liste,
+    })
+
+
+# ── Meine Betreuer ───────────────────────────────────────────────────────────
+
+@router.get("/{token}/betreuer", response_class=HTMLResponse)
+def betreuer_page(request: Request, token: str, db: DB):
+    """Eigene Seite fuer die Betreuung des Azubis -- vormals ein Abschnitt auf
+    "Meine Einsaetze" (share/plan.html), jetzt ausgelagert (eigener Nav-
+    Eintrag in share/_base.html).
+
+    Zwei Bloecke:
+    1. Die ausbildungsuebergreifenden Betreuer (betreuer_fuer_trainee(),
+       s. app/services/betreuung_utils.py), gruppiert nach Funktion in der
+       Reihenfolge FUNKTION_REIHENFOLGE (HR, TECHNISCH, EINSATZPLANUNG,
+       SONSTIGES). Interne Notizen werden NIE ausgeliefert (dieselbe Regel
+       wie bisher auf "Meine Einsaetze").
+    2. Die Ansprechpartner der Abteilungen, in denen der Azubi eingesetzt
+       ist/war (abteilungs_ansprechpartner()) -- leer, wenn noch kein
+       Einsatz stattfand (Template zeigt dann einen Hinweis statt einer
+       leeren Liste).
+    """
+    trainee = _trainee_by_token(db, token)
+
+    betreuer_liste = betreuer_fuer_trainee(db, trainee)
+    betreuer_gruppen = [
+        {
+            "funktion": funktion,
+            "label": FUNKTION_LABELS.get(funktion, funktion),
+            "personen": [b for b in betreuer_liste if b.funktion == funktion],
+        }
+        for funktion in FUNKTION_REIHENFOLGE
+    ]
+    betreuer_gruppen = [g for g in betreuer_gruppen if g["personen"]]
+
+    abteilungs_kontakte = abteilungs_ansprechpartner(db, trainee.id)
+
+    return templates.TemplateResponse(request, "share/betreuer.html", {
+        "trainee": trainee,
+        "token": token,
+        "active": "betreuer",
+        "betreuer_gruppen": betreuer_gruppen,
+        "abteilungs_kontakte": abteilungs_kontakte,
     })
 
 
@@ -508,8 +546,9 @@ def add_abwesenheit(
     Anders als der fruehere Urlaub-Assignment blockiert das keinen
     Abteilungseinsatz mehr -- Schulwochen im Zeitraum werden daher nur noch
     als WEICHER Hinweis (Flash) zurueckgemeldet, nicht mehr uebersprungen.
-    Datums-Parsing ist defensiv: ein manipulierter POST mit kaputtem Datum
-    ergibt 400, nie einen 500er.
+    Datums-Parsing ist defensiv (akzeptiert TT.MM.JJJJ vom Hybrid-Textfeld
+    UND JJJJ-MM-TT, s. app/utils/datum.parse_datum -- TEIL 3): ein
+    manipuliertes/kaputtes Datum ergibt 400, nie einen 500er.
 
     Befund 3: Ein Zeitraum von mehr als MAX_ZEITRAUM_TAGE Tagen (z. B.
     von=0001-01-01/bis=9999-12-31) wird mit 400 abgelehnt -- ohne diese
@@ -520,10 +559,9 @@ def add_abwesenheit(
     betroffenen KWs (iter_kw_range), nicht mehr tagweise."""
     trainee = _trainee_by_token(db, token)
 
-    try:
-        von_datum = date.fromisoformat(von)
-        bis_datum = date.fromisoformat(bis)
-    except (TypeError, ValueError):
+    von_datum = parse_datum(von)
+    bis_datum = parse_datum(bis)
+    if von_datum is None or bis_datum is None:
         raise HTTPException(status_code=400, detail="Ungueltiges Datum")
 
     if bis_datum < von_datum:
