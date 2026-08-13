@@ -485,3 +485,37 @@ def test_bestaetigt_marker_hat_passende_css_regel(client, session: Session):
     # ... und dafuer existiert auch eine CSS-Regel mit Farbe
     assert ".matrix-cell.mc-confirm-bestaetigt::after" in r.text
     assert "mc-confirm-ok" not in r.text
+
+
+def test_share_matrix_zeigt_f_kuerzel_auch_bei_fremden_zeilen(client, session: Session):
+    """In der Azubi-Sicht bekommt JEDE abwesende Zeile das Kuerzel 'F' -- vorher
+    stand es nur in der eigenen Zeile (und dort als 'U'/'A', was zusaetzlich die
+    Art der Abwesenheit verriet). 'F' sagt nur "nicht im Betrieb"; die Art
+    bleibt dem Tooltip der eigenen Zeile vorbehalten."""
+    from datetime import date
+
+    from app.models import (
+        Abwesenheit, AbwesenheitQuelle, AbwesenheitTyp, Schoolyear, Trainee, TraineeRolle,
+    )
+
+    session.add(Schoolyear(id="2025-2026", start_kw=36, start_year=2025, end_kw=35, end_year=2026))
+    ich = Trainee(vorname="Anton", nachname="Altmann", rolle=TraineeRolle.AZUBI,
+                  share_token="tok-fremd-f")
+    andere = Trainee(vorname="Berta", nachname="Buehler", rolle=TraineeRolle.AZUBI)
+    session.add_all([ich, andere])
+    session.flush()
+    # KW 12/2026 = Mo 16.03. bis Fr 20.03. -- beide ganze Woche abwesend
+    for t in (ich, andere):
+        session.add(Abwesenheit(
+            trainee_id=t.id, von_datum=date(2026, 3, 16), bis_datum=date(2026, 3, 20),
+            typ=AbwesenheitTyp.SONSTIGES, quelle=AbwesenheitQuelle.PLANER,
+        ))
+    session.commit()
+
+    r = client.get("/mein-plan/tok-fremd-f/uebersicht", params={"schoolyear_id": "2025-2026"})
+    assert r.status_code == 200
+    # Beide Zeilen tragen das Kuerzel -- also mindestens zweimal im Dokument
+    assert r.text.count('class="cell-chip cell-blocker">F</span>') >= 2
+    # Die Art der Abwesenheit steht nirgends als Kuerzel
+    assert 'cell-blocker">A</span>' not in r.text
+    assert 'cell-blocker">U</span>' not in r.text

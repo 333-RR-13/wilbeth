@@ -61,7 +61,10 @@ a:hover { text-decoration: underline; }
 /* ── Sidebar ─────────────────────────────────────────────────────── */
 .sidebar {
   width: var(--sidebar-width);
-  min-height: 100vh;
+  /* height statt min-height + eigener Scroll: bei niedrigen Fenstern rutschten
+     sonst der Nutzer-Badge und die Fusszeilen-Links unerreichbar aus dem Bild. */
+  height: 100vh;
+  overflow-y: auto;
   background: var(--sidebar-bg);
   display: flex;
   flex-direction: column;
@@ -370,7 +373,9 @@ tbody td {
   box-shadow: var(--shadow-card);
   border-radius: var(--radius-md);
   padding: 28px 32px;
-  max-width: 560px;
+  /* Keine eigene Breitenbegrenzung mehr: alle Bloecke folgen einheitlich der
+     Bildschirmbreite (siehe .content-inner). */
+  max-width: none;
 }
 
 .form-grid {
@@ -691,12 +696,12 @@ tr.htmx-swapping td { opacity: 0; transition: opacity 0.15s; }
   background-color: #fff;
   background-image: repeating-linear-gradient(
     45deg,
-    rgba(100, 116, 139, 0.35),
-    rgba(100, 116, 139, 0.35) 3px,
+    rgba(51, 65, 85, 0.45),
+    rgba(51, 65, 85, 0.45) 3px,
     transparent 3px,
     transparent 6px
   );
-  box-shadow: #64748b 0px 0px 0px 1px;
+  box-shadow: #334155 0px 0px 0px 1px;
 }
 
 .matrix-scroll {
@@ -890,15 +895,15 @@ tr.htmx-swapping td { opacity: 0; transition: opacity 0.15s; }
   height: 0;
   border-style: solid;
   border-width: 7px 7px 0 0;
-  border-color: #64748b transparent transparent transparent;
+  border-color: #334155 transparent transparent transparent;
   pointer-events: none;
 }
 
 .matrix-cell.mc-abwesend.mc-abwesend-voll {
   background-image: repeating-linear-gradient(
     45deg,
-    rgba(100, 116, 139, 0.20),
-    rgba(100, 116, 139, 0.20) 4px,
+    rgba(51, 65, 85, 0.38),
+    rgba(51, 65, 85, 0.38) 4px,
     transparent 4px,
     transparent 9px
   );

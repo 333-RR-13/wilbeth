@@ -53,10 +53,12 @@
         {% if _abw_label %}{% set _ = _titles.append(_abw_label) %}{% endif %}
         <td class="matrix-cell{% if w.is_today %} mc-today{% endif %}{% if _abw %} mc-abwesend{% if _abw.voll %} mc-abwesend-voll{% endif %}{% endif %}"{% if _titles %} title="{{ _titles | join(' — ') }}"{% endif %}>
           {{ cell_content(a, dept_colors, school_weeks.get(cell_key) if not a else None) }}
-          {#- Kuerzel nur in der EIGENEN Zeile: bei fremden Zeilen bleibt es bei der
-              Schraffur, damit der Typ der Abwesenheit nicht sichtbar wird -#}
-          {%- if _abw and not a and not school_weeks.get(cell_key) and t.id == highlight_id -%}
-          <span class="cell-chip cell-blocker">{{ 'U' if 'URLAUB' in _abw.typen else 'A' }}</span>
+          {#- Abwesenheit ohne eigenen Zelleninhalt bekommt dasselbe Kuerzel wie
+              eine FREI-Zelle -- bei ALLEN Zeilen, nicht nur der eigenen. Das "F"
+              sagt nur "nicht im Betrieb" und verraet die Art der Abwesenheit
+              nicht; die steht weiterhin nur im Tooltip der eigenen Zeile. -#}
+          {%- if _abw and not a and not school_weeks.get(cell_key) -%}
+          <span class="cell-chip cell-blocker">F</span>
           {%- endif -%}
         </td>
         {% endfor %}
