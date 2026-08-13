@@ -149,3 +149,48 @@ def test_beruf_heading_unknown_token_unchanged(client, session):
     r = client.get("/klassen/")
     assert r.status_code == 200
     assert "DHBW Cybersecurity" in r.text
+
+
+# ── TEIL C: einheitliche Spaltenbreiten ueber alle Gruppen-Tabellen ─────────
+
+def test_alle_gruppen_tabellen_haben_identische_colgroup(client, session):
+    """Jede Beruf-Gruppe rendert ihre eigene <table>, aber alle mit derselben
+    <colgroup> (identische Spaltenbreiten) -- ohne table-layout:fixed +
+    gemeinsame colgroup richtet sich jede Tabelle am eigenen Inhalt aus und
+    die Spalten springen zwischen den Gruppen sichtbar hin und her."""
+    _add_class(session, "FISI 1. LJ")
+    _add_class(session, "FIAE 1. LJ")
+
+    r = client.get("/klassen/")
+    assert r.status_code == 200
+    text = r.text
+
+    assert text.count('<table class="klassen-table">') == 2
+    # Beide Tabellen haben exakt dieselbe colgroup (Substring-Vergleich der
+    # kompletten <colgroup>...</colgroup>-Bloecke).
+    colgroups = []
+    pos = 0
+    for _ in range(2):
+        start = text.find("<colgroup>", pos)
+        assert start != -1
+        end = text.find("</colgroup>", start) + len("</colgroup>")
+        colgroups.append(text[start:end])
+        pos = end
+    assert colgroups[0] == colgroups[1]
+    assert colgroups[0].count("<col ") == 6
+
+
+def test_klassen_tabelle_hat_table_layout_fixed():
+    """.klassen-table erzwingt table-layout:fixed (Voraussetzung dafuer,
+    dass die colgroup-Breiten tatsaechlich greifen statt vom Inhalt
+    ueberstimmt zu werden)."""
+    from pathlib import Path
+
+    src = (
+        Path(__file__).resolve().parents[1] / "app" / "templates"
+        / "trainee_classes" / "list.html"
+    ).read_text(encoding="utf-8")
+    idx = src.find(".klassen-table {")
+    assert idx != -1
+    end = src.find("}", idx)
+    assert "table-layout: fixed" in src[idx:end]

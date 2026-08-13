@@ -25,7 +25,7 @@ from app.models import (
 from app.models.trainee_wish import group_wishes_by_priority, prioritaet_label
 from app.models.betreuer import FUNKTION_LABELS
 from app.services.auth_service import CurrentUser, allowed_dept_ids, require_roles
-from app.services.betreuung_utils import betreuer_fuer_trainee
+from app.services.betreuung_utils import abteilungs_ansprechpartner, betreuer_fuer_trainee
 from app.services.conflict_checker import find_conflicts
 from app.services.dept_history import visited_department_ids
 from app.services.membership_utils import (
@@ -397,9 +397,12 @@ def trainee_detail(
             )
         ).first() is not None
 
-    # Betreuung (Personen, die den Trainee ueber die gesamte Ausbildung
-    # begleiten -- unabhaengig von den abteilungsbezogenen Ausbildern oben).
+    # Betreuung -- zwei unabhaengige Bloecke (analog share/betreuer.html):
+    # (1) Personen, die den Trainee ueber die gesamte Ausbildung begleiten,
+    # (2) Ansprechpartner der Abteilungen, in denen der Trainee eingesetzt
+    # ist/war. Siehe app/services/betreuung_utils.py.
     betreuer_liste = betreuer_fuer_trainee(db, trainee, schoolyear_id)
+    abteilungs_kontakte = abteilungs_ansprechpartner(db, trainee_id)
 
     return templates.TemplateResponse(request, "trainees/detail.html", {
         "trainee": trainee,
@@ -419,6 +422,7 @@ def trainee_detail(
         "beruf_lang": beruf_lang,
         "ausbildungsbeginn": trainee.ausbildungsbeginn,
         "betreuer_liste": betreuer_liste,
+        "abteilungs_kontakte": abteilungs_kontakte,
         "active_nav": "trainees",
     })
 

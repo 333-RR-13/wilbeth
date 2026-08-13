@@ -34,11 +34,13 @@ class Betreuer(SQLModel, table=True):
 
     berufe: Liste von Beruf-Tokens (wie membership_utils.beruf_optionen sie
     liefert, z. B. ["FISI", "FIAE"]). LEERE Liste bedeutet ausdruecklich
-    "zustaendig fuer ALLE Berufe" -- exakt dasselbe Muster wie
-    Department.erlaubte_berufe (siehe app/models/department.py). WICHTIG:
-    SQLModel erkennt In-Place-Mutationen an JSON-Spalten nicht -- beim
-    Aendern immer eine neue Liste zuweisen (siehe Kommentar in
-    app/models/feedback_bogen.py).
+    "zustaendig fuer KEINEN Beruf" -- anders als Department.erlaubte_berufe
+    (siehe app/models/department.py), wo eine leere Liste "alle Berufe
+    erlaubt" heisst. Wer als Betreuer fuer ALLE Berufe zustaendig sein soll,
+    hakt im Formular explizit alle Berufe an (Schnellauswahl-Button "Alle").
+    Details/Ausnahmen: app/services/betreuung_utils.py. WICHTIG: SQLModel
+    erkennt In-Place-Mutationen an JSON-Spalten nicht -- beim Aendern immer
+    eine neue Liste zuweisen (siehe Kommentar in app/models/feedback_bogen.py).
 
     Die konkrete Zustaendigkeits-Regel (inkl. der Ausnahmen ueber
     BetreuerTrainee) steht in app/services/betreuung_utils.py.

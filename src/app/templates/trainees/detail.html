@@ -110,12 +110,18 @@
   </div>
 </div>
 
-{# ── Betreuung (Personen, die den Trainee ueber die gesamte Ausbildung
-     begleiten -- unabhaengig von den abteilungsbezogenen Ausbildern, siehe
-     app/services/betreuung_utils.py) ──────────────────────────────── #}
-{% if betreuer_liste %}
+{# ── Betreuung: genau zwei Bloecke (analog templates/share/betreuer.html) ──
+   Block 1: Personen, die den Trainee ueber die gesamte Ausbildung begleiten
+            (betreuer_fuer_trainee, fest zugeordnet ueber Betreuer.berufe
+            bzw. eine ZUSAETZLICH-Ausnahme).
+   Block 2: Ansprechpartner der Abteilungen, in denen der Trainee eingesetzt
+            ist/war (abteilungs_ansprechpartner) -- abteilungsbezogen, davon
+            unabhaengig. Siehe app/services/betreuung_utils.py. ────────── #}
+{% if betreuer_liste or abteilungs_kontakte %}
 <div class="card card-body" style="margin-bottom: 24px;">
   <h2 class="form-section-title">Betreuung</h2>
+
+  {% if betreuer_liste %}
   <div style="display:flex; flex-direction:column; gap:8px;">
     {% for b in betreuer_liste %}
     <div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;">
@@ -126,6 +132,34 @@
     </div>
     {% endfor %}
   </div>
+  {% else %}
+  <p class="text-muted">Keine fest zugeordneten Betreuer.</p>
+  {% endif %}
+
+  {% if abteilungs_kontakte %}
+  <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.03em; color:var(--text-muted); margin:20px 0 8px;">
+    Ansprechpartner der Abteilungen
+  </h3>
+  <div style="display:flex; flex-direction:column; gap:10px;">
+    {% for row in abteilungs_kontakte %}
+    <div>
+      <strong>{{ row.department.code }}</strong> – {{ row.department.name }}:
+      {%- if row.personen %}
+        {% for p in row.personen %}
+          {%- if p.betreuer -%}
+            <a href="/ausbilder-verwaltung/{{ p.betreuer.id }}">{{ p.anzeige }}</a>
+          {%- else -%}
+            {{ p.anzeige }}
+          {%- endif -%}
+          {{- ", " if not loop.last else "" }}
+        {% endfor %}
+      {% else %}
+        <span class="text-muted">keine Ausbilder hinterlegt</span>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
 </div>
 {% endif %}
 

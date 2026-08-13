@@ -161,7 +161,12 @@ def _setup_overview(session: Session) -> dict:
 
 
 def test_overview_berufsschule_shows_bs_with_cell_school(client, session: Session):
-    """BERUFSSCHULE assignment renders as 'BS' with class cell-school."""
+    """BERUFSSCHULE assignment renders as 'BS' with class cell-school.
+
+    halbjahr="1" explizit, wie bei den anderen KW-40-Tests unten -- sonst
+    haengt die Sichtbarkeit von KW 40/2025 vom heutigen Datum ab
+    (_default_halbjahr() in app/routers/overview.py) und die Zeile wuerde
+    je nach Testlauf-Datum stillschweigend gar nicht gerendert."""
     ids = _setup_overview(session)
     session.add(Assignment(
         trainee_id=ids["trainee_id"], schoolyear_id=SY, kw=40, jahr=2025,
@@ -169,14 +174,15 @@ def test_overview_berufsschule_shows_bs_with_cell_school(client, session: Sessio
     ))
     session.commit()
 
-    r = client.get("/overview", params={"schoolyear_id": SY})
+    r = client.get("/overview", params={"schoolyear_id": SY, "halbjahr": "1"})
     assert r.status_code == 200
     assert "cell-school" in r.text
     assert ">BS<" in r.text
 
 
 def test_overview_uni_shows_hs_with_cell_school(client, session: Session):
-    """UNI assignment renders as 'HS' with class cell-school."""
+    """UNI assignment renders as 'HS' with class cell-school. halbjahr="1"
+    explizit -- s. Kommentar in test_overview_berufsschule_shows_bs_with_cell_school."""
     ids = _setup_overview(session)
     session.add(Assignment(
         trainee_id=ids["trainee_id"], schoolyear_id=SY, kw=40, jahr=2025,
@@ -184,7 +190,7 @@ def test_overview_uni_shows_hs_with_cell_school(client, session: Session):
     ))
     session.commit()
 
-    r = client.get("/overview", params={"schoolyear_id": SY})
+    r = client.get("/overview", params={"schoolyear_id": SY, "halbjahr": "1"})
     assert r.status_code == 200
     assert "cell-school" in r.text
     assert ">HS<" in r.text

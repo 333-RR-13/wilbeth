@@ -13,7 +13,9 @@ Zwei UNABHAENGIGE Zustaendigkeiten, die hier NEBENEINANDER gepflegt werden:
 2. Beruf-Zustaendigkeit ("Azubis ueber die Ausbildung begleiten", neu seit
    Migration 0017betreuung): die neue Betreuer-Tabelle mit Klarname,
    Funktion, Kontaktdaten, Notiz, aktiv/inaktiv und einer Liste zustaendiger
-   Berufe (leer = alle). Regel + Ausnahmen: app/services/betreuung_utils.py.
+   Berufe (leer = KEINER -- fuer alle Berufe muessen alle Haken gesetzt
+   werden, s. Schnellauswahl-Button "Alle"). Regel + Ausnahmen:
+   app/services/betreuung_utils.py.
 
 Seitenaufbau:
 - GET  /ausbilder-verwaltung/                     -> Liste aller Personen
@@ -86,8 +88,9 @@ def _beruf_form_context(db: Session) -> dict:
 
 
 def _parse_berufe(berufe: list[str]) -> list[str]:
-    """Normalisiert die Beruf-Checkbox-Auswahl: leer bleibt leer (= alle
-    Berufe), Duplikate raus, Reihenfolge stabil."""
+    """Normalisiert die Beruf-Checkbox-Auswahl: leer bleibt leer (= fuer
+    KEINEN Beruf zustaendig, s. app/services/betreuung_utils.py), Duplikate
+    raus, Reihenfolge stabil."""
     gesehen: list[str] = []
     for b in berufe:
         b = (b or "").strip()

@@ -283,19 +283,23 @@ def beruf_art_map(classes: list[TraineeClass]) -> dict[str, str]:
 
 
 def beruf_bereich_map(classes: list[TraineeClass]) -> dict[str, str]:
-    """Leitet je Beruf-Token den Bereich ("IT" | "KAUFMAENNISCH", s.
-    TraineeClass.bereich) aus seinen Klassen ab -- Grundlage fuer die
+    """Leitet je Beruf-Token den Bereich ("IT" | "KAUFMAENNISCH" | "BEIDE",
+    s. TraineeClass.bereich) aus seinen Klassen ab -- Grundlage fuer die
     Schnellauswahl-Buttons "Nur IT"/"Nur kaufmännisch" im Betreuer- und im
     Abteilungs-Formular (analog beruf_art_map oben, nur eine andere Klassen-
-    Eigenschaft).
+    Eigenschaft; beide Buttons haken einen "BEIDE"-Beruf an, s. dortiges JS).
 
     Ein Beruf besteht aus mehreren Klassen (Lehrjahre); im Regelfall haben
-    alle denselben Bereich. Weichen sie doch ab, gewinnt die Mehrheit; bei
-    Gleichstand gewinnt "IT" (reine Konvention -- anders als bei
+    alle denselben Bereich -- dann gilt exakt dieser. Weichen sie ab, gewinnt
+    die Mehrheit; "BEIDE" gewinnt dabei, sobald es mindestens so haeufig
+    vorkommt wie IT bzw. KAUFMAENNISCH fuer sich genommen (ein expliziter
+    "BEIDE"-Treffer ist ein staerkeres Signal als eine reine IT/KAUFMAENNISCH-
+    Mehrheit). Bei einem reinen IT/KAUFMAENNISCH-Gleichstand (kein "BEIDE"
+    beteiligt) gewinnt weiterhin "IT" (reine Konvention -- anders als bei
     beruf_art_map gibt es hier keine fachliche Asymmetrie, die einen der
     beiden Werte als "sichereren" Default nahelegen wuerde).
 
-    Rueckgabe: {beruf_token: "IT"|"KAUFMAENNISCH", ...}
+    Rueckgabe: {beruf_token: "IT"|"KAUFMAENNISCH"|"BEIDE", ...}
     """
     bereiche_je_beruf: dict[str, list[str]] = {}
     for klasse in classes:
@@ -304,9 +308,15 @@ def beruf_bereich_map(classes: list[TraineeClass]) -> dict[str, str]:
 
     result: dict[str, str] = {}
     for token, bereiche in bereiche_je_beruf.items():
+        anzahl_beide = bereiche.count("BEIDE")
         anzahl_kfm = bereiche.count("KAUFMAENNISCH")
-        anzahl_it = len(bereiche) - anzahl_kfm
-        result[token] = "KAUFMAENNISCH" if anzahl_kfm > anzahl_it else "IT"
+        anzahl_it = len(bereiche) - anzahl_beide - anzahl_kfm
+        if anzahl_beide > 0 and anzahl_beide >= anzahl_it and anzahl_beide >= anzahl_kfm:
+            result[token] = "BEIDE"
+        elif anzahl_kfm > anzahl_it:
+            result[token] = "KAUFMAENNISCH"
+        else:
+            result[token] = "IT"
     return result
 
 

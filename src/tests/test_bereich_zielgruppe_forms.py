@@ -79,6 +79,48 @@ def test_klassen_liste_zeigt_bereich_badge(client, session: Session):
     assert "Kaufmännisch" in r.text
 
 
+# ── TEIL D: dritter Bereichswert "BEIDE" ────────────────────────────────────
+
+def test_klasse_create_stores_bereich_beide(client, session: Session):
+    """bereich ist ein freies Textfeld (kein DB-Enum) -- ein dritter Wert
+    "BEIDE" braucht daher KEINE Migration, nur BEREICH_LABELS + Formular."""
+    r = client.post("/klassen/", data={
+        "name": "WI 1. LJ",
+        "berufsschule": "DHBW",
+        "unterrichts_typ": "DH_PHASEN",
+        "bereich": "BEIDE",
+    }, follow_redirects=False)
+    assert r.status_code == 303
+
+    cls = session.exec(select(TraineeClass).where(TraineeClass.name == "WI 1. LJ")).first()
+    assert cls is not None
+    assert cls.bereich == "BEIDE"
+
+
+def test_klasse_formular_bietet_beide_als_option_an(client, session: Session):
+    r = client.get("/klassen/neu")
+    assert r.status_code == 200
+    assert 'value="BEIDE"' in r.text
+    assert "IT &amp; Kaufmännisch" in r.text or "IT & Kaufmännisch" in r.text
+
+
+def test_klassen_liste_zeigt_beide_badge_eigene_farbe(client, session: Session):
+    """Der BEIDE-Badge hat eine eigene Farbe (weder badge-blue wie IT noch
+    badge-yellow wie KAUFMAENNISCH), damit er sich sichtbar unterscheidet."""
+    cls = TraineeClass(name="WI 2. LJ", berufsschule="DHBW",
+                        unterrichts_typ=UnterrichtsTyp.DH_PHASEN, bereich="BEIDE")
+    session.add(cls)
+    session.commit()
+
+    r = client.get("/klassen/")
+    assert r.status_code == 200
+    assert "IT &amp; Kaufmännisch" in r.text
+    zeile = r.text.split('id="row-c-{}"'.format(cls.id))[1].split("</tr>")[0]
+    assert "badge-orange" in zeile
+    assert "badge-blue" not in zeile
+    assert "badge-yellow" not in zeile
+
+
 # ── Abteilungs-Formular: erlaubte_berufe (Checkbox-Liste) ─────────────────────
 
 def test_department_create_stores_erlaubte_berufe(client, session: Session):

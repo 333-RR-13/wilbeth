@@ -2,14 +2,16 @@
 Trainee ueber die gesamte Ausbildung begleiten, s. app/models/betreuer.py).
 
 Regel: ein aktiver Betreuer ist fuer einen Trainee zustaendig, wenn
-  (a) Betreuer.berufe leer ist (= alle Berufe) ODER der fuer das Schuljahr
-      BERECHNETE Beruf-Token des Trainees (membership_utils.klasse_fuer +
-      beruf_und_lehrjahr) in Betreuer.berufe steht,
+  (a) der fuer das Schuljahr BERECHNETE Beruf-Token des Trainees
+      (membership_utils.klasse_fuer + beruf_und_lehrjahr) in Betreuer.berufe
+      steht,
 UND es keine "AUSGENOMMEN"-Ausnahme (BetreuerTrainee) fuer dieses Paar gibt.
-Eine "ZUSAETZLICH"-Ausnahme macht den Betreuer IMMER zustaendig, unabhaengig
-von (a). Trainees ohne berechnete Klasse (klasse_fuer -> None, z. B.
-Absolventen oder Zieljahr vor Ausbildungsbeginn) werden nur ueber eine
-"ZUSAETZLICH"-Ausnahme erfasst.
+Eine LEERE Betreuer.berufe-Liste bedeutet ausdruecklich "fuer KEINEN Beruf
+zustaendig" -- wer fuer alle Berufe zustaendig sein soll, hakt im Formular
+alle Berufe an (Schnellauswahl-Button "Alle"). Eine "ZUSAETZLICH"-Ausnahme
+macht den Betreuer IMMER zustaendig, unabhaengig von (a). Trainees ohne
+berechnete Klasse (klasse_fuer -> None, z. B. Absolventen oder Zieljahr vor
+Ausbildungsbeginn) werden nur ueber eine "ZUSAETZLICH"-Ausnahme erfasst.
 
 betreuer_fuer_trainee() und trainees_fuer_betreuer() sind zueinander
 konsistent: was die eine liefert, liefert die andere in umgekehrter
@@ -54,8 +56,11 @@ def _ist_zustaendig(betreuer: Betreuer, beruf_token: str | None, modus_ausnahme:
         return True
     if beruf_token is None:
         return False
+    # LEERE berufe-Liste = fuer KEINEN Beruf zustaendig (s. Modul-Docstring) --
+    # nur eine explizite ZUSAETZLICH-Ausnahme (oben) erfasst so einen Betreuer
+    # trotzdem.
     if not betreuer.berufe:
-        return True
+        return False
     return beruf_token in betreuer.berufe
 
 

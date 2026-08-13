@@ -30,13 +30,11 @@
 {% if weeks %}
 <div class="matrix-legend">
   <span class="legend-item"><span class="cell-chip" style="background:#A855F7;color:#fff">ABT</span> Abteilung (eigene Farbe)</span>
-  <span class="legend-item"><span class="cell-chip cell-school">BS</span> Berufsschule</span>
-  <span class="legend-item"><span class="cell-chip cell-school">HS</span> Hochschule/Uni</span>
+  <span class="legend-item"><span class="cell-chip cell-school">BS/HS</span> Schule</span>
   <span class="legend-item"><span class="cell-chip cell-blocker">F</span> Frei (Urlaub, Krankheit, Sonstiges)</span>
-    <span class="legend-item"><span class="matrix-abwesend-sample"></span> Abwesenheitstage in dieser Woche</span>
+  <span class="legend-item"><span class="matrix-abwesend-sample"></span> Abwesenheitstage in dieser Woche</span>
   <span class="legend-item"><span class="matrix-school-sample"></span> Schulwoche</span>
   <span class="legend-item"><span class="matrix-today-sample"></span> Aktuelle KW</span>
-  <span class="legend-item"><span class="self-tag">du</span> Du</span>
 </div>
 
 {% for gruppe in grouped %}

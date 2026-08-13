@@ -650,14 +650,26 @@ tr.htmx-swapping td { opacity: 0; transition: opacity 0.15s; }
 }
 
 /* ── Matrix ─────────────────────────────────────────────────────── */
+/* Grid statt flex-wrap: so bleibt die Anzahl Eintraege pro Zeile beim
+   Umbruch konstant (6 -> 3+3 -> 2+2+2) statt einer haengenden letzten Zeile
+   mit einem einzelnen Eintrag, wie es flex-wrap je nach Textlaenge erzeugen
+   wuerde. Alle sechs Legenden (Planer-Matrix + vier Azubi-Seiten) teilen
+   sich exakt diese Regel. */
 .matrix-legend {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px 16px;
   margin-bottom: 12px;
   font-size: 13px;
   color: var(--text-secondary);
+}
+
+@media (max-width: 860px) {
+  .matrix-legend { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (max-width: 520px) {
+  .matrix-legend { grid-template-columns: repeat(2, 1fr); }
 }
 
 .legend-item {

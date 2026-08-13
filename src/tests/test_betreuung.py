@@ -74,7 +74,15 @@ def test_berufe_filter_matcht_nur_passenden_beruf(session: Session):
     assert trainees_fuer_betreuer(session, betreuer, SY) == [t_fisi]
 
 
-def test_leere_berufe_liste_matcht_alle(session: Session):
+def test_leere_berufe_liste_betreut_niemanden(session: Session):
+    """Frueher (vor der Umstellung): leere berufe-Liste = "zustaendig fuer
+    ALLE Berufe" -- dadurch erschienen z. B. saemtliche per Migration 0017
+    aus Department.verantwortliche uebernommenen Abteilungs-Ausbilder
+    (berufe=[]) als persoenliche Betreuer JEDES Azubis. Seit der Umstellung
+    gilt das Gegenteil: eine leere Liste bedeutet "fuer KEINEN Beruf
+    zustaendig". Wer wirklich alle betreuen soll, hakt im Formular explizit
+    alle Berufe an (Button "Alle"). Eine ZUSAETZLICH-Ausnahme wirkt davon
+    unabhaengig weiterhin IMMER."""
     fisi = _add_class(session, "FISI 1. LJ")
     fiae = _add_class(session, "FIAE 1. LJ")
     t_fisi = _add_trainee(session, "Fiona", klasse_id=fisi.id)
@@ -83,9 +91,17 @@ def test_leere_berufe_liste_matcht_alle(session: Session):
     session.add(betreuer)
     session.commit()
 
+    assert betreuer_fuer_trainee(session, t_fisi, SY) == []
+    assert betreuer_fuer_trainee(session, t_fiae, SY) == []
+    assert trainees_fuer_betreuer(session, betreuer, SY) == []
+
+    # ZUSAETZLICH-Ausnahme greift trotz leerer berufe-Liste weiterhin.
+    session.add(BetreuerTrainee(betreuer_id=betreuer.id, trainee_id=t_fisi.id, modus="ZUSAETZLICH"))
+    session.commit()
+
     assert betreuer_fuer_trainee(session, t_fisi, SY) == [betreuer]
-    assert betreuer_fuer_trainee(session, t_fiae, SY) == [betreuer]
-    assert {t.id for t in trainees_fuer_betreuer(session, betreuer, SY)} == {t_fisi.id, t_fiae.id}
+    assert betreuer_fuer_trainee(session, t_fiae, SY) == []
+    assert trainees_fuer_betreuer(session, betreuer, SY) == [t_fisi]
 
 
 def test_inaktiver_betreuer_taucht_in_beiden_richtungen_nie_auf(session: Session):
@@ -151,10 +167,12 @@ def test_trainee_ohne_berechnete_klasse_nur_ueber_zusaetzlich(session: Session):
 def test_sortierung_nach_funktion_dann_name(session: Session):
     fisi = _add_class(session, "FISI 1. LJ")
     t = _add_trainee(session, "Fiona", klasse_id=fisi.id)
-    b_sonstiges = Betreuer(upn="z@firma.de", name="Zeta", funktion="SONSTIGES", berufe=[])
-    b_hr = Betreuer(upn="a@firma.de", name="Alpha HR", funktion="HR", berufe=[])
-    b_technisch = Betreuer(upn="b@firma.de", name="Beta Technik", funktion="TECHNISCH", berufe=[])
-    b_planung = Betreuer(upn="c@firma.de", name="Charlie Planung", funktion="EINSATZPLANUNG", berufe=[])
+    # berufe explizit gesetzt (nicht leer) -- eine leere Liste wuerde seit der
+    # Umstellung NICHT mehr matchen, s. test_leere_berufe_liste_betreut_niemanden.
+    b_sonstiges = Betreuer(upn="z@firma.de", name="Zeta", funktion="SONSTIGES", berufe=["FISI"])
+    b_hr = Betreuer(upn="a@firma.de", name="Alpha HR", funktion="HR", berufe=["FISI"])
+    b_technisch = Betreuer(upn="b@firma.de", name="Beta Technik", funktion="TECHNISCH", berufe=["FISI"])
+    b_planung = Betreuer(upn="c@firma.de", name="Charlie Planung", funktion="EINSATZPLANUNG", berufe=["FISI"])
     session.add_all([b_sonstiges, b_hr, b_technisch, b_planung])
     session.commit()
 
@@ -175,6 +193,31 @@ def test_trainee_profil_zeigt_betreuer(client, session):
     assert r.status_code == 200
     assert "Frau Fachausbilderin" in r.text
     assert "Fachlicher Ausbilder" in r.text
+
+
+def test_trainee_profil_zeigt_auch_abteilungs_ansprechpartner(client, session):
+    """Trainee-Profil (Planer-Sicht): genau zwei Bloecke im Abschnitt
+    "Betreuung" -- oben die fest zugeordneten Betreuer, darunter die
+    Ansprechpartner der Abteilungen, in denen der Trainee eingesetzt ist/war
+    (analog templates/share/betreuer.html)."""
+    _add_year(session)
+    fisi = _add_class(session, "FISI 1. LJ")
+    t = _add_trainee(session, "Fiona", klasse_id=fisi.id)
+    dept = Department(code="CP", name="Cloud Platform", verantwortliche="bekannt@firma.de")
+    session.add(dept)
+    session.add(Betreuer(upn="bekannt@firma.de", name="Klarname Bekannt"))
+    session.commit()
+    session.add(Assignment(
+        trainee_id=t.id, schoolyear_id=SY, kw=10, jahr=2025,
+        typ=AssignmentTyp.ABTEILUNG, abteilung_id=dept.id,
+    ))
+    session.commit()
+
+    r = client.get(f"/trainees/{t.id}")
+    assert r.status_code == 200
+    assert "Ansprechpartner der Abteilungen" in r.text
+    assert "CP" in r.text and "Cloud Platform" in r.text
+    assert "Klarname Bekannt" in r.text
 
 
 def test_azubi_sicht_zeigt_kontakt_aber_nicht_die_interne_notiz(client, session, monkeypatch):
@@ -236,10 +279,12 @@ def test_betreuer_seite_zeigt_beide_bloecke_in_funktions_reihenfolge(client, ses
     _add_year(session)
     fisi = _add_class(session, "FISI 1. LJ")
     t = _add_trainee(session, "Fiona", klasse_id=fisi.id)
+    # berufe explizit gesetzt (nicht leer) -- eine leere Liste wuerde seit der
+    # Umstellung NICHT mehr matchen, s. test_leere_berufe_liste_betreut_niemanden.
     session.add_all([
-        Betreuer(upn="sonstiges@firma.de", name="Sina Sonstiges", funktion="SONSTIGES", berufe=[]),
-        Betreuer(upn="hr@firma.de", name="Hanna HR", funktion="HR", berufe=[]),
-        Betreuer(upn="plan@firma.de", name="Petra Planung", funktion="EINSATZPLANUNG", berufe=[]),
+        Betreuer(upn="sonstiges@firma.de", name="Sina Sonstiges", funktion="SONSTIGES", berufe=["FISI"]),
+        Betreuer(upn="hr@firma.de", name="Hanna HR", funktion="HR", berufe=["FISI"]),
+        Betreuer(upn="plan@firma.de", name="Petra Planung", funktion="EINSATZPLANUNG", berufe=["FISI"]),
         Betreuer(upn="tech@firma.de", name="Tobias Technik", funktion="TECHNISCH", berufe=["FISI"]),
     ])
     session.commit()

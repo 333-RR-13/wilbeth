@@ -91,7 +91,10 @@
           {% endfor %}
         </div>
         <span class="form-hint">
-          KEIN Haken gesetzt bedeutet ausdrücklich „zuständig für alle Berufe“.
+          KEIN Haken gesetzt bedeutet: keine Betreuung – die Person ist dann für keinen
+          Beruf persönlich zuständig (die Zuständigkeit als Abteilungs-Ausbilder unten
+          bleibt davon unberührt, falls Abteilungen angehakt sind). Für „zuständig für alle
+          Berufe“ oben auf „Alle“ klicken.
         </span>
       </div>
       <script>
@@ -102,8 +105,8 @@
           else if (modus === 'keine') cb.checked = false;
           else if (modus === 'ausbildung') cb.checked = cb.dataset.art === 'AUSBILDUNG';
           else if (modus === 'studium') cb.checked = cb.dataset.art === 'STUDIUM';
-          else if (modus === 'it') cb.checked = cb.dataset.bereich === 'IT';
-          else if (modus === 'kaufmaennisch') cb.checked = cb.dataset.bereich === 'KAUFMAENNISCH';
+          else if (modus === 'it') cb.checked = cb.dataset.bereich === 'IT' || cb.dataset.bereich === 'BEIDE';
+          else if (modus === 'kaufmaennisch') cb.checked = cb.dataset.bereich === 'KAUFMAENNISCH' || cb.dataset.bereich === 'BEIDE';
         });
       }
       </script>
