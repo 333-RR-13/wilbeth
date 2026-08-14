@@ -64,17 +64,27 @@ def _ist_zustaendig(betreuer: Betreuer, beruf_token: str | None, modus_ausnahme:
     return beruf_token in betreuer.berufe
 
 
+def _wichtigste_funktion_index(b: Betreuer) -> int:
+    """Index der 'wichtigsten' Funktion einer Person in FUNKTION_REIHENFOLGE
+    (eine Person kann mehrere Funktionen haben, s. app/models/betreuer.py --
+    der KLEINSTE Index unter ihren Funktionen gewinnt). Betreuer OHNE
+    Funktion (reine Abteilungs-Ausbilder, leere funktionen-Liste) werden ans
+    Ende sortiert, analog einem unbekannten Funktion-Token."""
+    indices = [FUNKTION_REIHENFOLGE.index(f) for f in b.funktionen if f in FUNKTION_REIHENFOLGE]
+    return min(indices) if indices else len(FUNKTION_REIHENFOLGE)
+
+
 def _betreuer_sort_key(b: Betreuer) -> tuple[int, str]:
-    idx = FUNKTION_REIHENFOLGE.index(b.funktion) if b.funktion in FUNKTION_REIHENFOLGE else len(FUNKTION_REIHENFOLGE)
-    return (idx, (b.name or b.upn).lower())
+    return (_wichtigste_funktion_index(b), (b.name or b.upn).lower())
 
 
 def betreuer_fuer_trainee(db: Session, trainee: Trainee, schoolyear_id: str | None = None) -> list[Betreuer]:
     """Alle aktiven Betreuer, die fuer diesen Trainee zustaendig sind.
 
     schoolyear_id: None -> das laufende Schuljahr (aktuelles_schuljahr_id).
-    Sortiert nach Funktion (HR, TECHNISCH, EINSATZPLANUNG, SONSTIGES), dann
-    Name/UPN.
+    Sortiert nach der wichtigsten Funktion der Person (HR, TECHNISCH,
+    EINSATZPLANUNG, SONSTIGES -- bei mehreren Funktionen zaehlt die
+    fruehste; ohne Funktion ans Ende), dann Name/UPN.
     """
     if schoolyear_id is None:
         schoolyear_id = aktuelles_schuljahr_id(db)

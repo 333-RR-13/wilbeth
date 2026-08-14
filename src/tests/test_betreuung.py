@@ -65,7 +65,7 @@ def test_berufe_filter_matcht_nur_passenden_beruf(session: Session):
     fiae = _add_class(session, "FIAE 1. LJ")
     t_fisi = _add_trainee(session, "Fiona", klasse_id=fisi.id)
     t_fiae = _add_trainee(session, "Finn", klasse_id=fiae.id)
-    betreuer = Betreuer(upn="tech@firma.de", name="Tech", funktion="TECHNISCH", berufe=["FISI"])
+    betreuer = Betreuer(upn="tech@firma.de", name="Tech", funktionen=["TECHNISCH"], berufe=["FISI"])
     session.add(betreuer)
     session.commit()
 
@@ -87,7 +87,7 @@ def test_leere_berufe_liste_betreut_niemanden(session: Session):
     fiae = _add_class(session, "FIAE 1. LJ")
     t_fisi = _add_trainee(session, "Fiona", klasse_id=fisi.id)
     t_fiae = _add_trainee(session, "Finn", klasse_id=fiae.id)
-    betreuer = Betreuer(upn="hr@firma.de", name="HR", funktion="HR", berufe=[])
+    betreuer = Betreuer(upn="hr@firma.de", name="HR", funktionen=["HR"], berufe=[])
     session.add(betreuer)
     session.commit()
 
@@ -169,15 +169,31 @@ def test_sortierung_nach_funktion_dann_name(session: Session):
     t = _add_trainee(session, "Fiona", klasse_id=fisi.id)
     # berufe explizit gesetzt (nicht leer) -- eine leere Liste wuerde seit der
     # Umstellung NICHT mehr matchen, s. test_leere_berufe_liste_betreut_niemanden.
-    b_sonstiges = Betreuer(upn="z@firma.de", name="Zeta", funktion="SONSTIGES", berufe=["FISI"])
-    b_hr = Betreuer(upn="a@firma.de", name="Alpha HR", funktion="HR", berufe=["FISI"])
-    b_technisch = Betreuer(upn="b@firma.de", name="Beta Technik", funktion="TECHNISCH", berufe=["FISI"])
-    b_planung = Betreuer(upn="c@firma.de", name="Charlie Planung", funktion="EINSATZPLANUNG", berufe=["FISI"])
+    b_sonstiges = Betreuer(upn="z@firma.de", name="Zeta", funktionen=["SONSTIGES"], berufe=["FISI"])
+    b_hr = Betreuer(upn="a@firma.de", name="Alpha HR", funktionen=["HR"], berufe=["FISI"])
+    b_technisch = Betreuer(upn="b@firma.de", name="Beta Technik", funktionen=["TECHNISCH"], berufe=["FISI"])
+    b_planung = Betreuer(upn="c@firma.de", name="Charlie Planung", funktionen=["EINSATZPLANUNG"], berufe=["FISI"])
     session.add_all([b_sonstiges, b_hr, b_technisch, b_planung])
     session.commit()
 
     ergebnis = betreuer_fuer_trainee(session, t, SY)
-    assert [b.funktion for b in ergebnis] == ["HR", "TECHNISCH", "EINSATZPLANUNG", "SONSTIGES"]
+    assert [b.funktionen for b in ergebnis] == [["HR"], ["TECHNISCH"], ["EINSATZPLANUNG"], ["SONSTIGES"]]
+
+
+def test_sortierung_mehrfachfunktion_zaehlt_die_wichtigste(session: Session):
+    """Eine Person mit HR+TECHNISCH steht vor einer reinen
+    EINSATZPLANUNG-Person -- es zaehlt die fruehste ihrer Funktionen in
+    FUNKTION_REIHENFOLGE (HR, TECHNISCH, EINSATZPLANUNG, SONSTIGES)."""
+    fisi = _add_class(session, "FISI 1. LJ")
+    t = _add_trainee(session, "Fiona", klasse_id=fisi.id)
+    b_planung = Betreuer(upn="c@firma.de", name="Charlie Planung", funktionen=["EINSATZPLANUNG"], berufe=["FISI"])
+    b_hr_technisch = Betreuer(upn="d@firma.de", name="Dana HRTech", funktionen=["TECHNISCH", "HR"], berufe=["FISI"])
+    b_ohne = Betreuer(upn="e@firma.de", name="Elena Ohne", funktionen=[], berufe=["FISI"])
+    session.add_all([b_planung, b_hr_technisch, b_ohne])
+    session.commit()
+
+    ergebnis = betreuer_fuer_trainee(session, t, SY)
+    assert [b.name for b in ergebnis] == ["Dana HRTech", "Charlie Planung", "Elena Ohne"]
 
 
 # ── UI: Trainee-Profil zeigt Betreuung, Azubi-Sicht ohne Notiz ──────────
@@ -186,7 +202,7 @@ def test_trainee_profil_zeigt_betreuer(client, session):
     _add_year(session)
     fisi = _add_class(session, "FISI 1. LJ")
     t = _add_trainee(session, "Fiona", klasse_id=fisi.id)
-    session.add(Betreuer(upn="tech@firma.de", name="Frau Fachausbilderin", funktion="TECHNISCH", berufe=["FISI"]))
+    session.add(Betreuer(upn="tech@firma.de", name="Frau Fachausbilderin", funktionen=["TECHNISCH"], berufe=["FISI"]))
     session.commit()
 
     r = client.get(f"/trainees/{t.id}")
@@ -228,7 +244,7 @@ def test_azubi_sicht_zeigt_kontakt_aber_nicht_die_interne_notiz(client, session,
     fisi = _add_class(session, "FISI 1. LJ")
     t = _add_trainee(session, "Fiona", klasse_id=fisi.id)
     session.add(Betreuer(
-        upn="tech@firma.de", name="Frau Fachausbilderin", funktion="TECHNISCH",
+        upn="tech@firma.de", name="Frau Fachausbilderin", funktionen=["TECHNISCH"],
         email="fachausbilderin@firma.de", telefon="+49 30 999",
         notiz="GEHEIME INTERNE NOTIZ", berufe=["FISI"],
     ))
@@ -255,7 +271,7 @@ def test_azubi_sicht_ohne_zustaendigen_betreuer_zeigt_hinweis(client, session, m
     _add_year(session)
     fiae = _add_class(session, "FIAE 1. LJ")
     t = _add_trainee(session, "Finn", klasse_id=fiae.id)
-    session.add(Betreuer(upn="tech@firma.de", name="Nur FISI", funktion="TECHNISCH", berufe=["FISI"]))
+    session.add(Betreuer(upn="tech@firma.de", name="Nur FISI", funktionen=["TECHNISCH"], berufe=["FISI"]))
     session.commit()
 
     r = client.post("/auth/dev-login", data={"rolle": "azubi", "trainee_id": t.id}, follow_redirects=False)
@@ -282,10 +298,10 @@ def test_betreuer_seite_zeigt_beide_bloecke_in_funktions_reihenfolge(client, ses
     # berufe explizit gesetzt (nicht leer) -- eine leere Liste wuerde seit der
     # Umstellung NICHT mehr matchen, s. test_leere_berufe_liste_betreut_niemanden.
     session.add_all([
-        Betreuer(upn="sonstiges@firma.de", name="Sina Sonstiges", funktion="SONSTIGES", berufe=["FISI"]),
-        Betreuer(upn="hr@firma.de", name="Hanna HR", funktion="HR", berufe=["FISI"]),
-        Betreuer(upn="plan@firma.de", name="Petra Planung", funktion="EINSATZPLANUNG", berufe=["FISI"]),
-        Betreuer(upn="tech@firma.de", name="Tobias Technik", funktion="TECHNISCH", berufe=["FISI"]),
+        Betreuer(upn="sonstiges@firma.de", name="Sina Sonstiges", funktionen=["SONSTIGES"], berufe=["FISI"]),
+        Betreuer(upn="hr@firma.de", name="Hanna HR", funktionen=["HR"], berufe=["FISI"]),
+        Betreuer(upn="plan@firma.de", name="Petra Planung", funktionen=["EINSATZPLANUNG"], berufe=["FISI"]),
+        Betreuer(upn="tech@firma.de", name="Tobias Technik", funktionen=["TECHNISCH"], berufe=["FISI"]),
     ])
     session.commit()
 

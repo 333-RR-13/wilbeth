@@ -29,12 +29,22 @@
 
       <div class="form-grid form-grid-2">
         <div class="form-group">
-          <label for="funktion">Funktion</label>
-          <select id="funktion" name="funktion">
+          <label>Funktion <span class="text-muted" style="font-weight:400;">(Mehrfachauswahl möglich)</span></label>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            {% set gewaehlte_funktionen = betreuer.funktionen if betreuer else [] %}
             {% for token, label in FUNKTION_LABELS.items() %}
-            <option value="{{ token }}" {{ 'selected' if betreuer and betreuer.funktion == token else ('selected' if not betreuer and token == 'SONSTIGES' else '') }}>{{ label }}</option>
+            <label class="form-check">
+              <input type="checkbox" name="funktion" value="{{ token }}"
+                     {{ 'checked' if token in gewaehlte_funktionen else '' }}>
+              {{ label }}
+            </label>
             {% endfor %}
-          </select>
+          </div>
+          <span class="form-hint">
+            Keine Funktion angehakt: reiner Abteilungs-Ausbilder ohne übergreifende
+            Betreuungsfunktion – das ist der Normalfall für Personen, die sich nur in ihrer
+            eigenen Abteilung um Azubis kümmern.
+          </span>
         </div>
         <div class="form-group">
           <label class="form-check" style="margin-top:28px;">

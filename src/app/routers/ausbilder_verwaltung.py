@@ -99,6 +99,19 @@ def _parse_berufe(berufe: list[str]) -> list[str]:
     return gesehen
 
 
+def _parse_funktionen(funktionen: list[str]) -> list[str]:
+    """Normalisiert die Funktion-Checkbox-Auswahl: nur bekannte Tokens
+    (Schluessel aus FUNKTION_LABELS), Duplikate raus, Reihenfolge stabil.
+    Eine LEERE Liste ist ausdruecklich erlaubt (reiner Abteilungs-Ausbilder
+    ohne uebergreifende Betreuungsfunktion, s. app/models/betreuer.py)."""
+    gesehen: list[str] = []
+    for f in funktionen:
+        f = (f or "").strip()
+        if f and f in FUNKTION_LABELS and f not in gesehen:
+            gesehen.append(f)
+    return gesehen
+
+
 def _dept_ids_for_upn(db: Session, upn: str) -> set[int]:
     depts = people_by_upn(db).get(upn.strip().lower(), [])
     return {d.id for d in depts}
@@ -162,7 +175,7 @@ def create_betreuer(
     db: DB,
     upn: Annotated[str, Form()],
     name: Annotated[str, Form()] = "",
-    funktion: Annotated[str, Form()] = "SONSTIGES",
+    funktion: Annotated[list[str], Form()] = [],
     email: Annotated[str, Form()] = "",
     telefon: Annotated[str, Form()] = "",
     notiz: Annotated[str, Form()] = "",
@@ -183,13 +196,11 @@ def create_betreuer(
             f"/ausbilder-verwaltung/?msg=error&detail={urllib.parse.quote('UPN bereits vorhanden -- bitte dort bearbeiten')}",
             status_code=303,
         )
-    if funktion not in FUNKTION_LABELS:
-        funktion = "SONSTIGES"
 
     betreuer = Betreuer(
         upn=upn_clean,
         name=name.strip(),
-        funktion=funktion,
+        funktionen=_parse_funktionen(funktion),
         email=email.strip(),
         telefon=telefon.strip(),
         notiz=notiz,
@@ -293,7 +304,7 @@ def update_betreuer(
     betreuer_id: int, db: DB,
     upn: Annotated[str, Form()],
     name: Annotated[str, Form()] = "",
-    funktion: Annotated[str, Form()] = "SONSTIGES",
+    funktion: Annotated[list[str], Form()] = [],
     email: Annotated[str, Form()] = "",
     telefon: Annotated[str, Form()] = "",
     notiz: Annotated[str, Form()] = "",
@@ -318,20 +329,18 @@ def update_betreuer(
             f"/ausbilder-verwaltung/?msg=error&detail={urllib.parse.quote('UPN bereits einer anderen Person zugeordnet')}",
             status_code=303,
         )
-    if funktion not in FUNKTION_LABELS:
-        funktion = "SONSTIGES"
 
     alte_upn = betreuer.upn
     betreuer.upn = upn_clean
     betreuer.name = name.strip()
-    betreuer.funktion = funktion
     betreuer.email = email.strip()
     betreuer.telefon = telefon.strip()
     betreuer.notiz = notiz
     betreuer.aktiv = bool(aktiv)
-    # JSON-Spalte: IMMER eine neue Liste zuweisen (siehe Kommentar in
+    # JSON-Spalten: IMMER eine neue Liste zuweisen (siehe Kommentar in
     # app/models/feedback_bogen.py).
     betreuer.berufe = _parse_berufe(beruf)
+    betreuer.funktionen = _parse_funktionen(funktion)
     db.add(betreuer)
     db.commit()
 

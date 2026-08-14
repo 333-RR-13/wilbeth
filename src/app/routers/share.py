@@ -35,7 +35,7 @@ from app.models import (
     UnterrichtsTyp,
 )
 from app.models.trainee_wish import group_wishes_by_priority, prioritaet_label
-from app.models.betreuer import FUNKTION_LABELS, FUNKTION_REIHENFOLGE
+from app.models.betreuer import FUNKTION_LABELS
 from app.services.abwesenheit_utils import abwesenheit_map
 from app.services.betreuung_utils import abteilungs_ansprechpartner, betreuer_fuer_trainee
 from app.services.dept_history import visited_department_ids
@@ -290,10 +290,14 @@ def betreuer_page(request: Request, token: str, db: DB):
 
     Zwei Bloecke:
     1. Die ausbildungsuebergreifenden Betreuer (betreuer_fuer_trainee(),
-       s. app/services/betreuung_utils.py), gruppiert nach Funktion in der
-       Reihenfolge FUNKTION_REIHENFOLGE (HR, TECHNISCH, EINSATZPLANUNG,
-       SONSTIGES). Interne Notizen werden NIE ausgeliefert (dieselbe Regel
-       wie bisher auf "Meine Einsaetze").
+       s. app/services/betreuung_utils.py) als EINE Liste (eine Person kann
+       mehrere Funktionen haben -- eine Gruppierung nach Funktion wuerde sie
+       dann mehrfach zeigen), bereits sortiert nach der wichtigsten Funktion
+       der Person (HR, TECHNISCH, EINSATZPLANUNG, SONSTIGES, danach
+       Name/UPN -- s. betreuung_utils._betreuer_sort_key). Je Person werden
+       im Template ALLE ihre Funktionen als Badges angezeigt. Interne
+       Notizen werden NIE ausgeliefert (dieselbe Regel wie bisher auf
+       "Meine Einsaetze").
     2. Die Ansprechpartner der Abteilungen, in denen der Azubi eingesetzt
        ist/war (abteilungs_ansprechpartner()) -- leer, wenn noch kein
        Einsatz stattfand (Template zeigt dann einen Hinweis statt einer
@@ -302,23 +306,13 @@ def betreuer_page(request: Request, token: str, db: DB):
     trainee = _trainee_by_token(db, token)
 
     betreuer_liste = betreuer_fuer_trainee(db, trainee)
-    betreuer_gruppen = [
-        {
-            "funktion": funktion,
-            "label": FUNKTION_LABELS.get(funktion, funktion),
-            "personen": [b for b in betreuer_liste if b.funktion == funktion],
-        }
-        for funktion in FUNKTION_REIHENFOLGE
-    ]
-    betreuer_gruppen = [g for g in betreuer_gruppen if g["personen"]]
-
     abteilungs_kontakte = abteilungs_ansprechpartner(db, trainee.id)
 
     return templates.TemplateResponse(request, "share/betreuer.html", {
         "trainee": trainee,
         "token": token,
         "active": "betreuer",
-        "betreuer_gruppen": betreuer_gruppen,
+        "betreuer_liste": betreuer_liste,
         "abteilungs_kontakte": abteilungs_kontakte,
     })
 

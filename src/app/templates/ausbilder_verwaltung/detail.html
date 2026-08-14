@@ -16,7 +16,11 @@
   <div>
     <h1 class="page-title">{{ betreuer.name if betreuer.name else betreuer.upn }}</h1>
     <p class="page-subtitle">
-      <span class="badge badge-gray">{{ FUNKTION_LABELS.get(betreuer.funktion, betreuer.funktion) }}</span>
+      {% if betreuer.funktionen %}
+        {% for f in betreuer.funktionen %}<span class="badge badge-gray">{{ FUNKTION_LABELS.get(f, f) }}</span>{% endfor %}
+      {% else %}
+        <span class="text-muted">nur Abteilungs-Ausbilder</span>
+      {% endif %}
       {% if betreuer.aktiv %}<span class="badge badge-green">Aktiv</span>{% else %}<span class="badge badge-gray">Inaktiv</span>{% endif %}
     </p>
   </div>

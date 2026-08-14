@@ -10,26 +10,22 @@
 </div>
 
 {# ── Block 1: ausbildungsuebergreifende Betreuer (begleiten die gesamte
-     Ausbildung, nicht nur einen einzelnen Einsatz) -- interne Notizen
-     bleiben fuer Staff, s. app/services/betreuung_utils.py ──────────── #}
+     Ausbildung, nicht nur einen einzelnen Einsatz) -- EINE Liste (eine
+     Person kann mehrere Funktionen haben, s. app/models/betreuer.py; eine
+     Gruppierung nach Funktion wuerde sie dann mehrfach zeigen), sortiert
+     nach der wichtigsten Funktion der Person (s. betreuung_utils), je
+     Person ALLE Funktionen als Badges. Interne Notizen bleiben fuer Staff,
+     s. app/services/betreuung_utils.py ──────────────────────────────── #}
 <div class="card card-body" style="margin-bottom:24px;">
   <h2 class="form-section-title">Deine Ansprechpartner in der Ausbildung</h2>
-  {% if betreuer_gruppen %}
-  <div style="display:flex; flex-direction:column; gap:18px;">
-    {% for gruppe in betreuer_gruppen %}
-    <div>
-      <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.03em; color:var(--text-muted); margin:0 0 8px;">
-        {{ gruppe.label }}
-      </h3>
-      <div style="display:flex; flex-direction:column; gap:10px;">
-        {% for b in gruppe.personen %}
-        <div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;">
-          <strong>{{ b.name if b.name else b.upn }}</strong>
-          {% if b.email %}<a href="mailto:{{ b.email }}" style="font-size:13px;">{{ b.email }}</a>{% endif %}
-          {% if b.telefon %}<span class="text-muted" style="font-size:13px;">{{ b.telefon }}</span>{% endif %}
-        </div>
-        {% endfor %}
-      </div>
+  {% if betreuer_liste %}
+  <div style="display:flex; flex-direction:column; gap:10px;">
+    {% for b in betreuer_liste %}
+    <div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;">
+      {% for f in b.funktionen %}<span class="badge badge-gray">{{ FUNKTION_LABELS.get(f, f) }}</span>{% endfor %}
+      <strong>{{ b.name if b.name else b.upn }}</strong>
+      {% if b.email %}<a href="mailto:{{ b.email }}" style="font-size:13px;">{{ b.email }}</a>{% endif %}
+      {% if b.telefon %}<span class="text-muted" style="font-size:13px;">{{ b.telefon }}</span>{% endif %}
     </div>
     {% endfor %}
   </div>

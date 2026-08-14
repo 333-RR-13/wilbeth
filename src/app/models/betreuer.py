@@ -51,6 +51,12 @@ class Betreuer(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     upn: str = Field(unique=True, index=True)
     name: str = Field(default="")
+    # FUNKTION IST FACHLICH ABGELOEST durch funktionen (s. u., seit Migration
+    # 0018funktionen). Die Spalte bleibt in der DB stehen (Datensicherung/
+    # Ruckwaertskompatibilitaet, analog Department.zielgruppe seit Migration
+    # 0016berufe -- s. app/models/department.py), wird aber seither weder in
+    # der UI noch in der Sortierung (app/services/betreuung_utils.py) mehr
+    # ausgewertet -- NICHT weiter pflegen.
     funktion: str = Field(default="SONSTIGES")
     email: str = Field(default="")
     telefon: str = Field(default="")
@@ -59,6 +65,17 @@ class Betreuer(SQLModel, table=True):
     notiz: str = Field(default="")
     aktiv: bool = Field(default=True)
     berufe: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    # Liste von Funktion-Tokens (Schluessel aus FUNKTION_LABELS, z. B.
+    # ["HR", "TECHNISCH"]) -- eine Person kann MEHRERE Funktionen gleichzeitig
+    # ausueben (seit Migration 0018funktionen; ersetzt die Einzelwert-Spalte
+    # funktion oben, analog wie erlaubte_berufe zielgruppe abloeste). Eine
+    # LEERE Liste ist ausdruecklich erlaubt und bedeutet: reiner
+    # Abteilungs-Ausbilder ohne uebergreifende Betreuungsfunktion -- der
+    # Normalfall fuer Personen, die sich nur in ihrer eigenen Abteilung um
+    # Azubis kuemmern (das Formular weist darauf hin). WICHTIG: SQLModel
+    # erkennt In-Place-Mutationen an JSON-Spalten nicht -- beim Aendern immer
+    # eine neue Liste zuweisen (siehe Kommentar in app/models/feedback_bogen.py).
+    funktionen: list[str] = Field(default_factory=list, sa_column=Column(JSON))
 
 
 class BetreuerTrainee(SQLModel, table=True):

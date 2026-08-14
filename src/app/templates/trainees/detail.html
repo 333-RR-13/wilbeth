@@ -125,7 +125,7 @@
   <div style="display:flex; flex-direction:column; gap:8px;">
     {% for b in betreuer_liste %}
     <div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;">
-      <span class="badge badge-gray">{{ FUNKTION_LABELS.get(b.funktion, b.funktion) }}</span>
+      {% for f in b.funktionen %}<span class="badge badge-gray">{{ FUNKTION_LABELS.get(f, f) }}</span>{% endfor %}
       <a href="/ausbilder-verwaltung/{{ b.id }}">{{ b.name if b.name else b.upn }}</a>
       {% if b.email %}<span class="text-muted" style="font-size:13px;">{{ b.email }}</span>{% endif %}
       {% if b.telefon %}<span class="text-muted" style="font-size:13px;">{{ b.telefon }}</span>{% endif %}

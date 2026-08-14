@@ -47,8 +47,8 @@ def test_liste_zeigt_betreuer_mit_funktion_abteilungen_und_status(client, sessio
     _dev_mode(monkeypatch)
     d = Department(code="AI", name="AI Platform", verantwortliche="anna@firma.de")
     session.add(d)
-    b1 = Betreuer(upn="anna@firma.de", name="Anna Beispiel", funktion="HR", aktiv=True)
-    b2 = Betreuer(upn="ben@firma.de", name="Ben Muster", funktion="TECHNISCH", aktiv=False, berufe=["FISI"])
+    b1 = Betreuer(upn="anna@firma.de", name="Anna Beispiel", funktionen=["HR"], aktiv=True)
+    b2 = Betreuer(upn="ben@firma.de", name="Ben Muster", funktionen=["TECHNISCH"], aktiv=False, berufe=["FISI"])
     session.add_all([b1, b2])
     session.commit()
 
@@ -62,6 +62,47 @@ def test_liste_zeigt_betreuer_mit_funktion_abteilungen_und_status(client, sessio
     assert "AI" in r.text  # Abteilungs-Chip fuer Anna
     assert "Inaktiv" in r.text
     assert "FISI" in r.text
+
+
+def test_mehrere_funktionen_erscheinen_als_badges_in_liste_und_profil(client, session, monkeypatch):
+    """Eine Person kann mehrere Funktionen gleichzeitig haben -- beide werden
+    als eigene Badges angezeigt, sowohl in der Liste als auch auf der
+    Profilseite."""
+    _dev_mode(monkeypatch)
+    b = Betreuer(upn="beide@firma.de", name="Beide Funktionen", funktionen=["HR", "TECHNISCH"])
+    session.add(b)
+    session.commit()
+    session.refresh(b)
+
+    _login(client, "orga")
+    r_liste = client.get("/ausbilder-verwaltung/")
+    assert r_liste.status_code == 200
+    assert "Ausbildung (HR)" in r_liste.text
+    assert "Fachlicher Ausbilder" in r_liste.text
+
+    r_profil = client.get(f"/ausbilder-verwaltung/{b.id}")
+    assert r_profil.status_code == 200
+    assert "Ausbildung (HR)" in r_profil.text
+    assert "Fachlicher Ausbilder" in r_profil.text
+
+
+def test_ohne_funktion_ist_reiner_abteilungs_ausbilder(client, session, monkeypatch):
+    """Eine leere Funktionsliste ist ausdruecklich erlaubt (reiner
+    Abteilungs-Ausbilder ohne uebergreifende Betreuungsfunktion)."""
+    _dev_mode(monkeypatch)
+    b = Betreuer(upn="nurabteilung@firma.de", name="Nur Abteilung", funktionen=[])
+    session.add(b)
+    session.commit()
+    session.refresh(b)
+
+    _login(client, "orga")
+    r_liste = client.get("/ausbilder-verwaltung/")
+    assert r_liste.status_code == 200
+    assert "keine" in r_liste.text
+
+    r_profil = client.get(f"/ausbilder-verwaltung/{b.id}")
+    assert r_profil.status_code == 200
+    assert "nur Abteilungs-Ausbilder" in r_profil.text
 
 
 # ── Anlegen ──────────────────────────────────────────────────────────────
@@ -79,7 +120,7 @@ def test_anlegen_speichert_alle_felder_und_synct_abteilung(client, session, monk
     r = client.post("/ausbilder-verwaltung/neu", data={
         "upn": "Neu.Person@Firma.de",
         "name": "Neu Person",
-        "funktion": "EINSATZPLANUNG",
+        "funktion": ["EINSATZPLANUNG", "HR"],
         "email": "neu.person@firma.de",
         "telefon": "+49 30 123",
         "notiz": "interne Notiz",
@@ -96,7 +137,7 @@ def test_anlegen_speichert_alle_felder_und_synct_abteilung(client, session, monk
     ).first()
     assert betreuer is not None
     assert betreuer.name == "Neu Person"
-    assert betreuer.funktion == "EINSATZPLANUNG"
+    assert betreuer.funktionen == ["EINSATZPLANUNG", "HR"]
     assert betreuer.email == "neu.person@firma.de"
     assert betreuer.aktiv is True
     assert betreuer.berufe == ["FISI"]
@@ -145,7 +186,7 @@ def test_bearbeiten_vorschau_zeigt_aktuelle_werte_vorausgewaehlt(client, session
     d2 = Department(code="CP", name="Cloud Platform")
     session.add_all([d1, d2])
     session.add(TraineeClass(name="FISI 1. LJ", berufsschule="X", unterrichts_typ=UnterrichtsTyp.BLOCK_FEST))
-    b = Betreuer(upn="person@firma.de", name="Person Eins", funktion="TECHNISCH", berufe=["FISI"])
+    b = Betreuer(upn="person@firma.de", name="Person Eins", funktionen=["TECHNISCH", "HR"], berufe=["FISI"])
     session.add(b)
     session.commit()
     session.refresh(b)
@@ -159,6 +200,9 @@ def test_bearbeiten_vorschau_zeigt_aktuelle_werte_vorausgewaehlt(client, session
     assert _checkbox_checked(r.text, "abteilung_ids", d1.id) is True
     assert _checkbox_checked(r.text, "abteilung_ids", d2.id) is False
     assert _checkbox_checked(r.text, "beruf", "FISI") is True
+    assert _checkbox_checked(r.text, "funktion", "TECHNISCH") is True
+    assert _checkbox_checked(r.text, "funktion", "HR") is True
+    assert _checkbox_checked(r.text, "funktion", "EINSATZPLANUNG") is False
 
 
 def test_bearbeiten_aendert_felder_und_abteilungen_andere_bleiben(client, session, monkeypatch):
@@ -167,7 +211,7 @@ def test_bearbeiten_aendert_felder_und_abteilungen_andere_bleiben(client, sessio
     d2 = Department(code="CP", name="Cloud Platform", verantwortliche="person.eins@firma.de")
     d3 = Department(code="NW", name="Netzwerk")
     session.add_all([d1, d2, d3])
-    b = Betreuer(upn="person.eins@firma.de", name="Person Eins", funktion="TECHNISCH")
+    b = Betreuer(upn="person.eins@firma.de", name="Person Eins", funktionen=["TECHNISCH"])
     session.add(b)
     session.commit()
     session.refresh(b)
@@ -179,7 +223,7 @@ def test_bearbeiten_aendert_felder_und_abteilungen_andere_bleiben(client, sessio
     r = client.post(f"/ausbilder-verwaltung/{b.id}/bearbeiten", data={
         "upn": "person.eins@firma.de",
         "name": "Person Eins",
-        "funktion": "HR",
+        "funktion": ["HR"],
         "aktiv": "",  # Checkbox nicht gesetzt -> inaktiv
         "abteilung_ids": [str(d1.id), str(d3.id)],
     }, follow_redirects=False)
@@ -188,7 +232,7 @@ def test_bearbeiten_aendert_felder_und_abteilungen_andere_bleiben(client, sessio
 
     session.expire_all()
     b_r = session.get(Betreuer, b.id)
-    assert b_r.funktion == "HR"
+    assert b_r.funktionen == ["HR"]
     assert b_r.aktiv is False
 
     d1_r = session.get(Department, d1.id)

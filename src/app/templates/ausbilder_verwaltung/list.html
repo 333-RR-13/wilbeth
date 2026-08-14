@@ -40,7 +40,15 @@
           <a href="/ausbilder-verwaltung/{{ b.id }}">{{ b.name if b.name else b.upn }}</a>
           {% if b.name %}<div class="mono text-muted" style="font-size:12px;">{{ b.upn }}</div>{% endif %}
         </td>
-        <td><span class="badge badge-gray">{{ FUNKTION_LABELS.get(b.funktion, b.funktion) }}</span></td>
+        <td>
+          {% if b.funktionen %}
+            <div style="display:flex;flex-wrap:wrap;gap:4px;">
+              {% for f in b.funktionen %}<span class="badge badge-gray">{{ FUNKTION_LABELS.get(f, f) }}</span>{% endfor %}
+            </div>
+          {% else %}
+            <span class="text-muted">keine</span>
+          {% endif %}
+        </td>
         <td>
           {% if b.berufe %}
             <div style="display:flex;flex-wrap:wrap;gap:4px;">
